@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stonky"
+version = "0.1.0"
+description = "Stock price history chart viewer"
+requires-python = ">=3.12"
+dependencies = [
+    "yfinance>=1.2.0",
+    "matplotlib>=3.10.0",
+]
+
+[project.scripts]
+stonky = "stonky.app:main"
+stonky-info = "stonky.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[tool.pytest.ini_options]
+# Disable system-installed ROS2 pytest plugins that conflict with Python 3.12
+addopts = "-p no:launch_testing -p no:launch_ros"
