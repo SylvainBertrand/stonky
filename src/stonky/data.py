@@ -88,19 +88,26 @@ def fetch_stock_data(symbol: str, period: str) -> StockData:
     Raises:
         ValueError: if no data is available for the symbol.
     """
+    print(f"[DEBUG] fetch_stock_data: start  symbol={symbol!r}  period={period!r}")
     ticker = yf.Ticker(symbol)
+    print(f"[DEBUG] fetch_stock_data: calling ticker.history …")
     history = ticker.history(period=period)
+    print(f"[DEBUG] fetch_stock_data: history done  empty={history.empty}  rows={len(history)}")
 
     if history.empty:
         raise ValueError(f'No data found for "{symbol}". Check the symbol.')
 
     fast_info = ticker.fast_info
+    print(f"[DEBUG] fetch_stock_data: calling ticker.info …")
     try:
         info = ticker.info
         long_name = info.get("longName") or info.get("shortName") or symbol
-    except Exception:
+        print(f"[DEBUG] fetch_stock_data: ticker.info done  long_name={long_name!r}")
+    except Exception as exc:
+        print(f"[DEBUG] fetch_stock_data: ticker.info failed: {exc!r}  falling back to symbol")
         long_name = symbol
 
+    print(f"[DEBUG] fetch_stock_data: end  long_name={long_name!r}")
     return StockData(
         symbol=symbol,
         period=period,

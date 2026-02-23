@@ -2,7 +2,6 @@
 
 import threading
 import tkinter as tk
-from tkinter import messagebox
 
 import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -36,8 +35,18 @@ class StockChartApp(tk.Tk):
         self._current_period = tk.StringVar(value="1y")
         self._current_symbol = ""
         self._fetch_thread = None
+        self._pending_data = None
 
         self._build_ui()
+        
+        # Ensure window is visible and brought to front
+        self.lift()
+        self.attributes('-topmost', True)
+        self.after_idle(self.attributes, '-topmost', False)
+        
+        # Start a periodic check for pending data
+        self._check_pending_data()
+        print("[DEBUG] __init__: StockChartApp initialized")
 
     # ------------------------------------------------------------------ UI ---
 
@@ -155,6 +164,19 @@ class StockChartApp(tk.Tk):
         if self._current_symbol:
             self._load_data()
 
+    def _check_pending_data(self):
+        """Periodically check if background thread has data ready to render."""
+        if self._pending_data is not None:
+            print(f"[DEBUG] _check_pending_data: found pending data, rendering...")
+            data = self._pending_data
+            self._pending_data = None
+            if isinstance(data, StockData):
+                self._render_chart(data)
+            elif isinstance(data, str):
+                self._show_error(data)
+        # Check again in 100ms
+        self.after(100, self._check_pending_data)
+
     def _load_data(self):
         symbol = self._current_symbol
         period = self._current_period.get()
@@ -165,23 +187,40 @@ class StockChartApp(tk.Tk):
         self._fetch_thread.start()
 
     def _fetch_and_plot(self, symbol: str, period: str):
+        import traceback
+        print(f"[DEBUG] _fetch_and_plot: start  symbol={symbol!r}  period={period!r}  thread={threading.current_thread().name}")
         try:
+            print(f"[DEBUG] _fetch_and_plot: calling fetch_stock_data …")
             data = fetch_stock_data(symbol, period)
-            self.after(0, self._render_chart, data)
+            print(f"[DEBUG] _fetch_and_plot: fetch OK  rows={len(data.history)}  long_name={data.long_name!r}")
+            print(f"[DEBUG] _fetch_and_plot: setting _pending_data for main thread to pick up")
+            self._pending_data = data
+            print(f"[DEBUG] _fetch_and_plot: _pending_data set")
         except ValueError as exc:
-            self.after(0, self._show_error, str(exc))
+            print(f"[DEBUG] _fetch_and_plot: ValueError: {exc}")
+            traceback.print_exc()
+            self._pending_data = str(exc)
         except Exception as exc:
-            self.after(0, self._show_error, f"Error fetching data: {exc}")
+            print(f"[DEBUG] _fetch_and_plot: unexpected exception: {exc!r}")
+            traceback.print_exc()
+            self._pending_data = f"Error fetching data: {exc}"
+        print(f"[DEBUG] _fetch_and_plot: end")
 
     # ---------------------------------------------------------- rendering -----
 
     def _render_chart(self, data: StockData):
+        print(f"[DEBUG] _render_chart: called  symbol={data.symbol!r}  thread={threading.current_thread().name}")
         try:
             self._render_chart_inner(data)
+            print(f"[DEBUG] _render_chart: done OK")
         except Exception as exc:
+            import traceback
+            print(f"[DEBUG] _render_chart: exception: {exc!r}")
+            traceback.print_exc()
             self._show_error(f"Error rendering chart: {exc}")
 
     def _render_chart_inner(self, data: StockData):
+        print(f"[DEBUG] _render_chart_inner: start")
         self._ax.clear()
         self._ax.set_facecolor(PANEL_BG)
 
@@ -261,17 +300,21 @@ class StockChartApp(tk.Tk):
             f"Showing {len(data.history)} trading days for {data.symbol}. "
             f"Last close: {last['Close']:.2f}"
         )
+        print(f"[DEBUG] _render_chart_inner: end  status={self._status_var.get()!r}")
 
     def _show_error(self, msg: str):
-        self._status_var.set(msg)
-        messagebox.showerror("Error", msg)
+        print(f"[DEBUG] _show_error: {msg!r}")
+        self._status_var.set(f"Error: {msg}")
 
 
 # ----------------------------------------------------------------- main -----
 
 def main():
+    print("[DEBUG] main: creating StockChartApp...")
     app = StockChartApp()
+    print("[DEBUG] main: starting mainloop...")
     app.mainloop()
+    print("[DEBUG] main: mainloop exited")
 
 
 if __name__ == "__main__":
