@@ -1,0 +1,260 @@
+:root {
+  --bg:       #1e1e2e;
+  --surface:  #2a2a3e;
+  --surface2: #313244;
+  --border:   #45475a;
+  --text:     #cdd6f4;
+  --subtext:  #a6adc8;
+  --accent:   #7c6af7;
+  --green:    #a6e3a1;
+  --red:      #f38ba8;
+  --yellow:   #f9e2af;
+  --blue:     #89b4fa;
+  --mauve:    #cba6f7;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* ── Layout ────────────────────────────────── */
+.view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+.hidden { display: none !important; }
+
+/* ── Header ────────────────────────────────── */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.app-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+  flex: 1;
+}
+
+.stock-header {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.stock-symbol {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.stock-name {
+  font-size: 12px;
+  color: var(--subtext);
+}
+
+.chart-price-info {
+  font-size: 13px;
+  text-align: right;
+  color: var(--subtext);
+  white-space: nowrap;
+}
+
+.chart-price-info .price { font-size: 18px; font-weight: 600; color: var(--text); }
+.chart-price-info .change.up { color: var(--green); }
+.chart-price-info .change.down { color: var(--red); }
+
+/* ── Icon buttons ───────────────────────────── */
+.btn-icon {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--subtext);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.btn-icon:hover { color: var(--text); border-color: var(--accent); background: var(--surface2); }
+
+/* ── Dashboard grid ─────────────────────────── */
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.stock-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 110px;
+}
+.stock-card:hover { border-color: var(--accent); background: var(--surface2); transform: translateY(-1px); }
+
+.card-symbol {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.card-name {
+  font-size: 11px;
+  color: var(--subtext);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+.card-price {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+.card-change {
+  font-size: 12px;
+  font-weight: 500;
+}
+.card-change.up { color: var(--green); }
+.card-change.down { color: var(--red); }
+.card-loading { color: var(--subtext); font-size: 12px; }
+.card-error { color: var(--red); font-size: 11px; }
+
+/* ── Chart controls ─────────────────────────── */
+.chart-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-label {
+  font-size: 11px;
+  color: var(--subtext);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.btn-group {
+  display: flex;
+  gap: 2px;
+  background: var(--surface2);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.btn-seg {
+  background: none;
+  border: none;
+  color: var(--subtext);
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: color 0.15s, background 0.15s;
+}
+.btn-seg:hover { color: var(--text); }
+.btn-seg.active { background: var(--accent); color: #fff; }
+
+.indicator-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.btn-tag {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--subtext);
+  cursor: pointer;
+  padding: 3px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.btn-tag:hover { color: var(--text); border-color: var(--subtext); }
+.btn-tag.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* ── Chart area ─────────────────────────────── */
+.chart-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.chart-pane {
+  flex: 3;
+  min-height: 0;
+  position: relative;
+}
+
+.pane-small {
+  flex: 1;
+  min-height: 80px;
+  max-height: 140px;
+  border-top: 1px solid var(--border);
+}
+
+.pane-label {
+  position: absolute;
+  top: 6px;
+  left: 10px;
+  font-size: 10px;
+  color: var(--subtext);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.chart-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--subtext);
+  font-size: 14px;
+  z-index: 10;
+  background: var(--bg);
+}
