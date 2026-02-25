@@ -1,4 +1,4 @@
-"""Frontend: stock price history chart viewer (tkinter UI)."""
+"""Frontend: portfolio dashboard and stock price chart viewer (tkinter UI)."""
 
 import threading
 import tkinter as tk
@@ -7,7 +7,7 @@ import matplotlib.dates as mdates
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.figure import Figure
 
-from stonky.data import StockData, fetch_stock_data
+from stonky.data import Quote, StockData, fetch_quote, fetch_stock_data, load_portfolio
 
 
 PERIODS = ["1mo", "3mo", "6mo", "1y", "2y", "5y"]
@@ -24,69 +24,219 @@ RED = "#f38ba8"
 BORDER = "#45475a"
 
 
+# ---------------------------------------------------------------- views -----
+
 class StockChartApp(tk.Tk):
-    def __init__(self):
+    """Root window — thin container that manages the active view."""
+
+    def __init__(self, portfolio_path):
         super().__init__()
-        self.title("Stock Price History")
-        self.geometry("1100x720")
-        self.minsize(800, 560)
+        self.title("Stonky")
+        self.geometry("1200x800")
+        self.minsize(900, 600)
         self.configure(bg=DARK_BG)
 
-        self._current_period = tk.StringVar(value="1y")
-        self._current_symbol = ""
-        self._fetch_thread = None
+        symbols = load_portfolio(portfolio_path)
+        self._dashboard = DashboardView(self, symbols, on_select=self._show_chart)
+        self._chart_view: ChartView | None = None
+        self._show_dashboard()
+
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after_idle(self.attributes, "-topmost", False)
+
+    def _show_dashboard(self):
+        if self._chart_view is not None:
+            self._chart_view.pack_forget()
+        self._dashboard.pack(fill=tk.BOTH, expand=True)
+
+    def _show_chart(self, symbol: str):
+        self._dashboard.pack_forget()
+        if self._chart_view is not None:
+            self._chart_view.destroy()
+        self._chart_view = ChartView(self, symbol, on_back=self._show_dashboard)
+        self._chart_view.pack(fill=tk.BOTH, expand=True)
+
+
+class DashboardView(tk.Frame):
+    """Scrollable grid of PortfolioTile widgets."""
+
+    COLS = 4
+
+    def __init__(self, master, symbols: list[str], *, on_select):
+        super().__init__(master, bg=DARK_BG)
+
+        # ── Header ──────────────────────────────────────────────────────────
+        header = tk.Frame(self, bg=DARK_BG, pady=14, padx=20)
+        header.pack(fill=tk.X)
+        tk.Label(
+            header, text="Portfolio Dashboard",
+            font=("Helvetica", 18, "bold"), fg=TEXT, bg=DARK_BG,
+        ).pack(side=tk.LEFT)
+        tk.Label(
+            header,
+            text=f"{len(symbols)} stocks  —  double-click a tile to view chart",
+            font=("Helvetica", 10), fg=SUBTEXT, bg=DARK_BG,
+        ).pack(side=tk.LEFT, padx=(20, 0))
+
+        # ── Scrollable canvas ────────────────────────────────────────────────
+        container = tk.Frame(self, bg=DARK_BG)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(container, orient=tk.VERTICAL)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self._canvas = tk.Canvas(
+            container, bg=DARK_BG, highlightthickness=0,
+            yscrollcommand=scrollbar.set,
+        )
+        self._canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self._canvas.yview)
+
+        self._inner = tk.Frame(self._canvas, bg=DARK_BG)
+        self._window_id = self._canvas.create_window(
+            (0, 0), window=self._inner, anchor="nw",
+        )
+
+        self._inner.bind("<Configure>", self._on_frame_configure)
+        self._canvas.bind("<Configure>", self._on_canvas_configure)
+        for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+            self._canvas.bind(seq, self._on_mousewheel)
+
+        # ── Tiles ────────────────────────────────────────────────────────────
+        for i, sym in enumerate(symbols):
+            row, col = divmod(i, self.COLS)
+            PortfolioTile(self._inner, sym, on_select=on_select).grid(
+                row=row, column=col, padx=10, pady=10,
+            )
+
+    def _on_frame_configure(self, _e=None):
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _on_canvas_configure(self, e):
+        self._canvas.itemconfig(self._window_id, width=e.width)
+
+    def _on_mousewheel(self, e):
+        if e.num == 4:
+            self._canvas.yview_scroll(-1, "units")
+        elif e.num == 5:
+            self._canvas.yview_scroll(1, "units")
+        else:
+            self._canvas.yview_scroll(int(-1 * (e.delta / 120)), "units")
+
+
+class PortfolioTile(tk.Frame):
+    """Fixed-size card showing live quote data for one stock."""
+
+    W, H = 220, 120
+
+    def __init__(self, master, symbol: str, *, on_select):
+        super().__init__(
+            master, bg=PANEL_BG, width=self.W, height=self.H,
+            relief=tk.FLAT, cursor="hand2",
+        )
+        self.pack_propagate(False)
+        self._symbol = symbol
+        self._on_select = on_select
+        self._pending_quote = None
+
+        self._sym_lbl = tk.Label(
+            self, text=symbol, font=("Helvetica", 14, "bold"), fg=TEXT, bg=PANEL_BG,
+        )
+        self._sym_lbl.pack(anchor="w", padx=10, pady=(10, 0))
+
+        self._name_lbl = tk.Label(
+            self, text="Loading…", font=("Helvetica", 9), fg=SUBTEXT, bg=PANEL_BG,
+        )
+        self._name_lbl.pack(anchor="w", padx=10)
+
+        self._price_lbl = tk.Label(
+            self, text="—", font=("Helvetica", 16, "bold"), fg=TEXT, bg=PANEL_BG,
+        )
+        self._price_lbl.pack(anchor="w", padx=10, pady=(6, 0))
+
+        self._change_lbl = tk.Label(
+            self, text="", font=("Helvetica", 10), fg=SUBTEXT, bg=PANEL_BG,
+        )
+        self._change_lbl.pack(anchor="w", padx=10)
+
+        for w in (self, self._sym_lbl, self._name_lbl, self._price_lbl, self._change_lbl):
+            w.bind("<Double-Button-1>", lambda _e: self._on_select(self._symbol))
+
+        threading.Thread(target=self._fetch, daemon=True).start()
+        self._poll()
+
+    def _fetch(self):
+        try:
+            self._pending_quote = fetch_quote(self._symbol)
+        except Exception as exc:
+            self._pending_quote = exc
+
+    def _poll(self):
+        if not self.winfo_exists():
+            return
+        if self._pending_quote is not None:
+            q = self._pending_quote
+            self._pending_quote = None
+            if isinstance(q, Quote):
+                self._update(q)
+            else:
+                self._name_lbl.config(text="Unavailable")
+        else:
+            self.after(100, self._poll)
+
+    def _update(self, q: Quote):
+        sign = "+" if q.change >= 0 else ""
+        color = GREEN if q.change >= 0 else RED
+        self._name_lbl.config(text=(q.long_name or q.symbol)[:24])
+        self._price_lbl.config(text=f"{q.last_price:.2f}")
+        self._change_lbl.config(
+            text=f"{sign}{q.change:.2f} ({sign}{q.change_pct:.2f}%)",
+            fg=color,
+        )
+
+
+class ChartView(tk.Frame):
+    """Chart panel for a single stock symbol."""
+
+    def __init__(self, master, symbol: str, *, on_back):
+        super().__init__(master, bg=DARK_BG)
+        self._symbol = symbol
+        self._on_back = on_back
         self._pending_data = None
+        self._current_period = tk.StringVar(value="1y")
 
         self._build_ui()
-        
-        # Ensure window is visible and brought to front
-        self.lift()
-        self.attributes('-topmost', True)
-        self.after_idle(self.attributes, '-topmost', False)
-        
-        # Start a periodic check for pending data
-        self._check_pending_data()
-        print("[DEBUG] __init__: StockChartApp initialized")
+        self._load_data()
+        self._poll()
 
-    # ------------------------------------------------------------------ UI ---
+    # --------------------------------------------------------------- UI -----
 
     def _build_ui(self):
-        # ── Top search bar ──────────────────────────────────────────────────
+        # ── Top bar ──────────────────────────────────────────────────────────
         top = tk.Frame(self, bg=DARK_BG, pady=14, padx=20)
         top.pack(fill=tk.X)
 
-        tk.Label(
-            top, text="Stock Chart", font=("Helvetica", 18, "bold"),
-            fg=TEXT, bg=DARK_BG
+        tk.Button(
+            top, text="← Back",
+            font=("Helvetica", 11), bg=PANEL_BG, fg=TEXT,
+            activebackground=ENTRY_BG, relief=tk.FLAT, bd=0,
+            padx=10, pady=4, cursor="hand2",
+            command=self._on_back,
         ).pack(side=tk.LEFT, padx=(0, 20))
 
-        self._search_var = tk.StringVar()
-        entry = tk.Entry(
-            top, textvariable=self._search_var,
-            font=("Helvetica", 14), width=14,
-            bg=ENTRY_BG, fg=TEXT, insertbackground=TEXT,
-            relief=tk.FLAT, bd=0, highlightthickness=2,
-            highlightcolor=ACCENT, highlightbackground=BORDER,
-        )
-        entry.pack(side=tk.LEFT, ipady=6, padx=(0, 8))
-        entry.bind("<Return>", lambda _e: self._trigger_search())
-        entry.focus_set()
+        tk.Label(
+            top, text=f"Stock Chart — {self._symbol}",
+            font=("Helvetica", 18, "bold"), fg=TEXT, bg=DARK_BG,
+        ).pack(side=tk.LEFT, padx=(0, 20))
 
-        search_btn = tk.Button(
-            top, text="Search",
-            font=("Helvetica", 12, "bold"),
-            bg=ACCENT, fg="#ffffff", activebackground="#9d8ff9",
-            relief=tk.FLAT, bd=0, padx=16, pady=6, cursor="hand2",
-            command=self._trigger_search,
-        )
-        search_btn.pack(side=tk.LEFT, padx=(0, 20))
-
-        # ── Period selector ────────────────────────────────────────────────
-        tk.Label(top, text="Period:", fg=SUBTEXT, bg=DARK_BG,
-                 font=("Helvetica", 11)).pack(side=tk.LEFT, padx=(0, 6))
+        # ── Period selector ───────────────────────────────────────────────────
+        tk.Label(
+            top, text="Period:", fg=SUBTEXT, bg=DARK_BG, font=("Helvetica", 11),
+        ).pack(side=tk.LEFT, padx=(0, 6))
 
         for period, label in zip(PERIODS, PERIOD_LABELS):
-            rb = tk.Radiobutton(
+            tk.Radiobutton(
                 top, text=label, value=period,
                 variable=self._current_period,
                 font=("Helvetica", 11),
@@ -95,20 +245,17 @@ class StockChartApp(tk.Tk):
                 activeforeground=TEXT, indicatoron=False,
                 relief=tk.FLAT, bd=0, padx=8, pady=4,
                 cursor="hand2",
-                command=self._on_period_change,
-            )
-            rb.pack(side=tk.LEFT, padx=2)
+                command=self._load_data,
+            ).pack(side=tk.LEFT, padx=2)
 
-        # ── Status bar ─────────────────────────────────────────────────────
-        self._status_var = tk.StringVar(value="Enter a ticker symbol and press Search.")
-        status_bar = tk.Label(
+        # ── Status bar ────────────────────────────────────────────────────────
+        self._status_var = tk.StringVar(value=f"Loading {self._symbol}…")
+        tk.Label(
             self, textvariable=self._status_var,
-            font=("Helvetica", 10), fg=SUBTEXT, bg=DARK_BG, anchor="w",
-            padx=22,
-        )
-        status_bar.pack(fill=tk.X)
+            font=("Helvetica", 10), fg=SUBTEXT, bg=DARK_BG, anchor="w", padx=22,
+        ).pack(fill=tk.X)
 
-        # ── Chart area ─────────────────────────────────────────────────────
+        # ── Chart area ────────────────────────────────────────────────────────
         chart_frame = tk.Frame(self, bg=DARK_BG, padx=16, pady=8)
         chart_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -119,29 +266,26 @@ class StockChartApp(tk.Tk):
         for spine in self._ax.spines.values():
             spine.set_edgecolor(BORDER)
         self._ax.set_xlabel("Date", color=SUBTEXT)
-        self._ax.set_ylabel("Price (USD)", color=SUBTEXT)
-        self._ax.set_title("Search for a ticker symbol to get started", color=TEXT,
-                            fontsize=13, pad=12)
+        self._ax.set_ylabel("Price", color=SUBTEXT)
+        self._ax.set_title(f"Loading {self._symbol}…", color=TEXT, fontsize=13, pad=12)
         self._fig.tight_layout(pad=2.5)
 
-        self._canvas = FigureCanvasTkAgg(self._fig, master=chart_frame)
-        self._canvas.draw()
-        self._canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self._canvas_widget = FigureCanvasTkAgg(self._fig, master=chart_frame)
+        self._canvas_widget.draw()
+        self._canvas_widget.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
         toolbar_frame = tk.Frame(chart_frame, bg=DARK_BG)
         toolbar_frame.pack(fill=tk.X)
-        toolbar = NavigationToolbar2Tk(self._canvas, toolbar_frame)
+        toolbar = NavigationToolbar2Tk(self._canvas_widget, toolbar_frame)
         toolbar.config(bg=DARK_BG)
         toolbar.update()
 
-        # ── Info panel ─────────────────────────────────────────────────────
-        self._info_frame = tk.Frame(self, bg=DARK_BG, padx=20, pady=6)
-        self._info_frame.pack(fill=tk.X)
+        # ── Info panel ────────────────────────────────────────────────────────
+        info_frame = tk.Frame(self, bg=DARK_BG, padx=20, pady=6)
+        info_frame.pack(fill=tk.X)
         self._info_labels: dict[str, tk.Label] = {}
-        for key in ("Company", "Exchange", "Currency", "Open",
-                    "High", "Low", "Close", "Change"):
-            col = tk.Frame(self._info_frame, bg=PANEL_BG,
-                           padx=12, pady=6, relief=tk.FLAT)
+        for key in ("Company", "Exchange", "Currency", "Open", "High", "Low", "Close", "Change"):
+            col = tk.Frame(info_frame, bg=PANEL_BG, padx=12, pady=6, relief=tk.FLAT)
             col.pack(side=tk.LEFT, padx=4, pady=4)
             tk.Label(col, text=key.upper(), fg=SUBTEXT, bg=PANEL_BG,
                      font=("Helvetica", 8, "bold")).pack(anchor="w")
@@ -152,75 +296,44 @@ class StockChartApp(tk.Tk):
 
     # ----------------------------------------------------------- actions -----
 
-    def _trigger_search(self):
-        symbol = self._search_var.get().strip().upper()
-        if not symbol:
-            self._status_var.set("Please enter a ticker symbol.")
+    def _load_data(self):
+        period = self._current_period.get()
+        self._status_var.set(f"Fetching data for {self._symbol}…")
+        self._pending_data = None
+        threading.Thread(
+            target=self._fetch_and_plot, args=(self._symbol, period), daemon=True,
+        ).start()
+
+    def _fetch_and_plot(self, symbol: str, period: str):
+        try:
+            data = fetch_stock_data(symbol, period)
+            self._pending_data = data
+        except ValueError as exc:
+            self._pending_data = str(exc)
+        except Exception as exc:
+            self._pending_data = f"Error fetching data: {exc}"
+
+    def _poll(self):
+        if not self.winfo_exists():
             return
-        self._current_symbol = symbol
-        self._load_data()
-
-    def _on_period_change(self):
-        if self._current_symbol:
-            self._load_data()
-
-    def _check_pending_data(self):
-        """Periodically check if background thread has data ready to render."""
         if self._pending_data is not None:
-            print(f"[DEBUG] _check_pending_data: found pending data, rendering...")
             data = self._pending_data
             self._pending_data = None
             if isinstance(data, StockData):
                 self._render_chart(data)
-            elif isinstance(data, str):
-                self._show_error(data)
-        # Check again in 100ms
-        self.after(100, self._check_pending_data)
-
-    def _load_data(self):
-        symbol = self._current_symbol
-        period = self._current_period.get()
-        self._status_var.set(f"Fetching data for {symbol}…")
-        self._fetch_thread = threading.Thread(
-            target=self._fetch_and_plot, args=(symbol, period), daemon=True
-        )
-        self._fetch_thread.start()
-
-    def _fetch_and_plot(self, symbol: str, period: str):
-        import traceback
-        print(f"[DEBUG] _fetch_and_plot: start  symbol={symbol!r}  period={period!r}  thread={threading.current_thread().name}")
-        try:
-            print(f"[DEBUG] _fetch_and_plot: calling fetch_stock_data …")
-            data = fetch_stock_data(symbol, period)
-            print(f"[DEBUG] _fetch_and_plot: fetch OK  rows={len(data.history)}  long_name={data.long_name!r}")
-            print(f"[DEBUG] _fetch_and_plot: setting _pending_data for main thread to pick up")
-            self._pending_data = data
-            print(f"[DEBUG] _fetch_and_plot: _pending_data set")
-        except ValueError as exc:
-            print(f"[DEBUG] _fetch_and_plot: ValueError: {exc}")
-            traceback.print_exc()
-            self._pending_data = str(exc)
-        except Exception as exc:
-            print(f"[DEBUG] _fetch_and_plot: unexpected exception: {exc!r}")
-            traceback.print_exc()
-            self._pending_data = f"Error fetching data: {exc}"
-        print(f"[DEBUG] _fetch_and_plot: end")
+            else:
+                self._status_var.set(f"Error: {data}")
+        self.after(100, self._poll)
 
     # ---------------------------------------------------------- rendering -----
 
     def _render_chart(self, data: StockData):
-        print(f"[DEBUG] _render_chart: called  symbol={data.symbol!r}  thread={threading.current_thread().name}")
         try:
             self._render_chart_inner(data)
-            print(f"[DEBUG] _render_chart: done OK")
         except Exception as exc:
-            import traceback
-            print(f"[DEBUG] _render_chart: exception: {exc!r}")
-            traceback.print_exc()
-            self._show_error(f"Error rendering chart: {exc}")
+            self._status_var.set(f"Error rendering chart: {exc}")
 
     def _render_chart_inner(self, data: StockData):
-        print(f"[DEBUG] _render_chart_inner: start")
         self._ax.clear()
         self._ax.set_facecolor(PANEL_BG)
 
@@ -263,17 +376,17 @@ class StockChartApp(tk.Tk):
             (idx_max, "bottom", f"High\n{closes[idx_max]:.2f}"),
             (idx_min, "top",    f"Low\n{closes[idx_min]:.2f}"),
         ]:
-            val = closes[idx]
             self._ax.annotate(
                 label_text,
-                xy=(idx, val), xytext=(0, 20 if va == "bottom" else -20),
+                xy=(idx, closes[idx]),
+                xytext=(0, 20 if va == "bottom" else -20),
                 textcoords="offset points",
                 arrowprops=dict(arrowstyle="-", color=SUBTEXT, lw=1),
                 color=SUBTEXT, fontsize=8, ha="center", va=va,
             )
 
         self._fig.tight_layout(pad=2.5)
-        self._canvas.draw()
+        self._canvas_widget.draw()
 
         last = data.history.iloc[-1]
         prev_close = data.history["Close"].iloc[-2] if len(data.history) > 1 else last["Open"]
@@ -300,21 +413,31 @@ class StockChartApp(tk.Tk):
             f"Showing {len(data.history)} trading days for {data.symbol}. "
             f"Last close: {last['Close']:.2f}"
         )
-        print(f"[DEBUG] _render_chart_inner: end  status={self._status_var.get()!r}")
-
-    def _show_error(self, msg: str):
-        print(f"[DEBUG] _show_error: {msg!r}")
-        self._status_var.set(f"Error: {msg}")
 
 
 # ----------------------------------------------------------------- main -----
 
 def main():
-    print("[DEBUG] main: creating StockChartApp...")
-    app = StockChartApp()
-    print("[DEBUG] main: starting mainloop...")
+    import argparse
+    import sys
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description="Stonky — portfolio dashboard")
+    parser.add_argument(
+        "portfolio",
+        nargs="?",
+        default="portfolio.csv",
+        help="Path to portfolio CSV (default: portfolio.csv)",
+    )
+    args = parser.parse_args()
+
+    portfolio_path = Path(args.portfolio)
+    try:
+        app = StockChartApp(portfolio_path)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     app.mainloop()
-    print("[DEBUG] main: mainloop exited")
 
 
 if __name__ == "__main__":

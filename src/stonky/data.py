@@ -1,12 +1,15 @@
 """Backend: data fetching and domain types.
 
-All yfinance access lives here. The UI layer imports only StockData and
-fetch_stock_data, so the backend is fully testable without a display.
+All yfinance access lives here. The UI layer imports only StockData,
+fetch_stock_data, fetch_quote, and load_portfolio, so the backend is
+fully testable without a display.
 """
 
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 import yfinance as yf
@@ -88,26 +91,19 @@ def fetch_stock_data(symbol: str, period: str) -> StockData:
     Raises:
         ValueError: if no data is available for the symbol.
     """
-    print(f"[DEBUG] fetch_stock_data: start  symbol={symbol!r}  period={period!r}")
     ticker = yf.Ticker(symbol)
-    print(f"[DEBUG] fetch_stock_data: calling ticker.history …")
     history = ticker.history(period=period)
-    print(f"[DEBUG] fetch_stock_data: history done  empty={history.empty}  rows={len(history)}")
 
     if history.empty:
         raise ValueError(f'No data found for "{symbol}". Check the symbol.')
 
     fast_info = ticker.fast_info
-    print(f"[DEBUG] fetch_stock_data: calling ticker.info …")
     try:
         info = ticker.info
         long_name = info.get("longName") or info.get("shortName") or symbol
-        print(f"[DEBUG] fetch_stock_data: ticker.info done  long_name={long_name!r}")
-    except Exception as exc:
-        print(f"[DEBUG] fetch_stock_data: ticker.info failed: {exc!r}  falling back to symbol")
+    except Exception:
         long_name = symbol
 
-    print(f"[DEBUG] fetch_stock_data: end  long_name={long_name!r}")
     return StockData(
         symbol=symbol,
         period=period,
@@ -116,3 +112,38 @@ def fetch_stock_data(symbol: str, period: str) -> StockData:
         exchange=getattr(fast_info, "exchange", "—"),
         currency=getattr(fast_info, "currency", "USD"),
     )
+
+
+def load_portfolio(path: str | Path) -> list[str]:
+    """Load ticker symbols from a CSV file with a 'symbol' column.
+
+    Symbols are uppercased, whitespace-trimmed, and deduplicated (preserving
+    first occurrence order). Empty rows are skipped.
+
+    Raises:
+        FileNotFoundError: if *path* does not exist.
+        ValueError: if the CSV has no 'symbol' column.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Portfolio file not found: {path}")
+
+    symbols: list[str] = []
+    seen: set[str] = set()
+
+    with path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        raw_fields = reader.fieldnames or []
+        lower_fields = [f.strip().lower() for f in raw_fields]
+        if "symbol" not in lower_fields:
+            raise ValueError(f"'{path}' has no 'symbol' column.")
+        symbol_field = raw_fields[lower_fields.index("symbol")]
+
+        for row in reader:
+            raw = row.get(symbol_field, "") or ""
+            sym = raw.strip().upper()
+            if sym and sym not in seen:
+                seen.add(sym)
+                symbols.append(sym)
+
+    return symbols

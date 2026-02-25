@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from stonky.data import Quote, StockData, fetch_quote, fetch_stock_data
+from stonky.data import Quote, StockData, fetch_quote, fetch_stock_data, load_portfolio
 
 
 # ---------------------------------------------------------------- helpers ---
@@ -282,3 +282,57 @@ class TestFetchQuoteErrors:
         with patch("stonky.data.yf.Ticker", return_value=_make_quote_ticker(fi)):
             result = fetch_quote("AAPL")
         assert result.change_pct == 0.0
+
+
+# =========================================================== load_portfolio ===
+
+class TestLoadPortfolio:
+    def test_returns_list_of_symbols(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("symbol\nAAPL\nMSFT\n")
+        assert load_portfolio(csv_file) == ["AAPL", "MSFT"]
+
+    def test_uppercase_symbols(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("symbol\naapl\nmsft\n")
+        assert load_portfolio(csv_file) == ["AAPL", "MSFT"]
+
+    def test_strips_whitespace_from_symbols(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("symbol\n  AAPL  \n MSFT\n")
+        assert load_portfolio(csv_file) == ["AAPL", "MSFT"]
+
+    def test_deduplicates_preserving_order(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("symbol\nAAPL\nMSFT\nAAPL\nGOOGL\n")
+        assert load_portfolio(csv_file) == ["AAPL", "MSFT", "GOOGL"]
+
+    def test_case_insensitive_column_header(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("Symbol\nAAPL\nMSFT\n")
+        assert load_portfolio(csv_file) == ["AAPL", "MSFT"]
+
+    def test_skips_empty_rows(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("symbol\nAAPL\n\nMSFT\n")
+        assert load_portfolio(csv_file) == ["AAPL", "MSFT"]
+
+    def test_returns_empty_list_for_header_only(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("symbol\n")
+        assert load_portfolio(csv_file) == []
+
+    def test_accepts_path_as_string(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("symbol\nAAPL\n")
+        assert load_portfolio(str(csv_file)) == ["AAPL"]
+
+    def test_raises_file_not_found(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="missing.csv"):
+            load_portfolio(tmp_path / "missing.csv")
+
+    def test_raises_value_error_when_no_symbol_column(self, tmp_path):
+        csv_file = tmp_path / "portfolio.csv"
+        csv_file.write_text("ticker\nAAPL\n")
+        with pytest.raises(ValueError, match="symbol"):
+            load_portfolio(csv_file)
