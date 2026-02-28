@@ -34,6 +34,7 @@
         <span id="chart-symbol" class="stock-symbol"></span>
         <span id="chart-name" class="stock-name"></span>
       </div>
+      <button id="chart-report-btn" class="btn-icon" title="Open report card">Report</button>
       <div id="chart-price-info" class="chart-price-info"></div>
     </header>
 
@@ -89,6 +90,21 @@
       <div id="volume-chart" class="chart-pane pane-small hidden"></div>
       <div id="rsi-chart" class="chart-pane pane-small hidden"></div>
       <div id="macd-chart" class="chart-pane pane-small hidden"></div>
+    </div>
+  </div>
+
+  <div id="report-card-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="report-card-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="report-card-title">Report card</h2>
+        <button id="report-card-close" class="btn-icon" title="Close report card">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="report-card-symbol" class="report-symbol"></div>
+        <p id="report-card-dummy" class="report-dummy">
+          Dummy report card placeholder. This will eventually include fundamentals, technicals, sentiment, and notes.
+        </p>
+      </div>
     </div>
   </div>
 

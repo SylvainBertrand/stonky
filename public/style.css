@@ -145,6 +145,17 @@ html, body {
 .card-loading { color: var(--subtext); font-size: 12px; }
 .card-error { color: var(--red); font-size: 11px; }
 
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.btn-card-report {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
 /* ── Chart controls ─────────────────────────── */
 .chart-controls {
   display: flex;
@@ -272,4 +283,55 @@ html, body {
   font-size: 14px;
   z-index: 10;
   background: var(--bg);
+}
+
+/* ── Modal ─────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal-card {
+  width: min(560px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.modal-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.report-symbol {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.report-dummy {
+  color: var(--subtext);
+  line-height: 1.5;
 }

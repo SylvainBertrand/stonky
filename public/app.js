@@ -95,8 +95,18 @@ function createCard(symbol) {
     <div class="card-name">&nbsp;</div>
     <div class="card-price card-loading">Loading…</div>
     <div class="card-change">&nbsp;</div>
+    <div class="card-actions">
+      <button class="btn-tag btn-card-report" data-report-symbol="${symbol}">Report</button>
+    </div>
   `;
   card.addEventListener('click', () => openChart(symbol));
+
+  const reportBtn = card.querySelector('[data-report-symbol]');
+  reportBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    openReportCard(symbol);
+  });
+
   return card;
 }
 
@@ -125,6 +135,15 @@ async function openChart(symbol) {
   $('chart-name').textContent = nameCache.get(symbol) ?? '';
   $('chart-price-info').innerHTML = '';
   await loadChart();
+}
+
+function openReportCard(symbol) {
+  $('report-card-symbol').textContent = symbol;
+  $('report-card-modal').classList.remove('hidden');
+}
+
+function closeReportCard() {
+  $('report-card-modal').classList.add('hidden');
 }
 
 function getHistoryKey(symbol, period, interval) {
@@ -414,6 +433,21 @@ function setupResizeObserver(charts) {
 $('back-btn').addEventListener('click', showDashboard);
 
 $('refresh-btn').addEventListener('click', showDashboard);
+
+$('chart-report-btn').addEventListener('click', () => {
+  if (!state.currentSymbol) return;
+  openReportCard(state.currentSymbol);
+});
+
+$('report-card-close').addEventListener('click', closeReportCard);
+
+$('report-card-modal').addEventListener('click', e => {
+  if (e.target.id === 'report-card-modal') closeReportCard();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeReportCard();
+});
 
 $('period-group').addEventListener('click', e => {
   const btn = e.target.closest('[data-period]');
