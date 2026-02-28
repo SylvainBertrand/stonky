@@ -1,4 +1,7 @@
 import { sma, ema, bollingerBands, rsi, macd } from '/indicators.js';
+import { analyzeElliottWave } from '/elliott-wave.js';
+import { renderElliottWave } from '/elliott-wave-render.js';
+import { generateElliottWaveReport } from '/elliott-wave-report.js';
 
 // ── Theme ──────────────────────────────────────────────────────────────────
 const T = {
@@ -39,6 +42,8 @@ let state = {
   historyData: null,
   charts: {},          // { main, volume, rsi, macd }
   series: {},          // all LW series objects
+  elliottWaveResult: null,   // cached analysis result
+  elliottWaveOverlay: null,  // { remove() } cleanup handle
 };
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
@@ -139,6 +144,27 @@ async function openChart(symbol) {
 
 function openReportCard(symbol) {
   $('report-card-symbol').textContent = symbol;
+
+  const modalBody = $('report-card-modal').querySelector('.modal-body');
+
+  if (state.historyData && state.currentSymbol === symbol) {
+    const ewResult = state.elliottWaveResult ?? analyzeElliottWave(state.historyData.quotes);
+    state.elliottWaveResult = ewResult;
+
+    // Remove dummy placeholder if present
+    const dummyEl = $('report-card-dummy');
+    if (dummyEl) dummyEl.remove();
+
+    // Insert or update Elliott Wave report section
+    let ewSection = modalBody.querySelector('#ew-report-section');
+    if (!ewSection) {
+      ewSection = document.createElement('div');
+      ewSection.id = 'ew-report-section';
+      modalBody.appendChild(ewSection);
+    }
+    ewSection.innerHTML = generateElliottWaveReport(ewResult, symbol);
+  }
+
   $('report-card-modal').classList.remove('hidden');
 }
 
@@ -235,6 +261,13 @@ function renderCharts(data) {
 
   // Overlay indicators on main chart
   addOverlayIndicators(mainChart, quotes, closes, times);
+
+  // Elliott Wave overlay
+  if (state.indicators.has('elliott')) {
+    const ewResult = analyzeElliottWave(quotes);
+    state.elliottWaveResult = ewResult;
+    state.elliottWaveOverlay = renderElliottWave(mainChart, quotes, ewResult, T);
+  }
 
   // Update price info on crosshair move
   mainChart.subscribeCrosshairMove(param => updatePriceInfo(param, quotes, data));
@@ -374,6 +407,12 @@ function addPaneLabel(el, text) {
 }
 
 function destroyCharts() {
+  if (state.elliottWaveOverlay) {
+    state.elliottWaveOverlay.remove();
+    state.elliottWaveOverlay = null;
+  }
+  state.elliottWaveResult = null;
+
   for (const c of Object.values(state.charts)) {
     try { c.remove(); } catch {}
   }
