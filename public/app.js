@@ -266,7 +266,7 @@ function renderCharts(data) {
   if (state.indicators.has('elliott')) {
     const ewResult = analyzeElliottWave(quotes);
     state.elliottWaveResult = ewResult;
-    state.elliottWaveOverlay = renderElliottWave(mainChart, quotes, ewResult, T);
+    state.elliottWaveOverlay = renderElliottWave(mainChart, priceSeries, quotes, ewResult, T);
   }
 
   // Update price info on crosshair move

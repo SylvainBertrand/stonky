@@ -719,6 +719,76 @@ function buildNextMove(candidate, targets) {
   }
 }
 
+// ── Projected Waves ────────────────────────────────────────────────────────
+function computeProjectedWaves(candidate, quotes, targets) {
+  const proj = [];
+
+  if (candidate.type === 'impulse') {
+    const { origin, w1e, w2e, w3e, w4e, w5e, bullish } = candidate;
+    const w1Bars = Math.max(w1e.index - origin.index, 3);
+    const w2Bars = Math.max(w2e.index - w1e.index, 3);
+
+    if (!w4e) {
+      // Currently in/after Wave 3 — project Wave 4 pullback then Wave 5
+      const w3Len = Math.abs(w3e.price - w2e.price);
+      const w4Price = bullish
+        ? w3e.price - w3Len * 0.382
+        : w3e.price + w3Len * 0.382;
+      const w4Bars = Math.round(w2Bars * 1.2);
+
+      proj.push({
+        label: '4',
+        targetPrice: w4Price,
+        estimatedBarsFromNow: w4Bars,
+        degree: 'intermediate',
+        direction: bullish ? 'bearish' : 'bullish',
+      });
+
+      const primary = targets.find(t => t.confidence === 'primary');
+      if (primary) {
+        proj.push({
+          label: '5',
+          targetPrice: primary.price,
+          estimatedBarsFromNow: w4Bars + Math.round(w1Bars),
+          degree: 'intermediate',
+          direction: bullish ? 'bullish' : 'bearish',
+        });
+      }
+    } else if (w4e && !w5e) {
+      // Transitioning to Wave 5
+      const primary = targets.find(t => t.confidence === 'primary');
+      if (primary) {
+        proj.push({
+          label: '5',
+          targetPrice: primary.price,
+          estimatedBarsFromNow: Math.round(w1Bars),
+          degree: 'intermediate',
+          direction: bullish ? 'bullish' : 'bearish',
+        });
+      }
+    }
+  } else {
+    // Corrective
+    const { origin, ae, be, ce } = candidate;
+    if (ae && be && !ce) {
+      const primary = targets.find(t => t.confidence === 'primary');
+      const aBars = Math.max(ae.index - origin.index, 3);
+      const aUp = ae.price > origin.price;
+      if (primary) {
+        proj.push({
+          label: 'C',
+          targetPrice: primary.price,
+          estimatedBarsFromNow: Math.round(aBars),
+          degree: 'intermediate',
+          direction: aUp ? 'bearish' : 'bullish',
+        });
+      }
+    }
+  }
+
+  return proj;
+}
+
 // ── Scenario Label ─────────────────────────────────────────────────────────
 function buildScenarioLabel(candidate) {
   const dir = candidate.bullish ? 'Bullish' : 'Bearish';
@@ -827,6 +897,7 @@ export function analyzeElliottWave(quotes, options = {}) {
       invalidationLevels,
       nextMove: buildNextMove(candidate, targets),
       scoreBreakdown: breakdown,
+      projectedWaves: computeProjectedWaves(candidate, quotes, targets),
     };
   });
 
