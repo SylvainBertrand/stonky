@@ -193,6 +193,21 @@ html, body {
 .btn-seg:hover { color: var(--text); }
 .btn-seg.active { background: var(--accent); color: #fff; }
 
+.control-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+}
+
+.control-select:focus {
+  border-color: var(--accent);
+}
+
 .indicator-toggles {
   display: flex;
   flex-wrap: wrap;

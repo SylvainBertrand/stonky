@@ -52,15 +52,78 @@ const PERIODS = {
   '5y':  { days: 1825, interval: '1wk' },
 };
 
+const INTERVAL_ALIASES = {
+  '1m': '1m',
+  '2m': '2m',
+  '5m': '5m',
+  '15m': '15m',
+  '30m': '30m',
+  '60m': '60m',
+  '1h': '60m',
+  '90m': '90m',
+  '1d': '1d',
+  '1day': '1d',
+  '5d': '5d',
+  '1wk': '1wk',
+  '1mo': '1mo',
+  '3mo': '3mo',
+};
+
+const INTERVAL_MAX_DAYS = {
+  '1m': 7,
+  '2m': 60,
+  '5m': 60,
+  '15m': 60,
+  '30m': 60,
+  '60m': 730,
+  '90m': 60,
+};
+
+const INTRADAY_INTERVAL_MINUTES = {
+  '1m': 1,
+  '2m': 2,
+  '5m': 5,
+  '15m': 15,
+  '30m': 30,
+  '60m': 60,
+  '90m': 90,
+};
+
+function normalizeInterval(interval, fallback = '1d') {
+  if (!interval) return fallback;
+  const normalized = INTERVAL_ALIASES[String(interval).toLowerCase()];
+  return normalized ?? fallback;
+}
+
+function toChartTime(date, interval) {
+  const d = new Date(date);
+  if (INTRADAY_INTERVAL_MINUTES[interval]) {
+    return Math.floor(d.getTime() / 1000);
+  }
+  return d.toISOString().split('T')[0];
+}
+
+function intervalToStepMs(interval) {
+  const minutes = INTRADAY_INTERVAL_MINUTES[interval];
+  if (minutes) return minutes * 60_000;
+  if (interval === '5d') return 5 * 86400000;
+  if (interval === '1wk') return 7 * 86400000;
+  if (interval === '1mo') return 30 * 86400000;
+  if (interval === '3mo') return 90 * 86400000;
+  return 86400000;
+}
+
 // ── Mock data generator (fallback for rate limits) ───────────────────────
-function generateMockHistory(symbol, days) {
+function generateMockHistory(symbol, days, interval = '1d') {
   const quotes = [];
   let basePrice = 150 + Math.random() * 200;
   const now = new Date();
-  
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now - i * 86400000);
-    const dateStr = date.toISOString().split('T')[0];
+
+  const stepMs = intervalToStepMs(interval);
+  const startMs = now.getTime() - days * 86400000;
+
+  for (let ts = startMs; ts <= now.getTime(); ts += stepMs) {
+    const date = new Date(ts);
     
     // Random walk with slight upward bias
     const change = (Math.random() - 0.48) * basePrice * 0.03;
@@ -73,7 +136,7 @@ function generateMockHistory(symbol, days) {
     const volume = Math.floor(10_000_000 + Math.random() * 50_000_000);
     
     quotes.push({
-      time: dateStr,
+      time: toChartTime(date, interval),
       open: parseFloat(open.toFixed(2)),
       high: parseFloat(high.toFixed(2)),
       low: parseFloat(low.toFixed(2)),
@@ -153,25 +216,28 @@ app.get('/api/history/:symbol', async (req, res) => {
   const { symbol } = req.params;
   const periodKey = req.query.period ?? '1y';
   const period = PERIODS[periodKey] ?? PERIODS['1y'];
+  const interval = normalizeInterval(req.query.interval, period.interval);
+  const maxDays = INTERVAL_MAX_DAYS[interval];
+  const effectiveDays = maxDays ? Math.min(period.days, maxDays) : period.days;
 
-  const cacheKey = `history:${symbol}:${periodKey}`;
+  const cacheKey = `history:${symbol}:${periodKey}:${interval}`;
   const cached = fromCache(cacheKey);
   if (cached) return res.json(cached);
 
   try {
     const now = new Date();
-    const from = new Date(now - period.days * 86400000);
+    const from = new Date(now - effectiveDays * 86400000);
 
     const result = await withRetry(() => yahooFinance.chart(symbol, {
       period1: from,
       period2: now,
-      interval: period.interval,
+      interval,
     }));
 
     const quotes = (result.quotes ?? [])
       .filter(r => r.open != null && r.close != null)
       .map(r => ({
-        time: new Date(r.date).toISOString().split('T')[0],
+        time: toChartTime(r.date, interval),
         open: r.open,
         high: r.high,
         low: r.low,
@@ -193,7 +259,7 @@ app.get('/api/history/:symbol', async (req, res) => {
     // Fallback: generate mock data when rate-limited (for development)
     if (err.message?.includes('Too Many Requests') || err.message?.includes('not valid JSON')) {
       console.log(`Using mock data for ${symbol} due to rate limiting`);
-      const mockData = generateMockHistory(symbol, period.days);
+      const mockData = generateMockHistory(symbol, effectiveDays, interval);
       toCache(cacheKey, mockData, 30 * 60_000);
       return res.json(mockData);
     }

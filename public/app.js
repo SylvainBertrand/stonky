@@ -27,9 +27,12 @@ const BASE_CHART_OPTS = {
 
 // ── State ──────────────────────────────────────────────────────────────────
 const nameCache = new Map(); // symbol → company name
+const historyCache = new Map(); // key -> history payload
+const pendingHistoryRequests = new Map(); // key -> Promise<history payload>
 
 let state = {
   period: '6mo',
+  interval: '1d',
   chartType: 'candlestick',
   indicators: new Set(['volume']),
   currentSymbol: null,
@@ -124,14 +127,48 @@ async function openChart(symbol) {
   await loadChart();
 }
 
-async function loadChart() {
+function getHistoryKey(symbol, period, interval) {
+  return `${symbol}:${period}:${interval}`;
+}
+
+async function getHistory(symbol, period, interval, { forceRefresh = false } = {}) {
+  const key = getHistoryKey(symbol, period, interval);
+
+  if (!forceRefresh && historyCache.has(key)) {
+    return historyCache.get(key);
+  }
+
+  if (!forceRefresh && pendingHistoryRequests.has(key)) {
+    return pendingHistoryRequests.get(key);
+  }
+
+  const request = (async () => {
+    const params = new URLSearchParams({ period, interval });
+    const data = await api(`/api/history/${symbol}?${params.toString()}`);
+    historyCache.set(key, data);
+    return data;
+  })().finally(() => {
+    pendingHistoryRequests.delete(key);
+  });
+
+  pendingHistoryRequests.set(key, request);
+  return request;
+}
+
+function rerenderChartFromCurrentData() {
+  if (!state.historyData) return;
+  destroyCharts();
+  renderCharts(state.historyData);
+}
+
+async function loadChart({ forceRefresh = false } = {}) {
   const sym = state.currentSymbol;
   showLoading(true);
   destroyCharts();
 
   let data;
   try {
-    data = await api(`/api/history/${sym}?period=${state.period}`);
+    data = await getHistory(sym, state.period, state.interval, { forceRefresh });
   } catch (e) {
     showLoading(false);
     $('main-chart').innerHTML = `<p style="color:var(--red);padding:20px">Failed to load data: ${e.message}</p>`;
@@ -381,6 +418,7 @@ $('refresh-btn').addEventListener('click', showDashboard);
 $('period-group').addEventListener('click', e => {
   const btn = e.target.closest('[data-period]');
   if (!btn) return;
+  if (state.period === btn.dataset.period) return;
   state.period = btn.dataset.period;
   $('period-group').querySelectorAll('.btn-seg').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -390,9 +428,15 @@ $('period-group').addEventListener('click', e => {
 $('type-group').addEventListener('click', e => {
   const btn = e.target.closest('[data-type]');
   if (!btn) return;
+  if (state.chartType === btn.dataset.type) return;
   state.chartType = btn.dataset.type;
   $('type-group').querySelectorAll('.btn-seg').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  rerenderChartFromCurrentData();
+});
+
+$('interval-select').addEventListener('change', e => {
+  state.interval = e.target.value;
   loadChart();
 });
 
@@ -406,7 +450,7 @@ document.querySelectorAll('[data-indicator]').forEach(btn => {
       state.indicators.add(key);
       btn.classList.add('active');
     }
-    loadChart();
+    rerenderChartFromCurrentData();
   });
 });
 
