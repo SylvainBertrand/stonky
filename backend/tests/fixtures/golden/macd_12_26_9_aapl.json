@@ -1,0 +1,758 @@
+{
+  "indicator": "macd_12_26_9_aapl",
+  "params": {
+    "indicator": "macd",
+    "fast": 12,
+    "slow": 26,
+    "signal": 9
+  },
+  "snapshot": "aapl_2024_q1q2",
+  "generated_at": "2026-03-01T04:08:51.261960+00:00",
+  "tolerance": 0.0001,
+  "values": [
+    {
+      "time": "2024-01-02",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-03",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-04",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-05",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-08",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-09",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-10",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-11",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-12",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-16",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-17",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-18",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-19",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-22",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-23",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-24",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-25",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-26",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-29",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-30",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-01-31",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-01",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-02",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-05",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-06",
+      "macd": null,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-07",
+      "macd": 0.87748638,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-08",
+      "macd": 0.78854151,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-09",
+      "macd": 0.75214834,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-12",
+      "macd": 0.57945114,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-13",
+      "macd": 0.26922454,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-14",
+      "macd": -0.04789572,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-15",
+      "macd": -0.31893985,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-16",
+      "macd": -0.65130844,
+      "macd_signal": null,
+      "macd_hist": null
+    },
+    {
+      "time": "2024-02-20",
+      "macd": -0.96411792,
+      "macd_signal": -1.10685014,
+      "macd_hist": 0.14273222
+    },
+    {
+      "time": "2024-02-21",
+      "macd": -1.1375827,
+      "macd_signal": -1.02425194,
+      "macd_hist": -0.11333076
+    },
+    {
+      "time": "2024-02-22",
+      "macd": -1.09699148,
+      "macd_signal": -0.78692857,
+      "macd_hist": -0.31006291
+    },
+    {
+      "time": "2024-02-23",
+      "macd": -1.20026627,
+      "macd_signal": -0.71216269,
+      "macd_hist": -0.48810358
+    },
+    {
+      "time": "2024-02-26",
+      "macd": -1.37599134,
+      "macd_signal": -0.71031021,
+      "macd_hist": -0.66568113
+    },
+    {
+      "time": "2024-02-27",
+      "macd": -1.38072191,
+      "macd_signal": -0.57203262,
+      "macd_hist": -0.80868929
+    },
+    {
+      "time": "2024-02-28",
+      "macd": -1.46521769,
+      "macd_signal": -0.52522272,
+      "macd_hist": -0.93999497
+    },
+    {
+      "time": "2024-02-29",
+      "macd": -1.56816774,
+      "macd_signal": -0.50253822,
+      "macd_hist": -1.06562952
+    },
+    {
+      "time": "2024-03-01",
+      "macd": -1.71790732,
+      "macd_signal": -0.52182224,
+      "macd_hist": -1.19608508
+    },
+    {
+      "time": "2024-03-04",
+      "macd": -2.17940805,
+      "macd_signal": -0.78665838,
+      "macd_hist": -1.39274968
+    },
+    {
+      "time": "2024-03-05",
+      "macd": -2.9134111,
+      "macd_signal": -1.21652914,
+      "macd_hist": -1.69688196
+    },
+    {
+      "time": "2024-03-06",
+      "macd": -3.53505552,
+      "macd_signal": -1.47053885,
+      "macd_hist": -2.06451667
+    },
+    {
+      "time": "2024-03-07",
+      "macd": -3.99138599,
+      "macd_signal": -1.54149545,
+      "macd_hist": -2.44989054
+    },
+    {
+      "time": "2024-03-08",
+      "macd": -4.16541828,
+      "macd_signal": -1.3724222,
+      "macd_hist": -2.79299609
+    },
+    {
+      "time": "2024-03-11",
+      "macd": -4.09315962,
+      "macd_signal": -1.04013082,
+      "macd_hist": -3.05302879
+    },
+    {
+      "time": "2024-03-12",
+      "macd": -3.95161041,
+      "macd_signal": -0.71886529,
+      "macd_hist": -3.23274511
+    },
+    {
+      "time": "2024-03-13",
+      "macd": -3.9631988,
+      "macd_signal": -0.58436295,
+      "macd_hist": -3.37883585
+    },
+    {
+      "time": "2024-03-14",
+      "macd": -3.77793958,
+      "macd_signal": -0.31928298,
+      "macd_hist": -3.4586566
+    },
+    {
+      "time": "2024-03-15",
+      "macd": -3.62005341,
+      "macd_signal": -0.12911745,
+      "macd_hist": -3.49093596
+    },
+    {
+      "time": "2024-03-18",
+      "macd": -3.36734997,
+      "macd_signal": 0.0988688,
+      "macd_hist": -3.46621876
+    },
+    {
+      "time": "2024-03-19",
+      "macd": -2.94272647,
+      "macd_signal": 0.41879383,
+      "macd_hist": -3.3615203
+    },
+    {
+      "time": "2024-03-20",
+      "macd": -2.36989921,
+      "macd_signal": 0.79329687,
+      "macd_hist": -3.16319608
+    },
+    {
+      "time": "2024-03-21",
+      "macd": -2.47643171,
+      "macd_signal": 0.5494115,
+      "macd_hist": -3.02584321
+    },
+    {
+      "time": "2024-03-22",
+      "macd": -2.45908331,
+      "macd_signal": 0.45340792,
+      "macd_hist": -2.91249123
+    },
+    {
+      "time": "2024-03-25",
+      "macd": -2.53154158,
+      "macd_signal": 0.30475971,
+      "macd_hist": -2.8363013
+    },
+    {
+      "time": "2024-03-26",
+      "macd": -2.65040159,
+      "macd_signal": 0.14871977,
+      "macd_hist": -2.79912136
+    },
+    {
+      "time": "2024-03-27",
+      "macd": -2.42614202,
+      "macd_signal": 0.29838347,
+      "macd_hist": -2.72452549
+    },
+    {
+      "time": "2024-03-28",
+      "macd": -2.36877465,
+      "macd_signal": 0.28460067,
+      "macd_hist": -2.65337532
+    },
+    {
+      "time": "2024-04-01",
+      "macd": -2.41250364,
+      "macd_signal": 0.19269735,
+      "macd_hist": -2.60520099
+    },
+    {
+      "time": "2024-04-02",
+      "macd": -2.5142001,
+      "macd_signal": 0.07280071,
+      "macd_hist": -2.58700081
+    },
+    {
+      "time": "2024-04-03",
+      "macd": -2.50060957,
+      "macd_signal": 0.06911299,
+      "macd_hist": -2.56972256
+    },
+    {
+      "time": "2024-04-04",
+      "macd": -2.52767557,
+      "macd_signal": 0.03363759,
+      "macd_hist": -2.56131316
+    },
+    {
+      "time": "2024-04-05",
+      "macd": -2.45944893,
+      "macd_signal": 0.08149139,
+      "macd_hist": -2.54094032
+    },
+    {
+      "time": "2024-04-08",
+      "macd": -2.46810955,
+      "macd_signal": 0.05826461,
+      "macd_hist": -2.52637416
+    },
+    {
+      "time": "2024-04-09",
+      "macd": -2.3494464,
+      "macd_signal": 0.14154221,
+      "macd_hist": -2.49098861
+    },
+    {
+      "time": "2024-04-10",
+      "macd": -2.3804716,
+      "macd_signal": 0.08841361,
+      "macd_hist": -2.46888521
+    },
+    {
+      "time": "2024-04-11",
+      "macd": -1.79850592,
+      "macd_signal": 0.53630343,
+      "macd_hist": -2.33480935
+    },
+    {
+      "time": "2024-04-12",
+      "macd": -1.20159826,
+      "macd_signal": 0.90656887,
+      "macd_hist": -2.10816713
+    },
+    {
+      "time": "2024-04-15",
+      "macd": -1.02816237,
+      "macd_signal": 0.86400381,
+      "macd_hist": -1.89216618
+    },
+    {
+      "time": "2024-04-16",
+      "macd": -1.14460818,
+      "macd_signal": 0.5980464,
+      "macd_hist": -1.74265458
+    },
+    {
+      "time": "2024-04-17",
+      "macd": -1.33288216,
+      "macd_signal": 0.32781794,
+      "macd_hist": -1.66070009
+    },
+    {
+      "time": "2024-04-18",
+      "macd": -1.54178191,
+      "macd_signal": 0.09513454,
+      "macd_hist": -1.63691646
+    },
+    {
+      "time": "2024-04-19",
+      "macd": -1.85061469,
+      "macd_signal": -0.17095859,
+      "macd_hist": -1.67965611
+    },
+    {
+      "time": "2024-04-22",
+      "macd": -2.00447952,
+      "macd_signal": -0.25985874,
+      "macd_hist": -1.74462079
+    },
+    {
+      "time": "2024-04-23",
+      "macd": -2.01762742,
+      "macd_signal": -0.2184053,
+      "macd_hist": -1.79922212
+    },
+    {
+      "time": "2024-04-24",
+      "macd": -1.83581876,
+      "macd_signal": -0.02927731,
+      "macd_hist": -1.80654144
+    },
+    {
+      "time": "2024-04-25",
+      "macd": -1.60305336,
+      "macd_signal": 0.16279047,
+      "macd_hist": -1.76584383
+    },
+    {
+      "time": "2024-04-26",
+      "macd": -1.44948441,
+      "macd_signal": 0.25308753,
+      "macd_hist": -1.70257194
+    },
+    {
+      "time": "2024-04-29",
+      "macd": -0.97760579,
+      "macd_signal": 0.57997292,
+      "macd_hist": -1.55757871
+    },
+    {
+      "time": "2024-04-30",
+      "macd": -0.849637,
+      "macd_signal": 0.56635337,
+      "macd_hist": -1.41599037
+    },
+    {
+      "time": "2024-05-01",
+      "macd": -0.82185932,
+      "macd_signal": 0.47530484,
+      "macd_hist": -1.29716416
+    },
+    {
+      "time": "2024-05-02",
+      "macd": -0.49318041,
+      "macd_signal": 0.643187,
+      "macd_hist": -1.13636741
+    },
+    {
+      "time": "2024-05-03",
+      "macd": 0.59559287,
+      "macd_signal": 1.38556823,
+      "macd_hist": -0.78997535
+    },
+    {
+      "time": "2024-05-06",
+      "macd": 1.30861362,
+      "macd_signal": 1.67887118,
+      "macd_hist": -0.37025756
+    },
+    {
+      "time": "2024-05-07",
+      "macd": 1.90737787,
+      "macd_signal": 1.82210834,
+      "macd_hist": 0.08526953
+    },
+    {
+      "time": "2024-05-08",
+      "macd": 2.38188116,
+      "macd_signal": 1.83728931,
+      "macd_hist": 0.54459185
+    },
+    {
+      "time": "2024-05-09",
+      "macd": 2.87248196,
+      "macd_signal": 1.86231209,
+      "macd_hist": 1.01016987
+    },
+    {
+      "time": "2024-05-10",
+      "macd": 3.10286741,
+      "macd_signal": 1.67415803,
+      "macd_hist": 1.42870938
+    },
+    {
+      "time": "2024-05-13",
+      "macd": 3.50567234,
+      "macd_signal": 1.66157036,
+      "macd_hist": 1.84410197
+    },
+    {
+      "time": "2024-05-14",
+      "macd": 3.87304745,
+      "macd_signal": 1.62315638,
+      "macd_hist": 2.24989107
+    },
+    {
+      "time": "2024-05-15",
+      "macd": 4.29941773,
+      "macd_signal": 1.63962133,
+      "macd_hist": 2.6597964
+    },
+    {
+      "time": "2024-05-16",
+      "macd": 4.59404495,
+      "macd_signal": 1.54739884,
+      "macd_hist": 3.04664611
+    },
+    {
+      "time": "2024-05-17",
+      "macd": 4.77491762,
+      "macd_signal": 1.3826172,
+      "macd_hist": 3.39230041
+    },
+    {
+      "time": "2024-05-20",
+      "macd": 4.95554529,
+      "macd_signal": 1.2505959,
+      "macd_hist": 3.70494939
+    },
+    {
+      "time": "2024-05-21",
+      "macd": 5.14509067,
+      "macd_signal": 1.15211303,
+      "macd_hist": 3.99297764
+    },
+    {
+      "time": "2024-05-22",
+      "macd": 5.11929186,
+      "macd_signal": 0.90105137,
+      "macd_hist": 4.21824049
+    },
+    {
+      "time": "2024-05-23",
+      "macd": 4.72005584,
+      "macd_signal": 0.40145229,
+      "macd_hist": 4.31860356
+    },
+    {
+      "time": "2024-05-24",
+      "macd": 4.60076773,
+      "macd_signal": 0.22573134,
+      "macd_hist": 4.37503639
+    },
+    {
+      "time": "2024-05-28",
+      "macd": 4.45567571,
+      "macd_signal": 0.06451145,
+      "macd_hist": 4.39116425
+    },
+    {
+      "time": "2024-05-29",
+      "macd": 4.31515431,
+      "macd_signal": -0.06080796,
+      "macd_hist": 4.37596227
+    },
+    {
+      "time": "2024-05-30",
+      "macd": 4.23565573,
+      "macd_signal": -0.11224523,
+      "macd_hist": 4.34790096
+    },
+    {
+      "time": "2024-05-31",
+      "macd": 4.20168213,
+      "macd_signal": -0.11697506,
+      "macd_hist": 4.31865719
+    },
+    {
+      "time": "2024-06-03",
+      "macd": 4.26917653,
+      "macd_signal": -0.03958453,
+      "macd_hist": 4.30876106
+    },
+    {
+      "time": "2024-06-04",
+      "macd": 4.29893223,
+      "macd_signal": -0.00786306,
+      "macd_hist": 4.3067953
+    },
+    {
+      "time": "2024-06-05",
+      "macd": 4.39450799,
+      "macd_signal": 0.07017015,
+      "macd_hist": 4.32433783
+    },
+    {
+      "time": "2024-06-06",
+      "macd": 4.30842622,
+      "macd_signal": -0.01272929,
+      "macd_hist": 4.32115551
+    },
+    {
+      "time": "2024-06-07",
+      "macd": 4.38413508,
+      "macd_signal": 0.05038366,
+      "macd_hist": 4.33375143
+    },
+    {
+      "time": "2024-06-10",
+      "macd": 4.09274875,
+      "macd_signal": -0.19280214,
+      "macd_hist": 4.28555089
+    },
+    {
+      "time": "2024-06-11",
+      "macd": 4.93701588,
+      "macd_signal": 0.52117199,
+      "macd_hist": 4.41584389
+    },
+    {
+      "time": "2024-06-12",
+      "macd": 6.01446715,
+      "macd_signal": 1.27889861,
+      "macd_hist": 4.73556854
+    },
+    {
+      "time": "2024-06-13",
+      "macd": 6.88341653,
+      "macd_signal": 1.71827839,
+      "macd_hist": 5.16513814
+    },
+    {
+      "time": "2024-06-14",
+      "macd": 7.34617269,
+      "macd_signal": 1.74482764,
+      "macd_hist": 5.60134505
+    },
+    {
+      "time": "2024-06-17",
+      "macd": 7.95846116,
+      "macd_signal": 1.88569289,
+      "macd_hist": 6.07276827
+    },
+    {
+      "time": "2024-06-18",
+      "macd": 8.15762209,
+      "macd_signal": 1.66788306,
+      "macd_hist": 6.48973904
+    },
+    {
+      "time": "2024-06-20",
+      "macd": 7.85294621,
+      "macd_signal": 1.09056574,
+      "macd_hist": 6.76238047
+    },
+    {
+      "time": "2024-06-21",
+      "macd": 7.35004692,
+      "macd_signal": 0.47013316,
+      "macd_hist": 6.87991376
+    },
+    {
+      "time": "2024-06-24",
+      "macd": 6.92412814,
+      "macd_signal": 0.0353715,
+      "macd_hist": 6.88875664
+    },
+    {
+      "time": "2024-06-25",
+      "macd": 6.58571168,
+      "macd_signal": -0.24243597,
+      "macd_hist": 6.82814764
+    },
+    {
+      "time": "2024-06-26",
+      "macd": 6.57896702,
+      "macd_signal": -0.1993445,
+      "macd_hist": 6.77831152
+    },
+    {
+      "time": "2024-06-27",
+      "macd": 6.56651503,
+      "macd_signal": -0.16943719,
+      "macd_hist": 6.73595222
+    },
+    {
+      "time": "2024-06-28",
+      "macd": 6.20432028,
+      "macd_signal": -0.42530555,
+      "macd_hist": 6.62962583
+    }
+  ]
+}

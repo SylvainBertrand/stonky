@@ -2,8 +2,30 @@
 
 All enums use create_type=False in mapped_column so SQLAlchemy never issues
 CREATE TYPE statements — the migration handles that.
+
+Use pg_enum() to create SQLAlchemy Enum columns — it sets values_callable so
+enum .value strings ("1d", "B+", …) are stored rather than the Python member
+names ("D1", "B_PLUS", …).
 """
 import enum
+
+from sqlalchemy import Enum as SAEnum
+
+
+def pg_enum(enum_class: type, name: str) -> SAEnum:
+    """
+    Return a SQLAlchemy Enum configured for a pre-existing PostgreSQL ENUM type.
+
+    - create_type=False  → migration owns the CREATE TYPE, not SQLAlchemy
+    - values_callable    → use enum .value strings (e.g. "1d"), not member
+                           names (e.g. "D1"), so they match the DB enum values
+    """
+    return SAEnum(
+        enum_class,
+        name=name,
+        create_type=False,
+        values_callable=lambda x: [e.value for e in x],
+    )
 
 
 class TimeframeEnum(str, enum.Enum):

@@ -1,12 +1,12 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
-from app.models.enums import TimeframeEnum
+from app.models.enums import TimeframeEnum, pg_enum
 
 
 class IndicatorCache(Base):
@@ -26,7 +26,7 @@ class IndicatorCache(Base):
         ForeignKey("symbols.id", ondelete="CASCADE"), primary_key=True
     )
     timeframe: Mapped[TimeframeEnum] = mapped_column(
-        Enum(TimeframeEnum, name="timeframe", create_type=False), primary_key=True
+        pg_enum(TimeframeEnum, "timeframe"), primary_key=True
     )
     indicator_name: Mapped[str] = mapped_column(String(50), primary_key=True)
     params_hash: Mapped[str] = mapped_column(String(32), primary_key=True)

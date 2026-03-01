@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
-from app.models.enums import TimeframeEnum
+from app.models.enums import TimeframeEnum, pg_enum
 
 
 class IngestionLog(Base):
@@ -16,7 +16,7 @@ class IngestionLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     symbol_id: Mapped[int] = mapped_column(ForeignKey("symbols.id", ondelete="CASCADE"))
     timeframe: Mapped[TimeframeEnum] = mapped_column(
-        Enum(TimeframeEnum, name="timeframe", create_type=False), nullable=False
+        pg_enum(TimeframeEnum, "timeframe"), nullable=False
     )
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     bars_fetched: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

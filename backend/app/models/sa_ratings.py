@@ -1,10 +1,10 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, func
+from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-from app.models.enums import SALetterGrade
+from app.models.enums import SALetterGrade, pg_enum
 
 
 class SARating(Base):
@@ -25,33 +25,33 @@ class SARating(Base):
 
     # Quant factor grades
     valuation_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
     growth_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
     profitability_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
     momentum_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
     eps_revision_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
 
     # Dividend grades
     div_safety_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
     div_growth_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
     div_yield_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
     div_consistency_grade: Mapped[SALetterGrade | None] = mapped_column(
-        Enum(SALetterGrade, name="sa_letter_grade", create_type=False)
+        pg_enum(SALetterGrade, "sa_letter_grade")
     )
 
     # Dividend metrics

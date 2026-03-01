@@ -1,12 +1,12 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, Numeric, UniqueConstraint, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-from app.models.enums import SignalDirection
+from app.models.enums import SignalDirection, pg_enum
 
 
 class ScanResult(Base):
@@ -22,7 +22,7 @@ class ScanResult(Base):
     symbol_id: Mapped[int] = mapped_column(ForeignKey("symbols.id", ondelete="CASCADE"))
     composite_score: Mapped[float] = mapped_column(Numeric(5, 4), nullable=False)
     direction: Mapped[SignalDirection] = mapped_column(
-        Enum(SignalDirection, name="signal_direction", create_type=False), nullable=False
+        pg_enum(SignalDirection, "signal_direction"), nullable=False
     )
     category_scores: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="'{}'"

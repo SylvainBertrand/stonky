@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Integer, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
-from app.models.enums import ScanRunStatus
+from app.models.enums import ScanRunStatus, pg_enum
 
 
 class ScanRun(Base):
@@ -17,7 +17,7 @@ class ScanRun(Base):
     profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
     watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id", ondelete="CASCADE"))
     status: Mapped[ScanRunStatus] = mapped_column(
-        Enum(ScanRunStatus, name="scan_run_status", create_type=False),
+        pg_enum(ScanRunStatus, "scan_run_status"),
         nullable=False,
         server_default="pending",
     )

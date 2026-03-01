@@ -141,3 +141,43 @@ docker compose down -v                  # Tear down with volumes
 - Don't use Parabolic SAR, Williams %R, CCI, or PPO — explicitly excluded as redundant (see TA survey)
 - Don't store SA rating data on the symbols table — it lives in sa_ratings with snapshot history
 - Don't hardcode indicator parameters — everything is configurable via scan_profiles JSONB
+
+## Testing
+
+### Framework
+- **Backend:** pytest + pytest-asyncio + testcontainers (real TimescaleDB)
+- **Frontend:** Vitest + React Testing Library + MSW (Mock Service Worker)
+
+### Three Backend Test Tiers
+- `tests/unit/` — pure logic, no I/O. Marked `@pytest.mark.unit`
+- `tests/integration/` — real TimescaleDB via testcontainers. Marked `@pytest.mark.integration`
+- `tests/ta_validation/` — golden file comparison against recorded OHLCV. Marked `@pytest.mark.ta_validation`
+
+Run tiers independently: `pytest -m unit`, `pytest -m integration`, `pytest -m ta_validation`
+
+### Key Patterns
+- **testcontainers:** one TimescaleDB container per session, transaction-per-test with rollback
+- **Factory functions** (not raw fixtures): `create_symbol(session, ticker="AAPL", ...)` with sensible defaults
+- **Synthetic generators:** `gen_uptrend(bars=100, seed=42)` → deterministic OHLCV DataFrame
+- **Golden files:** `tests/fixtures/golden/{indicator}.json` — regenerate with `pytest tests/ta_validation/ --update-golden`
+- **Recorded snapshots:** `tests/fixtures/recorded/*.csv` — real market data, committed to repo, never fetched during tests
+
+### Test Commands
+```bash
+cd backend && pytest                          # all tests
+cd backend && pytest -m unit                  # fast, no containers
+cd backend && pytest -m integration           # needs Docker
+cd backend && pytest -m ta_validation         # golden file comparison
+cd backend && pytest -m "not slow"            # skip slow tests
+cd backend && pytest tests/ta_validation/ --update-golden  # regenerate golden files
+
+cd frontend && npm test                       # vitest
+cd frontend && npm run test:coverage          # with coverage
+```
+
+### Writing New Tests
+- Every new indicator: add a golden file test in `tests/ta_validation/test_indicators.py` (parametrized)
+- Every new API endpoint: add integration test with real DB
+- Every new service function: add unit test if pure, integration test if DB-touching
+- Use factories, not raw SQL inserts
+- Floating-point comparisons: use `pytest.approx()` or the golden file tolerance field

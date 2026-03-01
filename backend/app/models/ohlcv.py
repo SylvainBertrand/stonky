@@ -1,11 +1,11 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, DateTime, Enum, ForeignKey, Index, Numeric, UniqueConstraint
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
-from app.models.enums import TimeframeEnum
+from app.models.enums import TimeframeEnum, pg_enum
 
 
 class OHLCV(Base):
@@ -23,7 +23,7 @@ class OHLCV(Base):
         ForeignKey("symbols.id", ondelete="CASCADE"), primary_key=True
     )
     timeframe: Mapped[TimeframeEnum] = mapped_column(
-        Enum(TimeframeEnum, name="timeframe", create_type=False), primary_key=True
+        pg_enum(TimeframeEnum, "timeframe"), primary_key=True
     )
 
     open: Mapped[Decimal] = mapped_column(Numeric(20, 8), nullable=False)
