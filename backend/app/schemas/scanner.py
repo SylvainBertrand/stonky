@@ -24,6 +24,7 @@ class AnalysisMeta(BaseModel):
     atr_pct: float
     last_price: float
     volume_ratio: float = 0.0
+    price_change_pct: float = 0.0
     timestamp: str
     bars: int = 0
 

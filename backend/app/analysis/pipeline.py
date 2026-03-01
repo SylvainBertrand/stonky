@@ -157,6 +157,15 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
     except Exception:
         pass
 
+    price_change_pct = 0.0
+    try:
+        if len(df) >= 2:
+            prev_close = float(df["close"].iloc[-2])
+            if prev_close > 0:
+                price_change_pct = round((last_price - prev_close) / prev_close * 100.0, 4)
+    except Exception:
+        pass
+
     # Collect all signals — wrap each in try/except
     all_signals: dict[str, float] = {}
 
@@ -224,6 +233,7 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
             "atr_pct": round(atr_pct, 4),
             "last_price": round(last_price, 4),
             "volume_ratio": round(volume_ratio, 4),
+            "price_change_pct": price_change_pct,
             "timestamp": timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp),
             "bars": len(df),
         },

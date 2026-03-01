@@ -80,6 +80,7 @@ def _result_to_response(result: AnalysisResult) -> AnalysisResponse:
             atr_pct=meta.get("atr_pct", 0.0),
             last_price=meta.get("last_price", 0.0),
             volume_ratio=float(meta.get("volume_ratio", 0.0)),
+            price_change_pct=float(meta.get("price_change_pct", 0.0)),
             timestamp=str(meta.get("timestamp", "")),
             bars=int(meta.get("bars", 0)),
         ),
