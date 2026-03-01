@@ -23,6 +23,9 @@ dependencies = [
     "tzdata>=2024.1",
     "python-multipart>=0.0.12",
     "scipy>=1.14.0",
+    "pyharmonics>=1.5.3",
+    "urllib3>=2.0",
+    "docker>=7.0",
 ]
 
 [project.optional-dependencies]

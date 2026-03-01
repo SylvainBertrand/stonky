@@ -34,6 +34,7 @@ from app.schemas.scanner import (
     AnalysisMeta,
     AnalysisResponse,
     CategoryScores,
+    HarmonicInfo,
     ProfileInfo,
     ScanRunResponse,
 )
@@ -48,6 +49,22 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _dict_to_harmonic_info(d: dict | None) -> HarmonicInfo | None:
+    """Convert a cached harmonics dict to a HarmonicInfo schema object."""
+    if d is None:
+        return None
+    return HarmonicInfo(
+        detected=bool(d.get("detected", False)),
+        pattern=d.get("pattern"),
+        direction=d.get("direction"),
+        ratio_quality=float(d.get("ratio_quality", 0.0)),
+        in_prz=bool(d.get("in_prz", False)),
+        prz_low=d.get("prz_low"),
+        prz_high=d.get("prz_high"),
+        bars_since_completion=d.get("bars_since_completion"),
+    )
+
 
 def _result_to_response(result: AnalysisResult) -> AnalysisResponse:
     meta = result.meta
@@ -64,6 +81,7 @@ def _result_to_response(result: AnalysisResult) -> AnalysisResponse:
             timestamp=str(meta.get("timestamp", "")),
             bars=int(meta.get("bars", 0)),
         ),
+        harmonics=_dict_to_harmonic_info(result.harmonics),
     )
 
 
@@ -158,6 +176,7 @@ async def get_latest_results(session: SessionDep) -> list[AnalysisResponse]:
                         timestamp=str(meta_raw.get("timestamp", "")),
                         bars=int(meta_raw.get("bars", 0)),
                     ),
+                    harmonics=_dict_to_harmonic_info(val.get("harmonics")),
                 )
             )
         except Exception as exc:
@@ -209,6 +228,7 @@ async def get_symbol_result(symbol: str, session: SessionDep) -> AnalysisRespons
             timestamp=str(meta_raw.get("timestamp", "")),
             bars=int(meta_raw.get("bars", 0)),
         ),
+        harmonics=_dict_to_harmonic_info(val.get("harmonics")),
     )
 
 

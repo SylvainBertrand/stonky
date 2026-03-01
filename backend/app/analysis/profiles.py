@@ -130,19 +130,21 @@ class TrendFollowing:
 
 
 # ---------------------------------------------------------------------------
-# HarmonicSetup (placeholder — harmonic detection not yet implemented)
+# HarmonicSetup — wired to real pyharmonics detection
 # ---------------------------------------------------------------------------
 
 @dataclass
 class HarmonicSetup:
     name: str = "HarmonicSetup"
     description: str = (
-        "Harmonic XABCD pattern completions (placeholder). "
-        "Always returns False until pyharmonics integration is complete."
+        "Harmonic XABCD pattern completions near their Potential Reversal Zone. "
+        "Requires a detected pattern (ratio_quality >= 0.75) plus RSI or MACD divergence."
     )
-    score_threshold: float = 0.3
+    score_threshold: float = 0.2
     required_conditions: list[str] = field(default_factory=lambda: [
         "harmonic_pattern_detected",
+        "harmonic_quality",
+        "rsi_or_macd_divergence",
     ])
 
     def check(
@@ -152,9 +154,16 @@ class HarmonicSetup:
         composite: float,
     ) -> ProfileResult:
         conditions: dict[str, bool] = {
-            "harmonic_pattern_detected": False,  # placeholder
+            "harmonic_pattern_detected": signals.get("harmonic_pattern_detected", 0.0) > 0.5,
+            "harmonic_quality": signals.get("harmonic_ratio_quality", 0.0) >= 0.75,
+            # Any RSI or MACD divergence signal present (positive = bullish, negative = bearish)
+            "rsi_or_macd_divergence": (
+                signals.get("rsi_divergence", 0.0) != 0.0
+                or signals.get("macd_divergence", 0.0) != 0.0
+            ),
         }
-        return ProfileResult(name=self.name, matches=False, conditions_met=conditions)
+        matches = composite >= self.score_threshold and all(conditions.values())
+        return ProfileResult(name=self.name, matches=matches, conditions_met=conditions)
 
 
 # ---------------------------------------------------------------------------

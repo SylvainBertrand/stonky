@@ -22,6 +22,11 @@ from app.analysis.indicators.divergence import (
     compute_macd_divergence_signals,
     compute_rsi_divergence_signals,
 )
+from app.analysis.indicators.harmonics import (
+    HarmonicMatch,
+    compute_harmonics_signals,
+    detect_harmonics,
+)
 from app.analysis.indicators.momentum import (
     compute_macd_signals,
     compute_rsi_signals,
@@ -67,6 +72,7 @@ class AnalysisResult:
     profile_matches: list[str]
     signals: dict[str, float]
     meta: dict[str, Any]
+    harmonics: dict[str, Any] | None = None
 
 
 def _safe_signals(fn: Any, df: pd.DataFrame, key: str) -> dict[str, float]:
@@ -134,6 +140,29 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
 
     all_signals.update(_safe_signals(compute_candlestick_signals, df, "compute_candlestick_signals"))
 
+    # Harmonic detection — CPU-intensive; wrapped in try/except inside detect_harmonics
+    harmonic_matches: list[HarmonicMatch] = []
+    harmonic_detail: dict[str, Any] | None = None
+    try:
+        harmonic_matches = detect_harmonics(df)
+        harmonic_float_signals = compute_harmonics_signals(df, harmonic_matches)
+        all_signals.update(harmonic_float_signals)
+
+        if harmonic_matches:
+            best = harmonic_matches[0]
+            harmonic_detail = {
+                "detected": True,
+                "pattern": best.pattern_name,
+                "direction": best.direction,
+                "ratio_quality": round(best.ratio_quality, 4),
+                "in_prz": harmonic_float_signals.get("harmonic_in_prz", 0.0) > 0.5,
+                "prz_low": round(best.prz_low, 4),
+                "prz_high": round(best.prz_high, 4),
+                "bars_since_completion": best.bars_since_completion,
+            }
+    except Exception as exc:
+        log.warning("Harmonic analysis failed for %s: %s", symbol, exc)
+
     category_scores, comp = build_composite(all_signals)
     profile_matches = evaluate_profiles(all_signals, category_scores, comp)
 
@@ -154,6 +183,7 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
             "timestamp": timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp),
             "bars": len(df),
         },
+        harmonics=harmonic_detail,
     )
 
 
@@ -224,6 +254,7 @@ async def run_analysis_for_ticker(
             "profile_matches": result.profile_matches,
             "signals": result.signals,
             "meta": result.meta,
+            "harmonics": result.harmonics,
         }
 
         # Upsert: delete existing then insert

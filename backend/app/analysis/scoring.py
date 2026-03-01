@@ -111,10 +111,20 @@ def build_composite(signals: dict[str, float]) -> tuple[dict[str, float], float]
     """
     Build category scores and composite score from individual signal dict.
 
+    The pattern category averages candlestick + harmonic_score when a harmonic
+    pattern is detected; otherwise it uses candlestick only.
+
     Returns
     -------
     (category_scores, composite) : tuple[dict[str, float], float]
     """
     cats = aggregate_signals(signals)
+
+    # Pattern category: conditional average — include harmonic_score only when detected
+    pattern_signals = [signals.get("candlestick", 0.0)]
+    if signals.get("harmonic_pattern_detected", 0.0) > 0.5:
+        pattern_signals.append(signals.get("harmonic_score", 0.0))
+    cats["pattern"] = sum(pattern_signals) / len(pattern_signals)
+
     comp = composite_score(cats, CATEGORY_WEIGHTS)
     return cats, comp

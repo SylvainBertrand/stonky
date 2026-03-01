@@ -4,7 +4,6 @@ Pydantic schemas for the scanner API.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel
@@ -28,6 +27,18 @@ class AnalysisMeta(BaseModel):
     bars: int = 0
 
 
+class HarmonicInfo(BaseModel):
+    """Harmonic pattern detail for the API response."""
+    detected: bool
+    pattern: str | None = None
+    direction: str | None = None
+    ratio_quality: float = 0.0
+    in_prz: bool = False
+    prz_low: float | None = None
+    prz_high: float | None = None
+    bars_since_completion: int | None = None
+
+
 class AnalysisResponse(BaseModel):
     symbol: str
     composite_score: float
@@ -35,6 +46,7 @@ class AnalysisResponse(BaseModel):
     profile_matches: list[str]
     signals: dict[str, float]
     meta: AnalysisMeta
+    harmonics: HarmonicInfo | None = None
 
 
 class ScanRunResponse(BaseModel):
