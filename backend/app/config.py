@@ -15,5 +15,8 @@ class Settings(BaseSettings):
     debug: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # Scheduler
+    scheduler_enabled: bool = True
+
 
 settings = Settings()
