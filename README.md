@@ -30,6 +30,7 @@ docker compose up -d
 
 ```bash
 cd backend
+source .venv/bin/activate    # Activate backend environment
 uv sync --extra dev          # Install all dependencies
 alembic upgrade head         # Create all 14 tables + hypertables
 uvicorn app.main:app --reload  # Dev server on :8000
