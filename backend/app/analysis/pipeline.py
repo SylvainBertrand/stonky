@@ -73,6 +73,37 @@ class AnalysisResult:
     signals: dict[str, float]
     meta: dict[str, Any]
     harmonics: dict[str, Any] | None = None
+    is_actionable: bool = False
+    volume_contradiction: bool = False
+
+
+def _passes_confluence(category_scores: dict[str, float], composite: float) -> bool:
+    """
+    Return True if ≥3 of 7 categories agree with composite direction (|score| > 0.1).
+    A near-zero composite (|comp| < 0.05) is not actionable.
+    """
+    if abs(composite) < 0.05:
+        return False
+    threshold = 0.1
+    if composite > 0:
+        agreeing = sum(1 for s in category_scores.values() if s > threshold)
+    else:
+        agreeing = sum(1 for s in category_scores.values() if s < -threshold)
+    return agreeing >= 3
+
+
+def _has_volume_contradiction(signals: dict[str, float], composite: float) -> bool:
+    """
+    True when OBV and CMF both contradict the composite direction.
+    Flags: composite bullish but obv<0 and cmf<0, or vice versa.
+    """
+    obv = signals.get("obv", 0.0)
+    cmf = signals.get("cmf", 0.0)
+    if composite > 0.1 and obv < 0 and cmf < 0:
+        return True
+    if composite < -0.1 and obv > 0 and cmf > 0:
+        return True
+    return False
 
 
 def _safe_signals(fn: Any, df: pd.DataFrame, key: str) -> dict[str, float]:
@@ -103,7 +134,7 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
     if len(df) < MIN_BARS:
         log.warning("%s: insufficient bars (%d < %d)", symbol, len(df), MIN_BARS)
 
-    # Compute ATR for meta
+    # Compute ATR and volume ratio for meta
     atr_val = 0.0
     last_price = float(df["close"].iloc[-1]) if not df.empty else 0.0
     try:
@@ -116,6 +147,15 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
         pass
 
     atr_pct = (atr_val / last_price * 100.0) if last_price > 0 else 0.0
+
+    volume_ratio = 0.0
+    try:
+        vol = df["volume"].astype(float)
+        avg_vol = vol.rolling(20).mean().iloc[-1]
+        if avg_vol > 0:
+            volume_ratio = float(vol.iloc[-1]) / float(avg_vol)
+    except Exception:
+        pass
 
     # Collect all signals — wrap each in try/except
     all_signals: dict[str, float] = {}
@@ -166,6 +206,9 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
     category_scores, comp = build_composite(all_signals)
     profile_matches = evaluate_profiles(all_signals, category_scores, comp)
 
+    is_actionable = _passes_confluence(category_scores, comp)
+    vol_contradiction = _has_volume_contradiction(all_signals, comp)
+
     timestamp = df["time"].iloc[-1] if "time" in df.columns else datetime.now(timezone.utc)
     if hasattr(timestamp, "to_pydatetime"):
         timestamp = timestamp.to_pydatetime()
@@ -180,10 +223,13 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
             "atr": round(atr_val, 6),
             "atr_pct": round(atr_pct, 4),
             "last_price": round(last_price, 4),
+            "volume_ratio": round(volume_ratio, 4),
             "timestamp": timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp),
             "bars": len(df),
         },
         harmonics=harmonic_detail,
+        is_actionable=is_actionable,
+        volume_contradiction=vol_contradiction,
     )
 
 
@@ -255,6 +301,8 @@ async def run_analysis_for_ticker(
             "signals": result.signals,
             "meta": result.meta,
             "harmonics": result.harmonics,
+            "is_actionable": result.is_actionable,
+            "volume_contradiction": result.volume_contradiction,
         }
 
         # Upsert: delete existing then insert

@@ -12,10 +12,11 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,11 +79,23 @@ def _result_to_response(result: AnalysisResult) -> AnalysisResponse:
             atr=meta.get("atr", 0.0),
             atr_pct=meta.get("atr_pct", 0.0),
             last_price=meta.get("last_price", 0.0),
+            volume_ratio=float(meta.get("volume_ratio", 0.0)),
             timestamp=str(meta.get("timestamp", "")),
             bars=int(meta.get("bars", 0)),
         ),
         harmonics=_dict_to_harmonic_info(result.harmonics),
+        is_actionable=result.is_actionable,
+        volume_contradiction=result.volume_contradiction,
     )
+
+
+def _normalize_profile_name(raw: str) -> str:
+    """Normalize profile name: snake_case or CamelCase → CamelCase registry key."""
+    # If it already looks CamelCase (contains uppercase), return as-is
+    if any(c.isupper() for c in raw):
+        return raw
+    # Convert snake_case to CamelCase
+    return "".join(word.capitalize() for word in re.split(r"[_\-]", raw))
 
 
 async def _get_all_watchlist_symbols(db: AsyncSession) -> list[tuple[int, str]]:
@@ -135,8 +148,14 @@ async def trigger_scan(
 
 
 @router.get("/results", response_model=list[AnalysisResponse])
-async def get_latest_results(session: SessionDep) -> list[AnalysisResponse]:
-    """Return latest cached analysis results sorted by composite_score descending."""
+async def get_latest_results(
+    session: SessionDep,
+    profile: Annotated[str | None, Query(description="Filter by profile name (e.g. momentum_breakout or MomentumBreakout)")] = None,
+) -> list[AnalysisResponse]:
+    """Return latest cached analysis results sorted by composite_score descending.
+
+    Use ?profile= to filter by matching profile name (case-insensitive, snake_case or CamelCase).
+    """
     # Get latest full_analysis entry per symbol
     result = await session.execute(
         select(IndicatorCache)
@@ -154,7 +173,7 @@ async def get_latest_results(session: SessionDep) -> list[AnalysisResponse]:
             seen.add(key)
             unique.append(row)
 
-    # Parse and sort
+    # Parse
     responses: list[AnalysisResponse] = []
     for row in unique:
         try:
@@ -173,16 +192,30 @@ async def get_latest_results(session: SessionDep) -> list[AnalysisResponse]:
                         atr=float(meta_raw.get("atr", 0.0)),
                         atr_pct=float(meta_raw.get("atr_pct", 0.0)),
                         last_price=float(meta_raw.get("last_price", 0.0)),
+                        volume_ratio=float(meta_raw.get("volume_ratio", 0.0)),
                         timestamp=str(meta_raw.get("timestamp", "")),
                         bars=int(meta_raw.get("bars", 0)),
                     ),
                     harmonics=_dict_to_harmonic_info(val.get("harmonics")),
+                    is_actionable=bool(val.get("is_actionable", False)),
+                    volume_contradiction=bool(val.get("volume_contradiction", False)),
                 )
             )
         except Exception as exc:
             log.warning("Failed to parse cached result: %s", exc)
 
+    # Sort by composite score descending
     responses.sort(key=lambda r: r.composite_score, reverse=True)
+
+    # Filter by profile if requested
+    if profile:
+        canonical = _normalize_profile_name(profile)
+        responses = [r for r in responses if canonical in r.profile_matches]
+
+    # Assign rank (1 = highest composite score)
+    for i, resp in enumerate(responses):
+        resp.rank = i + 1
+
     return responses
 
 
@@ -225,10 +258,13 @@ async def get_symbol_result(symbol: str, session: SessionDep) -> AnalysisRespons
             atr=float(meta_raw.get("atr", 0.0)),
             atr_pct=float(meta_raw.get("atr_pct", 0.0)),
             last_price=float(meta_raw.get("last_price", 0.0)),
+            volume_ratio=float(meta_raw.get("volume_ratio", 0.0)),
             timestamp=str(meta_raw.get("timestamp", "")),
             bars=int(meta_raw.get("bars", 0)),
         ),
         harmonics=_dict_to_harmonic_info(val.get("harmonics")),
+        is_actionable=bool(val.get("is_actionable", False)),
+        volume_contradiction=bool(val.get("volume_contradiction", False)),
     )
 
 

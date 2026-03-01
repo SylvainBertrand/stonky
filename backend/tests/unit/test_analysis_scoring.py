@@ -88,9 +88,14 @@ class TestAggregateSignals:
 
     def test_single_indicator_averages_correctly(self) -> None:
         # trend has: ema_stack, adx_dmi, supertrend
-        # If only ema_stack = 0.9, trend = (0.9 + 0.0 + 0.0) / 3 = 0.3
+        # If only ema_stack = 0.9 (others absent/failed), trend = 0.9 / 1 = 0.9
         cats = aggregate_signals({"ema_stack": 0.9})
-        assert cats["trend"] == pytest.approx(0.3)
+        assert cats["trend"] == pytest.approx(0.9)
+
+    def test_missing_indicators_excluded_from_average(self) -> None:
+        # Two of three trend indicators present — denominator is 2, not 3
+        cats = aggregate_signals({"ema_stack": 0.9, "adx_dmi": 0.3})
+        assert cats["trend"] == pytest.approx((0.9 + 0.3) / 2)
 
     def test_full_signal_dict(self) -> None:
         signals = {ind: 1.0 for inds in CATEGORY_MAP.values() for ind in inds}

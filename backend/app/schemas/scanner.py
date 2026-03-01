@@ -23,6 +23,7 @@ class AnalysisMeta(BaseModel):
     atr: float
     atr_pct: float
     last_price: float
+    volume_ratio: float = 0.0
     timestamp: str
     bars: int = 0
 
@@ -41,12 +42,15 @@ class HarmonicInfo(BaseModel):
 
 class AnalysisResponse(BaseModel):
     symbol: str
+    rank: int = 0
     composite_score: float
     category_scores: CategoryScores
     profile_matches: list[str]
     signals: dict[str, float]
     meta: AnalysisMeta
     harmonics: HarmonicInfo | None = None
+    is_actionable: bool = False
+    volume_contradiction: bool = False
 
 
 class ScanRunResponse(BaseModel):

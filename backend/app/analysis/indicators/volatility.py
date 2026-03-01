@@ -157,13 +157,17 @@ def compute_ttm_squeeze(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+_TTM_DECAY_BARS = 10
+
+
 def compute_ttm_squeeze_signals(df: pd.DataFrame) -> dict[str, float]:
     """
-    TTM Squeeze signal:
-    - squeeze_fired & momentum > 0 → +1.0
-    - squeeze_fired & momentum < 0 → -1.0
-    - squeeze_on (building) → -0.2 (potential energy)
+    TTM Squeeze signal with 10-bar decay for recent fires:
+    - squeeze fired within last 10 bars: ±1.0 at fire bar, decays linearly to 0
+    - squeeze_on (building): -0.2 (potential energy)
     - no squeeze: map momentum slope to ±0.5
+
+    This allows profile filters to detect "fired ≤3 bars ago" via score >= 0.7.
     """
     if len(df) < 25:
         return {}
@@ -172,21 +176,30 @@ def compute_ttm_squeeze_signals(df: pd.DataFrame) -> dict[str, float]:
         if "squeeze_on" not in d.columns:
             return {"ttm_squeeze": 0.0}
 
+        n = len(d)
+
+        # Scan back through last decay_bars for the most recent fire
+        for bars_ago in range(min(_TTM_DECAY_BARS, n)):
+            row = d.iloc[-(bars_ago + 1)]
+            fired = bool(row.get("squeeze_fired", False))
+            if fired:
+                momentum = float(row.get("squeeze_momentum", 0.0) or 0.0)
+                direction = 1.0 if momentum > 0 else -1.0
+                score = direction * (1.0 - bars_ago / _TTM_DECAY_BARS)
+                return {"ttm_squeeze": max(-1.0, min(1.0, score))}
+
+        # No recent fire — check if currently in squeeze (potential energy)
         row = d.iloc[-1]
-        fired = bool(row.get("squeeze_fired", False))
         on = bool(row.get("squeeze_on", False))
         momentum = float(row.get("squeeze_momentum", 0.0) or 0.0)
 
-        if fired:
-            score = 1.0 if momentum > 0 else -1.0
-        elif on:
+        if on:
             score = -0.2
         else:
             # No squeeze: map momentum slope to ±0.5
             if np.isnan(momentum):
                 score = 0.0
             else:
-                # Normalize momentum: clamp to ±0.5
                 atr_vals = d.get("atr", pd.Series(dtype=float))
                 if not isinstance(atr_vals, pd.Series):
                     atr_vals = pd.Series(dtype=float)

@@ -97,12 +97,15 @@ def aggregate_signals(signals: dict[str, float]) -> dict[str, float]:
     """
     Average per-indicator signal scores into category scores.
 
-    Missing indicators default to 0.0.
+    Only indicators present in ``signals`` contribute to the average (failed or
+    insufficient-data indicators are excluded, not treated as 0.0).  A category
+    where *all* indicators are missing returns 0.0.
+
     Returns a dict of category → mean_score.
     """
     category_scores: dict[str, float] = {}
     for category, indicators in CATEGORY_MAP.items():
-        values = [signals.get(ind, 0.0) for ind in indicators]
+        values = [signals[ind] for ind in indicators if ind in signals]
         category_scores[category] = sum(values) / len(values) if values else 0.0
     return category_scores
 

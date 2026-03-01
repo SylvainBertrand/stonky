@@ -39,7 +39,7 @@ class MomentumBreakout:
         "Stocks breaking out of consolidation with expanding momentum. "
         "Requires strong trend + positive momentum + volume confirmation."
     )
-    score_threshold: float = 0.4
+    score_threshold: float = 0.3
     required_conditions: list[str] = field(default_factory=lambda: [
         "trend_bullish",
         "momentum_positive",
@@ -57,7 +57,8 @@ class MomentumBreakout:
             "trend_bullish": category_scores.get("trend", 0.0) > 0.3,
             "momentum_positive": category_scores.get("momentum", 0.0) > 0.0,
             "volume_positive": category_scores.get("volume", 0.0) > 0.0,
-            "ttm_squeeze_fired": signals.get("ttm_squeeze", 0.0) >= 0.9,
+            # Squeeze fired within ~3 bars: score = 1.0*(1-bars_ago/10), 3 bars ago ≈ 0.7
+            "ttm_squeeze_fired": signals.get("ttm_squeeze", 0.0) >= 0.7,
         }
         matches = composite >= self.score_threshold and all(conditions.values())
         return ProfileResult(name=self.name, matches=matches, conditions_met=conditions)
@@ -74,11 +75,11 @@ class MeanReversion:
         "Oversold stocks near support with divergence signals. "
         "Requires oversold oscillators + S/R support + bullish divergence."
     )
-    score_threshold: float = 0.2
+    score_threshold: float = 0.1
     required_conditions: list[str] = field(default_factory=lambda: [
-        "oversold",
+        "oversold_or_divergence",
+        "stochastic_oversold",
         "near_support",
-        "bullish_divergence",
     ])
 
     def check(
@@ -88,9 +89,18 @@ class MeanReversion:
         composite: float,
     ) -> ProfileResult:
         conditions: dict[str, bool] = {
-            "oversold": signals.get("rsi", 0.0) > 0.5,
-            "near_support": category_scores.get("support_resistance", 0.0) > 0.0,
-            "bullish_divergence": category_scores.get("divergence", 0.0) > 0.0,
+            # RSI<35 (signal ~> 0.2) OR RSI bullish divergence
+            "oversold_or_divergence": (
+                signals.get("rsi", 0.0) > 0.2
+                or signals.get("rsi_divergence", 0.0) > 0.0
+            ),
+            # Stochastic %K<25 zone (signal > 0.3 approximates K<25 oversold)
+            "stochastic_oversold": signals.get("stochastic", 0.0) > 0.3,
+            # Price near support (Fib or Pivot) OR at lower Bollinger Band
+            "near_support": (
+                category_scores.get("support_resistance", 0.0) > 0.0
+                or signals.get("bb_pct_b", 0.0) > 0.4
+            ),
         }
         matches = composite >= self.score_threshold and all(conditions.values())
         return ProfileResult(name=self.name, matches=matches, conditions_met=conditions)
@@ -107,11 +117,13 @@ class TrendFollowing:
         "Strong trending stocks with EMA alignment. "
         "Requires bullish EMA stack + ADX strength + Supertrend confirmation."
     )
-    score_threshold: float = 0.35
+    score_threshold: float = 0.4
     required_conditions: list[str] = field(default_factory=lambda: [
         "ema_stack_bullish",
         "adx_trending",
         "supertrend_bullish",
+        "rsi_in_range",
+        "obv_rising",
     ])
 
     def check(
@@ -122,8 +134,12 @@ class TrendFollowing:
     ) -> ProfileResult:
         conditions: dict[str, bool] = {
             "ema_stack_bullish": signals.get("ema_stack", 0.0) > 0.3,
-            "adx_trending": signals.get("adx_dmi", 0.0) > 0.3,
+            "adx_trending": signals.get("adx_dmi", 0.0) > 0.25,
             "supertrend_bullish": signals.get("supertrend", 0.0) > 0.0,
+            # RSI 40–65: signal between ~+0.1 and ~-0.25 (not extreme in either direction)
+            "rsi_in_range": -0.3 < signals.get("rsi", 0.0) < 0.5,
+            # OBV trending up
+            "obv_rising": signals.get("obv", 0.0) > 0.0,
         }
         matches = composite >= self.score_threshold and all(conditions.values())
         return ProfileResult(name=self.name, matches=matches, conditions_met=conditions)
