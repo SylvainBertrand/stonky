@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -46,6 +47,11 @@ router = APIRouter(prefix="/scanner", tags=["scanner"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
+_TF_MAP: dict[str, TimeframeEnum] = {
+    "1d": TimeframeEnum.D1,
+    "1w": TimeframeEnum.W1,
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -67,10 +73,11 @@ def _dict_to_harmonic_info(d: dict | None) -> HarmonicInfo | None:
     )
 
 
-def _result_to_response(result: AnalysisResult) -> AnalysisResponse:
+def _result_to_response(result: AnalysisResult, scanned_at: str = "") -> AnalysisResponse:
     meta = result.meta
     return AnalysisResponse(
         symbol=result.symbol,
+        scanned_at=scanned_at or datetime.now(timezone.utc).isoformat(),
         composite_score=result.composite_score,
         category_scores=CategoryScores(**result.category_scores),
         profile_matches=result.profile_matches,
@@ -139,6 +146,11 @@ async def trigger_scan(
 ) -> dict[str, Any]:
     """Trigger a full scan of all watchlist symbols (background task)."""
     symbols = await _get_all_watchlist_symbols(session)
+    if not symbols:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No symbols in watchlist. Add tickers to a watchlist first.",
+        )
     run_id = str(uuid.uuid4())
     background_tasks.add_task(_run_scanner_bg, run_id)
     return {
@@ -152,26 +164,32 @@ async def trigger_scan(
 async def get_latest_results(
     session: SessionDep,
     profile: Annotated[str | None, Query(description="Filter by profile name (e.g. momentum_breakout or MomentumBreakout)")] = None,
+    timeframe: Annotated[str, Query(description="Timeframe: 1d or 1w")] = "1d",
 ) -> list[AnalysisResponse]:
     """Return latest cached analysis results sorted by composite_score descending.
 
     Use ?profile= to filter by matching profile name (case-insensitive, snake_case or CamelCase).
+    Use ?timeframe= to select which timeframe's analysis to return (default: 1d).
     """
-    # Get latest full_analysis entry per symbol
+    tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
+
+    # Get latest full_analysis entry per symbol for the requested timeframe
     result = await session.execute(
         select(IndicatorCache)
-        .where(IndicatorCache.indicator_name == "full_analysis")
+        .where(
+            IndicatorCache.indicator_name == "full_analysis",
+            IndicatorCache.timeframe == tf_enum,
+        )
         .order_by(desc(IndicatorCache.time))
     )
     rows = result.scalars().all()
 
-    # Deduplicate: keep latest per (symbol_id, timeframe)
-    seen: set[tuple[int, str]] = set()
+    # Deduplicate: keep latest per symbol_id
+    seen: set[int] = set()
     unique: list[IndicatorCache] = []
     for row in rows:
-        key = (row.symbol_id, row.timeframe.value)
-        if key not in seen:
-            seen.add(key)
+        if row.symbol_id not in seen:
+            seen.add(row.symbol_id)
             unique.append(row)
 
     # Parse
@@ -185,6 +203,7 @@ async def get_latest_results(
             responses.append(
                 AnalysisResponse(
                     symbol=str(val.get("symbol", "")),
+                    scanned_at=row.time.isoformat(),
                     composite_score=float(val.get("composite_score", 0.0)),
                     category_scores=CategoryScores(**val.get("category_scores", {})),
                     profile_matches=val.get("profile_matches", []),
@@ -222,8 +241,14 @@ async def get_latest_results(
 
 
 @router.get("/results/{symbol}", response_model=AnalysisResponse)
-async def get_symbol_result(symbol: str, session: SessionDep) -> AnalysisResponse:
+async def get_symbol_result(
+    symbol: str,
+    session: SessionDep,
+    timeframe: Annotated[str, Query(description="Timeframe: 1d or 1w")] = "1d",
+) -> AnalysisResponse:
     """Return full analysis detail for a single ticker."""
+    tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
+
     # Resolve symbol_id
     sym_result = await session.execute(
         select(Symbol.id).where(Symbol.ticker == symbol.upper())
@@ -237,6 +262,7 @@ async def get_symbol_result(symbol: str, session: SessionDep) -> AnalysisRespons
         .where(
             IndicatorCache.symbol_id == symbol_id,
             IndicatorCache.indicator_name == "full_analysis",
+            IndicatorCache.timeframe == tf_enum,
         )
         .order_by(desc(IndicatorCache.time))
         .limit(1)
@@ -245,13 +271,14 @@ async def get_symbol_result(symbol: str, session: SessionDep) -> AnalysisRespons
     if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No cached analysis for {symbol}. Run /scanner/run/{symbol} first.",
+            detail=f"No cached {timeframe} analysis for {symbol}. Run /scanner/run/{symbol} first.",
         )
 
     val = row.value
     meta_raw = val.get("meta", {})
     return AnalysisResponse(
         symbol=str(val.get("symbol", "")),
+        scanned_at=row.time.isoformat(),
         composite_score=float(val.get("composite_score", 0.0)),
         category_scores=CategoryScores(**val.get("category_scores", {})),
         profile_matches=val.get("profile_matches", []),
@@ -286,8 +313,14 @@ async def list_profiles() -> list[ProfileInfo]:
 
 
 @router.post("/run/{symbol}", response_model=AnalysisResponse)
-async def run_symbol_analysis(symbol: str, session: SessionDep) -> AnalysisResponse:
+async def run_symbol_analysis(
+    symbol: str,
+    session: SessionDep,
+    timeframe: Annotated[str, Query(description="Timeframe: 1d or 1w")] = "1d",
+) -> AnalysisResponse:
     """Run on-demand analysis for a single ticker (inline, returns immediately)."""
+    tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
+
     sym_result = await session.execute(
         select(Symbol).where(Symbol.ticker == symbol.upper())
     )
@@ -295,11 +328,11 @@ async def run_symbol_analysis(symbol: str, session: SessionDep) -> AnalysisRespo
     if sym is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found")
 
-    result = await run_analysis_for_ticker(sym.id, sym.ticker, session)
+    result = await run_analysis_for_ticker(sym.id, sym.ticker, session, timeframe=tf_enum)
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Insufficient OHLCV data for {symbol}. Trigger a data refresh first.",
+            detail=f"Insufficient {timeframe} OHLCV data for {symbol}. Trigger a data refresh first.",
         )
 
     await session.commit()

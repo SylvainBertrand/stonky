@@ -44,6 +44,7 @@ class HarmonicInfo(BaseModel):
 class AnalysisResponse(BaseModel):
     symbol: str
     rank: int = 0
+    scanned_at: str = ""  # ISO timestamp of when this analysis was cached
     composite_score: float
     category_scores: CategoryScores
     profile_matches: list[str]
@@ -57,8 +58,7 @@ class AnalysisResponse(BaseModel):
 class ScanRunResponse(BaseModel):
     run_id: str
     status: str
-    symbols_scanned: int
-    results: list[AnalysisResponse]
+    symbols_queued: int
 
 
 class ProfileInfo(BaseModel):

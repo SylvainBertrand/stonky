@@ -1,10 +1,13 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { scannerApi } from '../api/scanner'
 import { useScannerStore } from '../stores/scannerStore'
 import { ProfileFilterTabs } from '../components/scanner/ProfileFilterTabs'
 import { ResultsTable } from '../components/scanner/ResultsTable'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
+
+const SCAN_POLL_INTERVAL_MS = 5_000
+const SCAN_TIMEOUT_MS = 120_000
 
 function formatTimeAgo(d: Date | null): string {
   if (!d) return '—'
@@ -16,14 +19,17 @@ function formatTimeAgo(d: Date | null): string {
 
 export function ScannerPage() {
   const queryClient = useQueryClient()
-  const { activeProfile, isScanning, lastFetched, setActiveProfile, setIsScanning, setScanStartTime, setLastFetched } =
-    useScannerStore()
+  const {
+    activeProfile, isScanning, lastFetched, scanStartTime,
+    setActiveProfile, setIsScanning, setScanStartTime, setLastFetched,
+  } = useScannerStore()
+  const [scanError, setScanError] = useState<string | null>(null)
 
   const { data: results = [], isLoading, isError } = useQuery({
     queryKey: ['scanner', 'results', activeProfile],
     queryFn: () => scannerApi.getResults(activeProfile),
     staleTime: 60_000,
-    refetchInterval: isScanning ? 3_000 : false,
+    refetchInterval: isScanning ? SCAN_POLL_INTERVAL_MS : false,
     select: (data) => data, // keep as-is; already sorted by rank from backend
   })
 
@@ -34,23 +40,38 @@ export function ScannerPage() {
     }
   }, [results, setLastFetched])
 
-  // Stop polling when scan results are fresh (result timestamp > scan start)
+  // Stop polling when results are fresh: scanned_at > scanStartTime
+  useEffect(() => {
+    if (!isScanning || !scanStartTime) return
+    if (results.length > 0) {
+      const latestScannedAt = results[0].scanned_at
+      if (latestScannedAt && new Date(latestScannedAt) > scanStartTime) {
+        setIsScanning(false)
+      }
+    }
+  }, [isScanning, results, scanStartTime, setIsScanning])
+
+  // Polling timeout: give up after SCAN_TIMEOUT_MS with an error message
   useEffect(() => {
     if (!isScanning) return
-    if (results.length > 0) {
+    const timer = setTimeout(() => {
       setIsScanning(false)
-    }
-  }, [isScanning, results, setIsScanning])
+      setScanError('Scan timed out — background task may have failed. Check backend logs.')
+    }, SCAN_TIMEOUT_MS)
+    return () => clearTimeout(timer)
+  }, [isScanning, setIsScanning])
 
   const handleRunScan = useCallback(async () => {
+    setScanError(null)
     setIsScanning(true)
     setScanStartTime(new Date())
     try {
       await scannerApi.runScan()
       // Invalidate immediately — the refetchInterval will pick up fresh data
       await queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] })
-    } catch {
+    } catch (err) {
       setIsScanning(false)
+      setScanError(err instanceof Error ? err.message : 'Scan failed')
     }
   }, [queryClient, setIsScanning, setScanStartTime])
 
@@ -77,6 +98,13 @@ export function ScannerPage() {
       </header>
 
       <main className="max-w-screen-xl mx-auto px-6 py-4 space-y-4">
+        {/* Scan error banner */}
+        {scanError && (
+          <div className="rounded-lg border border-red-800 bg-red-950/40 px-4 py-2 text-sm text-red-400">
+            {scanError}
+          </div>
+        )}
+
         {/* Profile filter tabs */}
         <ProfileFilterTabs
           active={activeProfile}

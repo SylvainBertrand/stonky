@@ -34,6 +34,7 @@ export interface HarmonicInfo {
 export interface ScannerResult {
   symbol: string
   rank: number
+  scanned_at: string  // ISO timestamp of when this analysis was cached
   composite_score: number
   category_scores: CategoryScores
   profile_matches: string[]

@@ -19,8 +19,8 @@ export function StockDetailPage() {
   const [selectedCategory, setSelectedCategory] = useState<keyof CategoryScores | null>(null)
 
   const { data: detail, isLoading: detailLoading, isError: detailError } = useQuery({
-    queryKey: ['scanner', 'detail', symbol],
-    queryFn: () => scannerApi.getDetail(symbol),
+    queryKey: ['scanner', 'detail', symbol, chartTimeframe],
+    queryFn: () => scannerApi.getDetail(symbol, chartTimeframe),
     enabled: !!symbol,
     staleTime: 60_000,
   })

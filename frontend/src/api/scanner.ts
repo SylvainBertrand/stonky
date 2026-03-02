@@ -20,8 +20,10 @@ export const scannerApi = {
   runScan: (): Promise<ScanRunResponse> =>
     apiFetch<ScanRunResponse>('/api/scanner/run', { method: 'POST' }),
 
-  getDetail: (symbol: string): Promise<ScannerResult> =>
-    apiFetch<ScannerResult>(`/api/scanner/results/${encodeURIComponent(symbol)}`),
+  getDetail: (symbol: string, timeframe = '1d'): Promise<ScannerResult> =>
+    apiFetch<ScannerResult>(
+      `/api/scanner/results/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
+    ),
 
   getOHLCV: (symbol: string, timeframe = '1d', bars = 200): Promise<OHLCVResponse> =>
     apiFetch<OHLCVResponse>(
