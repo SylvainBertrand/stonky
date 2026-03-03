@@ -22,8 +22,8 @@ function formatTimeAgo(d: Date | null): string {
 export function ScannerPage() {
   const queryClient = useQueryClient()
   const {
-    activeProfile, isScanning, lastFetched, scanStartTime,
-    setActiveProfile, setIsScanning, setScanStartTime, setLastFetched,
+    activeProfile, isScanning, lastFetched, activeRunId,
+    setActiveProfile, setIsScanning, setActiveRunId, setScanStartTime, setLastFetched,
   } = useScannerStore()
   const [scanError, setScanError] = useState<string | null>(null)
 
@@ -31,9 +31,45 @@ export function ScannerPage() {
     queryKey: ['scanner', 'results', activeProfile],
     queryFn: () => scannerApi.getResults(activeProfile),
     staleTime: 60_000,
-    refetchInterval: isScanning ? SCAN_POLL_INTERVAL_MS : false,
-    select: (data) => data, // keep as-is; already sorted by rank from backend
+    refetchInterval: false, // results are refetched explicitly when scan completes
+    select: (data) => data,
   })
+
+  // Poll run status while a scan is active
+  const { data: runStatus } = useQuery({
+    queryKey: ['scanner', 'run', activeRunId],
+    queryFn: () => scannerApi.getRunStatus(activeRunId!),
+    enabled: isScanning && activeRunId != null,
+    refetchInterval: isScanning && activeRunId != null ? SCAN_POLL_INTERVAL_MS : false,
+  })
+
+  // React to run status changes
+  useEffect(() => {
+    if (!runStatus || !isScanning) return
+
+    if (runStatus.status === 'completed') {
+      setIsScanning(false)
+      setActiveRunId(null)
+      if (runStatus.symbols_scored === 0) {
+        setScanError(
+          `Scan completed but found no results (${runStatus.symbols_scanned} symbols checked). ` +
+          'Make sure OHLCV data has been ingested for your watchlist symbols.'
+        )
+      } else {
+        setScanError(null)
+      }
+      // Fetch fresh results now that scan is done
+      void queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] })
+    } else if (runStatus.status === 'failed') {
+      setIsScanning(false)
+      setActiveRunId(null)
+      setScanError(
+        runStatus.error_message
+          ? `Scan failed: ${runStatus.error_message}`
+          : 'Scan failed — check backend logs for details.'
+      )
+    }
+  }, [runStatus, isScanning, setIsScanning, setActiveRunId, queryClient])
 
   // Track last fetched time
   useEffect(() => {
@@ -42,40 +78,30 @@ export function ScannerPage() {
     }
   }, [results, setLastFetched])
 
-  // Stop polling when results are fresh: scanned_at > scanStartTime
-  useEffect(() => {
-    if (!isScanning || !scanStartTime) return
-    if (results.length > 0) {
-      const latestScannedAt = results[0].scanned_at
-      if (latestScannedAt && new Date(latestScannedAt) > scanStartTime) {
-        setIsScanning(false)
-      }
-    }
-  }, [isScanning, results, scanStartTime, setIsScanning])
-
-  // Polling timeout: give up after SCAN_TIMEOUT_MS with an error message
+  // Safety-net timeout: give up after SCAN_TIMEOUT_MS regardless of status
   useEffect(() => {
     if (!isScanning) return
     const timer = setTimeout(() => {
       setIsScanning(false)
+      setActiveRunId(null)
       setScanError('Scan timed out — background task may have failed. Check backend logs.')
     }, SCAN_TIMEOUT_MS)
     return () => clearTimeout(timer)
-  }, [isScanning, setIsScanning])
+  }, [isScanning, setIsScanning, setActiveRunId])
 
   const handleRunScan = useCallback(async () => {
     setScanError(null)
     setIsScanning(true)
     setScanStartTime(new Date())
     try {
-      await scannerApi.runScan()
-      // Invalidate immediately — the refetchInterval will pick up fresh data
-      await queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] })
+      const runResp = await scannerApi.runScan()
+      setActiveRunId(runResp.run_id)
     } catch (err) {
       setIsScanning(false)
+      setActiveRunId(null)
       setScanError(err instanceof Error ? err.message : 'Scan failed')
     }
-  }, [queryClient, setIsScanning, setScanStartTime])
+  }, [setIsScanning, setScanStartTime, setActiveRunId])
 
   return (
     <div className="min-h-screen">

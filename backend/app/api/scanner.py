@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import re
-import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
@@ -28,8 +27,9 @@ from app.analysis.pipeline import (
 )
 from app.analysis.profiles import PROFILES
 from app.db.session import AsyncSessionLocal, get_session
-from app.models.enums import TimeframeEnum
+from app.models.enums import ScanRunStatus, TimeframeEnum
 from app.models.indicator_cache import IndicatorCache
+from app.models.scan_runs import ScanRun
 from app.models.symbols import Symbol
 from app.models.watchlists import Watchlist, WatchlistItem
 from app.schemas.scanner import (
@@ -39,6 +39,7 @@ from app.schemas.scanner import (
     HarmonicInfo,
     ProfileInfo,
     ScanRunResponse,
+    ScanRunStatusResponse,
 )
 
 log = logging.getLogger(__name__)
@@ -128,36 +129,66 @@ async def _get_watchlist_symbols(
     return [(row[0], row[1]) for row in result.all()]
 
 
-async def _run_scanner_bg(run_id: str, watchlist_id: int | None = None) -> None:
-    """Background task: run scanner for watchlist symbols."""
+async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
+    """Background task: run scanner for watchlist symbols, tracking status in scan_runs."""
     async with AsyncSessionLocal() as db:
+        # Mark as running
+        try:
+            scan_run = await db.get(ScanRun, run_id)
+            if scan_run is None:
+                log.error("Scanner background task: scan_run %d not found", run_id)
+                return
+            scan_run.status = ScanRunStatus.RUNNING
+            scan_run.started_at = datetime.now(timezone.utc)
+            await db.commit()
+        except Exception as exc:
+            log.error("Scanner run %d: failed to mark as running: %s", run_id, exc)
+            return
+
+        # Execute
         try:
             symbols = await _get_watchlist_symbols(db, watchlist_id)
             if not symbols:
-                log.info("Scanner run %s: no symbols found", run_id)
+                log.info("Scanner run %d: no symbols found", run_id)
+                scan_run.status = ScanRunStatus.COMPLETED
+                scan_run.completed_at = datetime.now(timezone.utc)
+                scan_run.symbols_scored = 0
+                await db.commit()
                 return
+
             results = await run_scanner(symbols, db)
+            scan_run.status = ScanRunStatus.COMPLETED
+            scan_run.completed_at = datetime.now(timezone.utc)
+            scan_run.symbols_scored = len(results)
             await db.commit()
             log.info(
-                "Scanner run %s: completed %d symbols, cached %d results",
+                "Scanner run %d: completed %d symbols, scored %d",
                 run_id, len(symbols), len(results),
             )
         except Exception as exc:
-            log.error("Scanner run %s failed: %s", run_id, exc)
+            log.error("Scanner run %d failed: %s", run_id, exc)
+            try:
+                scan_run.status = ScanRunStatus.FAILED
+                scan_run.completed_at = datetime.now(timezone.utc)
+                scan_run.error_message = str(exc)[:2000]
+                await db.commit()
+            except Exception as commit_exc:
+                log.error("Scanner run %d: failed to record error: %s", run_id, commit_exc)
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@router.post("/run", response_model=dict[str, Any])
+@router.post("/run", response_model=ScanRunResponse, status_code=status.HTTP_202_ACCEPTED)
 async def trigger_scan(
     background_tasks: BackgroundTasks,
     session: SessionDep,
     watchlist_id: Annotated[int | None, Query(description="Watchlist to scan; defaults to active watchlist")] = None,
-) -> dict[str, Any]:
+) -> ScanRunResponse:
     """Trigger a full scan of watchlist symbols (background task).
 
+    Returns a run_id (integer) you can poll via GET /scanner/runs/{run_id}.
     Scans the active (is_default) watchlist by default; pass ?watchlist_id= to override.
     """
     symbols = await _get_watchlist_symbols(session, watchlist_id)
@@ -166,13 +197,49 @@ async def trigger_scan(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No symbols in watchlist. Add tickers to a watchlist first.",
         )
-    run_id = str(uuid.uuid4())
+
+    # Create a scan_run record immediately so the caller can poll its status
+    scan_run = ScanRun(
+        profile_id=None,
+        watchlist_id=watchlist_id,
+        status=ScanRunStatus.PENDING,
+        symbols_scanned=len(symbols),
+        symbols_scored=0,
+    )
+    session.add(scan_run)
+    await session.flush()   # get the auto-assigned id
+    run_id = scan_run.id
+    await session.commit()
+
     background_tasks.add_task(_run_scanner_bg, run_id, watchlist_id)
-    return {
-        "run_id": run_id,
-        "status": "queued",
-        "symbols_queued": len(symbols),
-    }
+    return ScanRunResponse(
+        run_id=run_id,
+        status="queued",
+        symbols_queued=len(symbols),
+    )
+
+
+@router.get("/runs/{run_id}", response_model=ScanRunStatusResponse)
+async def get_run_status(
+    run_id: int,
+    session: SessionDep,
+) -> ScanRunStatusResponse:
+    """Return the status of a scan run started via POST /scanner/run."""
+    scan_run = await session.get(ScanRun, run_id)
+    if scan_run is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scan run {run_id} not found",
+        )
+    return ScanRunStatusResponse(
+        run_id=scan_run.id,
+        status=scan_run.status.value,
+        started_at=scan_run.started_at.isoformat() if scan_run.started_at else None,
+        completed_at=scan_run.completed_at.isoformat() if scan_run.completed_at else None,
+        error_message=scan_run.error_message,
+        symbols_scanned=scan_run.symbols_scanned or 0,
+        symbols_scored=scan_run.symbols_scored or 0,
+    )
 
 
 @router.get("/results", response_model=list[AnalysisResponse])

@@ -4,7 +4,7 @@ import { ScannerPage } from './pages/ScannerPage'
 import { StockDetailPage } from './pages/StockDetailPage'
 import { WatchlistPage } from './pages/WatchlistPage'
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 1,

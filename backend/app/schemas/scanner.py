@@ -56,9 +56,19 @@ class AnalysisResponse(BaseModel):
 
 
 class ScanRunResponse(BaseModel):
-    run_id: str
+    run_id: int
     status: str
     symbols_queued: int
+
+
+class ScanRunStatusResponse(BaseModel):
+    run_id: int
+    status: str
+    started_at: str | None = None
+    completed_at: str | None = None
+    error_message: str | None = None
+    symbols_scanned: int = 0
+    symbols_scored: int = 0
 
 
 class ProfileInfo(BaseModel):

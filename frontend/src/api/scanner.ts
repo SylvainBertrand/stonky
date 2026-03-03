@@ -1,9 +1,12 @@
-import type { OHLCVResponse, ScanRunResponse, ScannerResult } from '../types'
+import type { OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
 
+const FETCH_TIMEOUT_MS = 30_000
+
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init)
+  const signal = AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  const res = await fetch(`${API_BASE}${path}`, { ...init, signal })
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`HTTP ${res.status}${body ? `: ${body}` : ''}`)
@@ -17,8 +20,13 @@ export const scannerApi = {
     return apiFetch<ScannerResult[]>(`/api/scanner/results${qs}`)
   },
 
-  runScan: (): Promise<ScanRunResponse> =>
-    apiFetch<ScanRunResponse>('/api/scanner/run', { method: 'POST' }),
+  runScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
+    return apiFetch<ScanRunResponse>(`/api/scanner/run${qs}`, { method: 'POST' })
+  },
+
+  getRunStatus: (runId: number): Promise<ScanRunStatus> =>
+    apiFetch<ScanRunStatus>(`/api/scanner/runs/${runId}`),
 
   getDetail: (symbol: string, timeframe = '1d'): Promise<ScannerResult> =>
     apiFetch<ScannerResult>(

@@ -88,9 +88,19 @@ export interface OHLCVResponse {
 // ─── Scanner run ─────────────────────────────────────────────────────────────
 
 export interface ScanRunResponse {
-  run_id: string
+  run_id: number
   status: string
   symbols_queued: number
+}
+
+export interface ScanRunStatus {
+  run_id: number
+  status: 'pending' | 'running' | 'completed' | 'failed' | string
+  started_at: string | null
+  completed_at: string | null
+  error_message: string | null
+  symbols_scanned: number
+  symbols_scored: number
 }
 
 // ─── Watchlist types ──────────────────────────────────────────────────────────

@@ -47,8 +47,10 @@ def _build_asyncpg_url(container: PostgresContainer) -> str:
 
 def _run_migrations(asyncpg_url: str) -> None:
     """Run Alembic migrations against the test container using a subprocess."""
+    # Use the venv's alembic to ensure all app dependencies (pydantic_settings, etc.) are available
+    alembic_bin = str(_BACKEND_DIR / ".venv" / "bin" / "alembic")
     result = subprocess.run(
-        ["alembic", "upgrade", "head"],
+        [alembic_bin, "upgrade", "head"],
         cwd=str(_BACKEND_DIR),
         env={**os.environ, "DATABASE_URL": asyncpg_url},
         capture_output=True,

@@ -14,8 +14,12 @@ class ScanRun(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    profile_id: Mapped[int] = mapped_column(ForeignKey("scan_profiles.id", ondelete="CASCADE"))
-    watchlist_id: Mapped[int] = mapped_column(ForeignKey("watchlists.id", ondelete="CASCADE"))
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("scan_profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    watchlist_id: Mapped[int | None] = mapped_column(
+        ForeignKey("watchlists.id", ondelete="SET NULL"), nullable=True
+    )
     status: Mapped[ScanRunStatus] = mapped_column(
         pg_enum(ScanRunStatus, "scan_run_status"),
         nullable=False,
@@ -30,8 +34,8 @@ class ScanRun(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    profile: Mapped["ScanProfile"] = relationship(back_populates="scan_runs")  # type: ignore[name-defined]
-    watchlist: Mapped["Watchlist"] = relationship()  # type: ignore[name-defined]
+    profile: Mapped["ScanProfile | None"] = relationship(back_populates="scan_runs")  # type: ignore[name-defined]
+    watchlist: Mapped["Watchlist | None"] = relationship()  # type: ignore[name-defined]
     results: Mapped[list["ScanResult"]] = relationship(  # type: ignore[name-defined]
         back_populates="scan_run", cascade="all, delete-orphan"
     )

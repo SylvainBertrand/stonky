@@ -31,6 +31,7 @@ from app.models import (
     WatchlistItem,
 )
 from app.models.enums import ScanRunStatus, TimeframeEnum
+from app.models.indicator_cache import IndicatorCache
 
 
 def _unique_ticker() -> str:
@@ -183,3 +184,70 @@ async def create_sa_rating(
     session.add(rating)
     await session.flush()
     return rating
+
+
+# ---------------------------------------------------------------------------
+# IndicatorCache
+# ---------------------------------------------------------------------------
+
+_DEFAULT_FULL_ANALYSIS: dict[str, Any] = {
+    "symbol": "TEST",
+    "composite_score": 0.42,
+    "category_scores": {
+        "trend": 0.6,
+        "momentum": 0.5,
+        "volume": 0.3,
+        "volatility": 0.1,
+        "support_resistance": 0.2,
+        "divergence": 0.0,
+        "pattern": 0.0,
+    },
+    "profile_matches": [],
+    "signals": {"rsi": 0.4, "ema_trend": 0.6},
+    "meta": {
+        "atr": 2.5,
+        "atr_pct": 2.0,
+        "last_price": 125.0,
+        "volume_ratio": 1.1,
+        "price_change_pct": 0.5,
+        "timestamp": "2026-01-02T00:00:00+00:00",
+        "bars": 250,
+    },
+    "harmonics": None,
+    "is_actionable": True,
+    "volume_contradiction": False,
+}
+
+
+async def create_indicator_cache(
+    session: AsyncSession,
+    symbol: Symbol,
+    timeframe: str = "1d",
+    indicator_name: str = "full_analysis",
+    value: dict[str, Any] | None = None,
+    time: datetime | None = None,
+    **overrides: Any,
+) -> IndicatorCache:
+    """Insert a pre-built indicator_cache row for testing GET /scanner/results endpoints."""
+    import hashlib
+
+    tf_enum = TimeframeEnum(timeframe)
+    params_hash = hashlib.md5(timeframe.encode()).hexdigest()
+
+    cache_value: dict[str, Any] = {**_DEFAULT_FULL_ANALYSIS, "symbol": symbol.ticker}
+    if value is not None:
+        cache_value.update(value)
+    cache_value["symbol"] = symbol.ticker  # always match
+
+    row = IndicatorCache(
+        time=time or datetime.now(timezone.utc),
+        symbol_id=symbol.id,
+        timeframe=tf_enum,
+        indicator_name=indicator_name,
+        params_hash=params_hash,
+        value=cache_value,
+        **overrides,
+    )
+    session.add(row)
+    await session.flush()
+    return row
