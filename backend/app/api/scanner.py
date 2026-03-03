@@ -156,7 +156,7 @@ async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
                 await db.commit()
                 return
 
-            results = await run_scanner(symbols, db)
+            results = await run_scanner(symbols)
             scan_run.status = ScanRunStatus.COMPLETED
             scan_run.completed_at = datetime.now(timezone.utc)
             scan_run.symbols_scored = len(results)
@@ -247,13 +247,23 @@ async def get_latest_results(
     session: SessionDep,
     profile: Annotated[str | None, Query(description="Filter by profile name (e.g. momentum_breakout or MomentumBreakout)")] = None,
     timeframe: Annotated[str, Query(description="Timeframe: 1d or 1w")] = "1d",
+    watchlist_id: Annotated[int | None, Query(description="Limit results to symbols in this watchlist")] = None,
 ) -> list[AnalysisResponse]:
     """Return latest cached analysis results sorted by composite_score descending.
 
     Use ?profile= to filter by matching profile name (case-insensitive, snake_case or CamelCase).
     Use ?timeframe= to select which timeframe's analysis to return (default: 1d).
+    Use ?watchlist_id= to limit results to symbols belonging to a specific watchlist.
     """
     tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
+
+    # Resolve watchlist symbol IDs for filtering when requested
+    watchlist_symbol_ids: set[int] | None = None
+    if watchlist_id is not None:
+        wl_rows = await session.execute(
+            select(WatchlistItem.symbol_id).where(WatchlistItem.watchlist_id == watchlist_id)
+        )
+        watchlist_symbol_ids = {row[0] for row in wl_rows.all()}
 
     # Get latest full_analysis entry per symbol for the requested timeframe
     result = await session.execute(
@@ -266,13 +276,14 @@ async def get_latest_results(
     )
     rows = result.scalars().all()
 
-    # Deduplicate: keep latest per symbol_id
+    # Deduplicate: keep latest per symbol_id, optionally scoped to watchlist
     seen: set[int] = set()
     unique: list[IndicatorCache] = []
     for row in rows:
         if row.symbol_id not in seen:
-            seen.add(row.symbol_id)
-            unique.append(row)
+            if watchlist_symbol_ids is None or row.symbol_id in watchlist_symbol_ids:
+                seen.add(row.symbol_id)
+                unique.append(row)
 
     # Parse
     responses: list[AnalysisResponse] = []

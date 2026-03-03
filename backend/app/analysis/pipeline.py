@@ -54,6 +54,7 @@ from app.analysis.indicators.volume import (
 )
 from app.analysis.profiles import evaluate_profiles
 from app.analysis.scoring import build_composite
+from app.db.session import AsyncSessionLocal
 from app.models.enums import TimeframeEnum
 from app.models.indicator_cache import IndicatorCache
 from app.models.ohlcv import OHLCV
@@ -348,19 +349,20 @@ async def run_analysis_for_ticker(
 
 async def run_scanner(
     symbol_ids: list[tuple[int, str]],
-    db: AsyncSession,
     timeframe: TimeframeEnum = TimeframeEnum.D1,
     concurrency: int = 10,
 ) -> list[AnalysisResult]:
     """
     Run analysis for all symbols concurrently (semaphore-limited).
+    Each symbol gets its own DB session to avoid concurrent-flush conflicts.
     Returns results sorted by composite_score descending.
     """
     sem = asyncio.Semaphore(concurrency)
 
     async def _run_one(symbol_id: int, ticker: str) -> AnalysisResult | None:
         async with sem:
-            return await run_analysis_for_ticker(symbol_id, ticker, db, timeframe)
+            async with AsyncSessionLocal() as db:
+                return await run_analysis_for_ticker(symbol_id, ticker, db, timeframe)
 
     tasks = [_run_one(sid, ticker) for sid, ticker in symbol_ids]
     raw = await asyncio.gather(*tasks, return_exceptions=True)

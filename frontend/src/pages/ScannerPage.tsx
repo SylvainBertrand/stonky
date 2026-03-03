@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { scannerApi } from '../api/scanner'
+import { watchlistApi } from '../api/watchlists'
 import { useScannerStore } from '../stores/scannerStore'
 import { ProfileFilterTabs } from '../components/scanner/ProfileFilterTabs'
 import { ResultsTable } from '../components/scanner/ResultsTable'
@@ -27,11 +28,19 @@ export function ScannerPage() {
   } = useScannerStore()
   const [scanError, setScanError] = useState<string | null>(null)
 
-  const { data: results = [], isLoading, isError } = useQuery({
-    queryKey: ['scanner', 'results', activeProfile],
-    queryFn: () => scannerApi.getResults(activeProfile),
+  // Mirror the WatchlistSwitcher's cache key so we react when the active watchlist changes
+  const { data: watchlists = [] } = useQuery({
+    queryKey: ['watchlists'],
+    queryFn: () => watchlistApi.getAll(),
     staleTime: 60_000,
-    refetchInterval: false, // results are refetched explicitly when scan completes
+  })
+  const activeWatchlistId = watchlists.find((w) => w.is_default)?.id ?? null
+
+  const { data: results = [], isLoading, isError } = useQuery({
+    queryKey: ['scanner', 'results', activeProfile, activeWatchlistId],
+    queryFn: () => scannerApi.getResults(activeProfile, activeWatchlistId),
+    staleTime: 60_000,
+    refetchInterval: false,
     select: (data) => data,
   })
 
@@ -94,14 +103,14 @@ export function ScannerPage() {
     setIsScanning(true)
     setScanStartTime(new Date())
     try {
-      const runResp = await scannerApi.runScan()
+      const runResp = await scannerApi.runScan(activeWatchlistId)
       setActiveRunId(runResp.run_id)
     } catch (err) {
       setIsScanning(false)
       setActiveRunId(null)
       setScanError(err instanceof Error ? err.message : 'Scan failed')
     }
-  }, [setIsScanning, setScanStartTime, setActiveRunId])
+  }, [setIsScanning, setScanStartTime, setActiveRunId, activeWatchlistId])
 
   return (
     <div className="min-h-screen">

@@ -15,8 +15,11 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const scannerApi = {
-  getResults: (profile?: string | null): Promise<ScannerResult[]> => {
-    const qs = profile ? `?profile=${encodeURIComponent(profile)}` : ''
+  getResults: (profile?: string | null, watchlistId?: number | null): Promise<ScannerResult[]> => {
+    const params = new URLSearchParams()
+    if (profile) params.set('profile', profile)
+    if (watchlistId != null) params.set('watchlist_id', String(watchlistId))
+    const qs = params.size > 0 ? `?${params.toString()}` : ''
     return apiFetch<ScannerResult[]>(`/api/scanner/results${qs}`)
   },
 
