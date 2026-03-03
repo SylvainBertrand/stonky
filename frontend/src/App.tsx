@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ScannerPage } from './pages/ScannerPage'
 import { StockDetailPage } from './pages/StockDetailPage'
+import { WatchlistPage } from './pages/WatchlistPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,6 +19,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<ScannerPage />} />
+          <Route path="/watchlists" element={<WatchlistPage />} />
           <Route path="/stock/:symbol" element={<StockDetailPage />} />
         </Routes>
       </BrowserRouter>

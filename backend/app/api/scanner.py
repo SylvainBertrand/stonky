@@ -106,22 +106,33 @@ def _normalize_profile_name(raw: str) -> str:
     return "".join(word.capitalize() for word in re.split(r"[_\-]", raw))
 
 
-async def _get_all_watchlist_symbols(db: AsyncSession) -> list[tuple[int, str]]:
-    """Return all (symbol_id, ticker) pairs across all watchlists."""
-    result = await db.execute(
+async def _get_watchlist_symbols(
+    db: AsyncSession, watchlist_id: int | None = None
+) -> list[tuple[int, str]]:
+    """Return (symbol_id, ticker) pairs for the given watchlist.
+
+    When watchlist_id is None, uses the active (is_default=True) watchlist.
+    """
+    query = (
         select(Symbol.id, Symbol.ticker)
         .join(WatchlistItem, WatchlistItem.symbol_id == Symbol.id)
         .where(Symbol.is_active.is_(True))
-        .distinct()
     )
+    if watchlist_id is not None:
+        query = query.where(WatchlistItem.watchlist_id == watchlist_id)
+    else:
+        query = query.join(Watchlist, Watchlist.id == WatchlistItem.watchlist_id).where(
+            Watchlist.is_default.is_(True)
+        )
+    result = await db.execute(query.distinct())
     return [(row[0], row[1]) for row in result.all()]
 
 
-async def _run_scanner_bg(run_id: str) -> None:
-    """Background task: run scanner for all watchlist symbols."""
+async def _run_scanner_bg(run_id: str, watchlist_id: int | None = None) -> None:
+    """Background task: run scanner for watchlist symbols."""
     async with AsyncSessionLocal() as db:
         try:
-            symbols = await _get_all_watchlist_symbols(db)
+            symbols = await _get_watchlist_symbols(db, watchlist_id)
             if not symbols:
                 log.info("Scanner run %s: no symbols found", run_id)
                 return
@@ -143,16 +154,20 @@ async def _run_scanner_bg(run_id: str) -> None:
 async def trigger_scan(
     background_tasks: BackgroundTasks,
     session: SessionDep,
+    watchlist_id: Annotated[int | None, Query(description="Watchlist to scan; defaults to active watchlist")] = None,
 ) -> dict[str, Any]:
-    """Trigger a full scan of all watchlist symbols (background task)."""
-    symbols = await _get_all_watchlist_symbols(session)
+    """Trigger a full scan of watchlist symbols (background task).
+
+    Scans the active (is_default) watchlist by default; pass ?watchlist_id= to override.
+    """
+    symbols = await _get_watchlist_symbols(session, watchlist_id)
     if not symbols:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="No symbols in watchlist. Add tickers to a watchlist first.",
         )
     run_id = str(uuid.uuid4())
-    background_tasks.add_task(_run_scanner_bg, run_id)
+    background_tasks.add_task(_run_scanner_bg, run_id, watchlist_id)
     return {
         "run_id": run_id,
         "status": "queued",

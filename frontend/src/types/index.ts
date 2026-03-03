@@ -92,3 +92,34 @@ export interface ScanRunResponse {
   status: string
   symbols_queued: number
 }
+
+// ─── Watchlist types ──────────────────────────────────────────────────────────
+
+export interface Watchlist {
+  id: number
+  name: string
+  description: string | null
+  is_default: boolean
+  created_at: string
+  item_count: number
+}
+
+export interface WatchlistItemWithRatings {
+  id: number
+  symbol_id: number
+  ticker: string
+  name: string | null
+  notes: string | null
+  added_at: string
+  quant_score: number | null
+  momentum_grade: string | null
+  valuation_grade: string | null
+  growth_grade: string | null
+}
+
+export interface SAImportResult {
+  added: number
+  skipped: number
+  ratings_imported: number
+  errors: number
+}

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { scannerApi } from '../api/scanner'
 import { useScannerStore } from '../stores/scannerStore'
 import { ProfileFilterTabs } from '../components/scanner/ProfileFilterTabs'
 import { ResultsTable } from '../components/scanner/ResultsTable'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
+import { WatchlistSwitcher } from '../components/watchlist/WatchlistSwitcher'
 
 const SCAN_POLL_INTERVAL_MS = 5_000
 const SCAN_TIMEOUT_MS = 120_000
@@ -80,7 +82,20 @@ export function ScannerPage() {
       {/* Header */}
       <header className="border-b border-gray-800 px-6 py-3">
         <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-4">
-          <h1 className="text-lg font-bold text-white tracking-tight">Stonky</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-lg font-bold text-white tracking-tight">Stonky</h1>
+            <nav className="flex items-center gap-3 text-sm">
+              <span className="text-white font-medium">Scanner</span>
+              <span className="text-gray-700">|</span>
+              <Link
+                to="/watchlists"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Watchlists
+              </Link>
+            </nav>
+          </div>
+          <WatchlistSwitcher />
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500">
               {isLoading ? 'Fetching…' : lastFetched ? `Last refreshed: ${formatTimeAgo(lastFetched)}` : 'Not yet scanned'}

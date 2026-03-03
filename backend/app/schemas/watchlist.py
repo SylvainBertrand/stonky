@@ -55,6 +55,36 @@ class WatchlistDetail(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class WatchlistUpdate(BaseModel):
+    name: str
+
+
+class SetActiveRequest(BaseModel):
+    watchlist_id: int
+
+
+class WatchlistItemWithRatings(BaseModel):
+    id: int
+    symbol_id: int
+    ticker: str
+    name: str | None
+    notes: str | None
+    added_at: datetime
+    quant_score: float | None = None
+    momentum_grade: str | None = None
+    valuation_grade: str | None = None
+    growth_grade: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class SAImportResult(BaseModel):
+    added: int
+    skipped: int
+    ratings_imported: int
+    errors: int
+
+
 class IngestionStatusEntry(BaseModel):
     ticker: str
     timeframe: str

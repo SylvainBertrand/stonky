@@ -12,18 +12,23 @@ from sqlalchemy.orm import selectinload
 
 from app.db.session import AsyncSessionLocal, get_session
 from app.ingestion.fetcher import fetch_and_store
-from app.ingestion.sa_import import import_sa_ratings
+from app.ingestion.sa_import import import_sa_ratings, parse_sa_spreadsheet
 from app.models.enums import TimeframeEnum
 from app.models.ingestion_log import IngestionLog
+from app.models.sa_ratings import SARating
 from app.models.symbols import Symbol
 from app.models.watchlists import Watchlist, WatchlistItem
 from app.schemas.watchlist import (
     IngestionStatusEntry,
+    SAImportResult,
+    SetActiveRequest,
     SymbolAdd,
     WatchlistCreate,
     WatchlistDetail,
     WatchlistItemRead,
+    WatchlistItemWithRatings,
     WatchlistRead,
+    WatchlistUpdate,
 )
 
 router = APIRouter(prefix="/watchlists", tags=["watchlists"])
@@ -107,6 +112,44 @@ async def _watchlist_to_detail(session: AsyncSession, wl: Watchlist) -> Watchlis
 
 
 # ---------------------------------------------------------------------------
+# Active watchlist endpoints — defined BEFORE /{watchlist_id} to avoid conflict
+# ---------------------------------------------------------------------------
+
+
+@router.get("/active", response_model=WatchlistRead)
+async def get_active_watchlist(session: SessionDep) -> WatchlistRead:
+    """Return the active (default) watchlist, or 404 if none is set."""
+    result = await session.execute(
+        select(Watchlist).where(Watchlist.is_default.is_(True))
+    )
+    wl = result.scalar_one_or_none()
+    if wl is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No active watchlist set",
+        )
+    return await _watchlist_to_read(session, wl)
+
+
+@router.put("/active", response_model=WatchlistRead)
+async def set_active_watchlist(body: SetActiveRequest, session: SessionDep) -> WatchlistRead:
+    """Set the active (default) watchlist. Clears is_default on all others."""
+    wl = await _get_watchlist_or_404(session, body.watchlist_id)
+
+    # Clear all existing defaults
+    existing = await session.execute(
+        select(Watchlist).where(Watchlist.is_default.is_(True))
+    )
+    for existing_wl in existing.scalars().all():
+        existing_wl.is_default = False
+
+    wl.is_default = True
+    await session.commit()
+    await session.refresh(wl)
+    return await _watchlist_to_read(session, wl)
+
+
+# ---------------------------------------------------------------------------
 # SA Ratings import — defined BEFORE /{watchlist_id} routes to avoid conflict
 # ---------------------------------------------------------------------------
 
@@ -177,15 +220,287 @@ async def get_watchlist(watchlist_id: int, session: SessionDep) -> WatchlistDeta
     return await _watchlist_to_detail(session, wl)
 
 
+@router.put("/{watchlist_id}", response_model=WatchlistRead)
+async def rename_watchlist(
+    watchlist_id: int,
+    body: WatchlistUpdate,
+    session: SessionDep,
+) -> WatchlistRead:
+    """Rename a watchlist."""
+    wl = await _get_watchlist_or_404(session, watchlist_id)
+    wl.name = body.name
+    await session.commit()
+    await session.refresh(wl)
+    return await _watchlist_to_read(session, wl)
+
+
 @router.delete("/{watchlist_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_watchlist(watchlist_id: int, session: SessionDep) -> None:
     wl = await _get_watchlist_or_404(session, watchlist_id)
+
+    # If deleting the active watchlist, auto-activate another one
+    if wl.is_default:
+        other_result = await session.execute(
+            select(Watchlist)
+            .where(Watchlist.id != watchlist_id)
+            .limit(1)
+        )
+        other = other_result.scalar_one_or_none()
+        if other is not None:
+            other.is_default = True
+
     await session.delete(wl)
     await session.commit()
 
 
 # ---------------------------------------------------------------------------
-# Symbol management
+# Items endpoints (with SA ratings)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{watchlist_id}/items",
+    response_model=list[WatchlistItemWithRatings],
+)
+async def get_watchlist_items(
+    watchlist_id: int,
+    session: SessionDep,
+) -> list[WatchlistItemWithRatings]:
+    """Return watchlist items joined with the latest SA rating per symbol."""
+    await _get_watchlist_or_404(session, watchlist_id)
+
+    # Subquery: latest snapshot_date per symbol
+    latest_subq = (
+        select(SARating.symbol_id, func.max(SARating.snapshot_date).label("max_date"))
+        .group_by(SARating.symbol_id)
+        .subquery()
+    )
+
+    rows = await session.execute(
+        select(WatchlistItem, Symbol, SARating)
+        .join(Symbol, Symbol.id == WatchlistItem.symbol_id)
+        .outerjoin(latest_subq, latest_subq.c.symbol_id == Symbol.id)
+        .outerjoin(
+            SARating,
+            (SARating.symbol_id == Symbol.id)
+            & (SARating.snapshot_date == latest_subq.c.max_date),
+        )
+        .where(WatchlistItem.watchlist_id == watchlist_id)
+        .order_by(WatchlistItem.added_at)
+    )
+
+    results: list[WatchlistItemWithRatings] = []
+    for item, symbol, rating in rows:
+        results.append(
+            WatchlistItemWithRatings(
+                id=item.id,
+                symbol_id=item.symbol_id,
+                ticker=symbol.ticker,
+                name=symbol.name,
+                notes=item.notes,
+                added_at=item.added_at,
+                quant_score=float(rating.quant_score) if rating and rating.quant_score is not None else None,
+                momentum_grade=rating.momentum_grade.value if rating and rating.momentum_grade else None,
+                valuation_grade=rating.valuation_grade.value if rating and rating.valuation_grade else None,
+                growth_grade=rating.growth_grade.value if rating and rating.growth_grade else None,
+            )
+        )
+    return results
+
+
+@router.post(
+    "/{watchlist_id}/items",
+    response_model=WatchlistItemRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_item(
+    watchlist_id: int,
+    body: SymbolAdd,
+    session: SessionDep,
+) -> WatchlistItemRead:
+    """Add a symbol to a watchlist by ticker."""
+    await _get_watchlist_or_404(session, watchlist_id)
+
+    # Resolve or auto-create symbol
+    sym_result = await session.execute(
+        select(Symbol).where(Symbol.ticker == body.ticker)
+    )
+    symbol = sym_result.scalar_one_or_none()
+    if symbol is None:
+        symbol = Symbol(ticker=body.ticker, asset_type="stock")
+        session.add(symbol)
+        await session.flush()
+
+    # Check for duplicate
+    dup = await session.execute(
+        select(WatchlistItem).where(
+            WatchlistItem.watchlist_id == watchlist_id,
+            WatchlistItem.symbol_id == symbol.id,
+        )
+    )
+    if dup.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"{body.ticker} is already in this watchlist",
+        )
+
+    item = WatchlistItem(
+        watchlist_id=watchlist_id,
+        symbol_id=symbol.id,
+        notes=body.notes,
+    )
+    session.add(item)
+    await session.flush()
+    await session.commit()
+    await session.refresh(item)
+
+    return WatchlistItemRead(
+        id=item.id,
+        symbol_id=symbol.id,
+        ticker=symbol.ticker,
+        name=symbol.name,
+        notes=item.notes,
+        added_at=item.added_at,
+    )
+
+
+@router.delete(
+    "/{watchlist_id}/items/{ticker}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_item(
+    watchlist_id: int,
+    ticker: str,
+    session: SessionDep,
+) -> None:
+    """Remove a symbol from a watchlist by ticker."""
+    await _get_watchlist_or_404(session, watchlist_id)
+
+    sym_result = await session.execute(
+        select(Symbol.id).where(Symbol.ticker == ticker.upper())
+    )
+    symbol_id = sym_result.scalar_one_or_none()
+    if symbol_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Symbol not found")
+
+    item_result = await session.execute(
+        select(WatchlistItem).where(
+            WatchlistItem.watchlist_id == watchlist_id,
+            WatchlistItem.symbol_id == symbol_id,
+        )
+    )
+    item = item_result.scalar_one_or_none()
+    if item is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{ticker.upper()} not in watchlist",
+        )
+
+    await session.delete(item)
+    await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Scoped SA import
+# ---------------------------------------------------------------------------
+
+
+async def _backfill_tickers_bg(tickers: list[str]) -> None:
+    """Background task: full OHLCV backfill for newly added tickers."""
+    async with AsyncSessionLocal() as session:
+        await fetch_and_store(session, tickers, incremental=False)
+        await session.commit()
+
+
+@router.post("/{watchlist_id}/import-sa", response_model=SAImportResult)
+async def import_sa_for_watchlist(
+    watchlist_id: int,
+    file: UploadFile,
+    background_tasks: BackgroundTasks,
+    session: SessionDep,
+) -> SAImportResult:
+    """Import SA spreadsheet scoped to a watchlist.
+
+    Adds tickers to the watchlist, imports SA ratings, then kicks off
+    a background OHLCV backfill for newly added symbols.
+    """
+    await _get_watchlist_or_404(session, watchlist_id)
+
+    suffix = Path(file.filename or "upload").suffix.lower() or ".csv"
+    allowed = {".csv", ".xlsx", ".xls"}
+    if suffix not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported file type '{suffix}'. Use CSV or XLSX.",
+        )
+
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp_path = tmp.name
+
+    try:
+        # Parse tickers from spreadsheet
+        df = parse_sa_spreadsheet(tmp_path)
+        tickers = [str(t).strip().upper() for t in df["ticker"].tolist() if t]
+
+        added = 0
+        skipped = 0
+        new_tickers: list[str] = []
+
+        for ticker in tickers:
+            # Resolve or auto-create symbol
+            sym_result = await session.execute(
+                select(Symbol).where(Symbol.ticker == ticker)
+            )
+            symbol = sym_result.scalar_one_or_none()
+            if symbol is None:
+                symbol = Symbol(ticker=ticker, asset_type="stock")
+                session.add(symbol)
+                await session.flush()
+
+            # Check for duplicate in this watchlist
+            dup = await session.execute(
+                select(WatchlistItem).where(
+                    WatchlistItem.watchlist_id == watchlist_id,
+                    WatchlistItem.symbol_id == symbol.id,
+                )
+            )
+            if dup.scalar_one_or_none() is not None:
+                skipped += 1
+            else:
+                item = WatchlistItem(
+                    watchlist_id=watchlist_id,
+                    symbol_id=symbol.id,
+                )
+                session.add(item)
+                added += 1
+                new_tickers.append(ticker)
+
+        # Import SA ratings
+        ratings_result = await import_sa_ratings(tmp_path, session)
+        ratings_imported = ratings_result.get("imported", 0)
+        errors = ratings_result.get("errors", 0)
+
+        await session.commit()
+
+        # Kick off OHLCV backfill for newly added tickers
+        if new_tickers:
+            background_tasks.add_task(_backfill_tickers_bg, new_tickers)
+
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+    return SAImportResult(
+        added=added,
+        skipped=skipped,
+        ratings_imported=ratings_imported,
+        errors=errors,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Symbol management (legacy /symbols endpoints kept for backward compat)
 # ---------------------------------------------------------------------------
 
 
@@ -336,8 +651,7 @@ async def watchlist_status(
     await _get_watchlist_or_404(session, watchlist_id)
 
     # Latest log per symbol: subquery ranks by fetched_at desc
-    from sqlalchemy import desc, over
-    from sqlalchemy.sql.functions import rank as rank_fn
+    from sqlalchemy import desc
 
     # Simpler approach: one query per symbol using LATERAL or just fetch all and deduplicate in Python
     syms_result = await session.execute(
