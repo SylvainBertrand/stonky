@@ -53,7 +53,7 @@ def _all_bullish() -> tuple[dict[str, float], dict[str, float], float]:
 class TestMomentumBreakoutProfile:
     def test_matches_when_all_conditions_met(self) -> None:
         signals, cats, comp = _all_bullish()
-        signals["ttm_squeeze"] = 1.0  # fired
+        signals["adx_dmi"] = 0.5  # trending
         cats["trend"] = 0.5
         cats["momentum"] = 0.5
         cats["volume"] = 0.5
@@ -61,19 +61,22 @@ class TestMomentumBreakoutProfile:
         result = p.check(signals, cats, comp)
         assert result.matches is True
 
-    def test_fails_when_ttm_squeeze_not_fired(self) -> None:
+    def test_fails_when_adx_not_trending(self) -> None:
         signals, cats, comp = _all_bullish()
-        signals["ttm_squeeze"] = 0.0  # not fired
+        signals["adx_dmi"] = 0.05  # too low
+        cats["trend"] = 0.5
+        cats["momentum"] = 0.5
+        cats["volume"] = 0.5
         p = MomentumBreakout()
         result = p.check(signals, cats, comp)
         assert result.matches is False
-        assert result.conditions_met["ttm_squeeze_fired"] is False
+        assert result.conditions_met["adx_trending"] is False
 
     def test_fails_when_score_below_threshold(self) -> None:
         signals, cats, _ = _all_bullish()
-        signals["ttm_squeeze"] = 1.0
+        signals["adx_dmi"] = 0.5
         p = MomentumBreakout()
-        result = p.check(signals, cats, 0.0)  # composite = 0 < threshold 0.4
+        result = p.check(signals, cats, 0.1)  # composite = 0.1 < threshold 0.2
         assert result.matches is False
 
     def test_conditions_dict_returned(self) -> None:
@@ -115,6 +118,7 @@ class TestMeanReversionProfile:
         signals, cats = self._mr_signals()
         signals["rsi"] = -0.5         # overbought, not oversold
         signals["rsi_divergence"] = 0.0  # no divergence either
+        signals["macd_divergence"] = 0.0  # no MACD divergence either
         p = MeanReversion()
         result = p.check(signals, cats, 0.15)
         assert result.matches is False
@@ -132,6 +136,7 @@ class TestMeanReversionProfile:
     def test_fails_when_stochastic_not_oversold(self) -> None:
         signals, cats = self._mr_signals()
         signals["stochastic"] = -0.5  # overbought stochastic
+        signals.setdefault("macd_divergence", 0.0)  # ensure no MACD divergence bypass
         p = MeanReversion()
         result = p.check(signals, cats, 0.15)
         assert result.matches is False
@@ -170,7 +175,7 @@ class TestTrendFollowingProfile:
     def test_matches_when_all_conditions_met(self) -> None:
         signals, cats = self._tf_signals()
         p = TrendFollowing()
-        result = p.check(signals, cats, 0.5)
+        result = p.check(signals, cats, 0.3)
         assert result.matches is True
 
     def test_fails_when_supertrend_bearish(self) -> None:

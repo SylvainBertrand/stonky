@@ -362,7 +362,9 @@ async def run_scanner(
     async def _run_one(symbol_id: int, ticker: str) -> AnalysisResult | None:
         async with sem:
             async with AsyncSessionLocal() as db:
-                return await run_analysis_for_ticker(symbol_id, ticker, db, timeframe)
+                result = await run_analysis_for_ticker(symbol_id, ticker, db, timeframe)
+                await db.commit()
+                return result
 
     tasks = [_run_one(sid, ticker) for sid, ticker in symbol_ids]
     raw = await asyncio.gather(*tasks, return_exceptions=True)

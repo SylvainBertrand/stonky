@@ -39,12 +39,12 @@ class MomentumBreakout:
         "Stocks breaking out of consolidation with expanding momentum. "
         "Requires strong trend + positive momentum + volume confirmation."
     )
-    score_threshold: float = 0.3
+    score_threshold: float = 0.2
     required_conditions: list[str] = field(default_factory=lambda: [
         "trend_bullish",
         "momentum_positive",
         "volume_positive",
-        "ttm_squeeze_fired",
+        "adx_trending",
     ])
 
     def check(
@@ -57,8 +57,8 @@ class MomentumBreakout:
             "trend_bullish": category_scores.get("trend", 0.0) > 0.3,
             "momentum_positive": category_scores.get("momentum", 0.0) > 0.0,
             "volume_positive": category_scores.get("volume", 0.0) > 0.0,
-            # Squeeze fired within ~3 bars: score = 1.0*(1-bars_ago/10), 3 bars ago ≈ 0.7
-            "ttm_squeeze_fired": signals.get("ttm_squeeze", 0.0) >= 0.7,
+            # ADX-based trend strength (adx_dmi > 0.1 ≈ ADX > ~20)
+            "adx_trending": signals.get("adx_dmi", 0.0) > 0.1,
         }
         matches = composite >= self.score_threshold and all(conditions.values())
         return ProfileResult(name=self.name, matches=matches, conditions_met=conditions)
@@ -89,17 +89,18 @@ class MeanReversion:
         composite: float,
     ) -> ProfileResult:
         conditions: dict[str, bool] = {
-            # RSI<35 (signal ~> 0.2) OR RSI bullish divergence
+            # RSI<35 (signal ~> 0.2) OR any bullish divergence (RSI or MACD)
             "oversold_or_divergence": (
                 signals.get("rsi", 0.0) > 0.2
                 or signals.get("rsi_divergence", 0.0) > 0.0
+                or signals.get("macd_divergence", 0.0) > 0.0
             ),
-            # Stochastic %K<25 zone (signal > 0.3 approximates K<25 oversold)
-            "stochastic_oversold": signals.get("stochastic", 0.0) > 0.3,
+            # Stochastic in oversold territory (signal > 0.15 ≈ %K < 30)
+            "stochastic_oversold": signals.get("stochastic", 0.0) > 0.15,
             # Price near support (Fib or Pivot) OR at lower Bollinger Band
             "near_support": (
                 category_scores.get("support_resistance", 0.0) > 0.0
-                or signals.get("bb_pct_b", 0.0) > 0.4
+                or signals.get("bb_pct_b", 0.0) > 0.3
             ),
         }
         matches = composite >= self.score_threshold and all(conditions.values())
@@ -117,7 +118,7 @@ class TrendFollowing:
         "Strong trending stocks with EMA alignment. "
         "Requires bullish EMA stack + ADX strength + Supertrend confirmation."
     )
-    score_threshold: float = 0.4
+    score_threshold: float = 0.25
     required_conditions: list[str] = field(default_factory=lambda: [
         "ema_stack_bullish",
         "adx_trending",
@@ -156,7 +157,7 @@ class HarmonicSetup:
         "Harmonic XABCD pattern completions near their Potential Reversal Zone. "
         "Requires a detected pattern (ratio_quality >= 0.75) plus RSI or MACD divergence."
     )
-    score_threshold: float = 0.2
+    score_threshold: float = -1.0
     required_conditions: list[str] = field(default_factory=lambda: [
         "harmonic_pattern_detected",
         "harmonic_quality",

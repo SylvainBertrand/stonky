@@ -5,11 +5,20 @@ import { ProfileBadge } from './ProfileBadge'
 import { RowExpansion } from './RowExpansion'
 import { ScoreDisplay, scoreColor } from '../shared/ScoreDisplay'
 
-interface Props {
-  results: ScannerResult[]
+const PROFILE_LABELS: Record<string, string> = {
+  MomentumBreakout: 'Momentum Breakout',
+  MeanReversion: 'Mean Reversion',
+  TrendFollowing: 'Trend Following',
+  HarmonicSetup: 'Harmonic Setup',
 }
 
-export function ResultsTable({ results }: Props) {
+interface Props {
+  results: ScannerResult[]
+  activeProfile?: string | null
+  hasScanned?: boolean
+}
+
+export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -23,6 +32,16 @@ export function ResultsTable({ results }: Props) {
   }
 
   if (results.length === 0) {
+    // Contextual empty state: distinguish "never scanned" vs "no matches for this filter"
+    if (hasScanned && activeProfile) {
+      const label = PROFILE_LABELS[activeProfile] ?? activeProfile
+      return (
+        <div className="text-center py-16 text-gray-500">
+          <p className="text-lg">No stocks match <span className="text-gray-300">{label}</span></p>
+          <p className="text-sm mt-1">None of your watchlist symbols currently meet this profile's criteria. Check the <span className="text-gray-300">All</span> tab for full results.</p>
+        </div>
+      )
+    }
     return (
       <div className="text-center py-16 text-gray-500">
         <p className="text-lg">No results yet</p>

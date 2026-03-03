@@ -174,7 +174,7 @@ export function ScannerPage() {
             Failed to load results. Is the backend running?
           </div>
         ) : (
-          <ResultsTable results={results} />
+          <ResultsTable results={results} activeProfile={activeProfile} hasScanned={lastFetched != null} />
         )}
       </main>
     </div>
