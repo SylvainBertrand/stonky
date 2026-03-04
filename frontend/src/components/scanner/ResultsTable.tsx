@@ -62,6 +62,7 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
             <th className="px-3 py-2 text-right">Chg%</th>
             <th className="px-3 py-2 text-right">ATR%</th>
             <th className="px-3 py-2 text-left">Profiles</th>
+            <th className="px-3 py-2 text-left">Patterns</th>
             <th className="px-3 py-2 w-10" />
           </tr>
         </thead>
@@ -108,6 +109,27 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
                       )}
                     </div>
                   </td>
+                  <td className="px-3 py-2.5">
+                    {(() => {
+                      const best = r.chart_patterns?.[0]
+                      if (!best) return <span className="text-gray-600 text-xs">—</span>
+                      const dirColor = best.direction === 'bullish'
+                        ? 'text-green-400'
+                        : best.direction === 'bearish'
+                          ? 'text-red-400'
+                          : 'text-gray-400'
+                      const label = best.pattern
+                        .split('_')
+                        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' ')
+                      return (
+                        <span className={`text-xs font-medium ${dirColor}`}>
+                          {best.direction === 'bullish' ? '▲' : best.direction === 'bearish' ? '▼' : '◆'}{' '}
+                          {label} {Math.round(best.confidence * 100)}%
+                        </span>
+                      )
+                    })()}
+                  </td>
                   <td
                     className="px-3 py-2.5 text-center text-gray-500 hover:text-gray-200"
                     onClick={(e) => { e.stopPropagation(); toggleExpand(r.symbol) }}
@@ -117,7 +139,7 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
                 </tr>
                 {isExpanded && (
                   <tr key={`${r.symbol}-expand`} className="border-t border-gray-700/30">
-                    <td colSpan={8} className="p-0">
+                    <td colSpan={9} className="p-0">
                       <RowExpansion categoryScores={r.category_scores} />
                     </td>
                   </tr>

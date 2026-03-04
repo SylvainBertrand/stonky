@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { scannerApi } from '../api/scanner'
+import { scannerApi, patternsApi } from '../api/scanner'
 import { watchlistApi } from '../api/watchlists'
 import { useScannerStore } from '../stores/scannerStore'
 import { ProfileFilterTabs } from '../components/scanner/ProfileFilterTabs'
@@ -27,6 +27,7 @@ export function ScannerPage() {
     setActiveProfile, setIsScanning, setActiveRunId, setScanStartTime, setLastFetched,
   } = useScannerStore()
   const [scanError, setScanError] = useState<string | null>(null)
+  const [isYoloScanning, setIsYoloScanning] = useState(false)
 
   // Mirror the WatchlistSwitcher's cache key so we react when the active watchlist changes
   const { data: watchlists = [] } = useQuery({
@@ -112,6 +113,41 @@ export function ScannerPage() {
     }
   }, [setIsScanning, setScanStartTime, setActiveRunId, activeWatchlistId])
 
+  const handleYoloScan = useCallback(async () => {
+    setIsYoloScanning(true)
+    setScanError(null)
+    try {
+      await patternsApi.triggerScan(activeWatchlistId)
+      // Poll status until complete
+      const poll = async () => {
+        for (let i = 0; i < 60; i++) { // max 5 minutes (60 * 5s)
+          await new Promise((r) => setTimeout(r, 5000))
+          try {
+            const status = await patternsApi.getScanStatus()
+            if (status.status === 'completed') {
+              void queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] })
+              setIsYoloScanning(false)
+              return
+            }
+            if (status.status === 'failed') {
+              setScanError('Chart pattern scan failed — check backend logs.')
+              setIsYoloScanning(false)
+              return
+            }
+          } catch {
+            // Status endpoint may not exist yet if scan just started
+          }
+        }
+        setScanError('Chart pattern scan timed out.')
+        setIsYoloScanning(false)
+      }
+      void poll()
+    } catch (err) {
+      setIsYoloScanning(false)
+      setScanError(err instanceof Error ? err.message : 'Chart pattern scan failed')
+    }
+  }, [activeWatchlistId, queryClient])
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -142,6 +178,14 @@ export function ScannerPage() {
             >
               {isScanning && <LoadingSpinner size="sm" />}
               {isScanning ? 'Scanning…' : 'Run Scan'}
+            </button>
+            <button
+              onClick={() => { void handleYoloScan() }}
+              disabled={isYoloScanning || isScanning}
+              className="flex items-center gap-2 px-3 py-1.5 rounded bg-purple-700 hover:bg-purple-600 disabled:opacity-60 text-xs font-semibold text-white transition-colors"
+            >
+              {isYoloScanning && <LoadingSpinner size="sm" />}
+              {isYoloScanning ? 'Detecting…' : 'Scan Chart Patterns'}
             </button>
           </div>
         </div>

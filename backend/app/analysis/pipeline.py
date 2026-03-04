@@ -27,6 +27,7 @@ from app.analysis.indicators.harmonics import (
     compute_harmonics_signals,
     detect_harmonics,
 )
+from app.analysis.yolo_screener import YoloDetection, compute_yolo_signals
 from app.analysis.indicators.momentum import (
     compute_macd_signals,
     compute_rsi_signals,
@@ -135,7 +136,11 @@ def _safe_signals(fn: Any, df: pd.DataFrame, key: str) -> dict[str, float]:
         return {key: 0.0}
 
 
-def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
+def run_analysis(
+    df: pd.DataFrame,
+    symbol: str,
+    yolo_detections: list[YoloDetection] | None = None,
+) -> AnalysisResult:
     """
     Pure sync pipeline. Runs full TA computation on an OHLCV DataFrame.
 
@@ -145,6 +150,9 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
         OHLCV data with columns: open, high, low, close, volume.
     symbol : str
         Ticker symbol (for labeling only).
+    yolo_detections : list[YoloDetection] | None
+        Pre-fetched YOLOv8 detections from pattern_detections table.
+        If provided, included in the patterns category scoring.
 
     Returns
     -------
@@ -230,6 +238,14 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
             }
     except Exception as exc:
         log.warning("Harmonic analysis failed for %s: %s", symbol, exc)
+
+    # YOLOv8 chart pattern signals (pre-fetched from pattern_detections)
+    if yolo_detections:
+        try:
+            yolo_sigs = compute_yolo_signals(yolo_detections)
+            all_signals.update(yolo_sigs)
+        except Exception as exc:
+            log.warning("YOLO signal computation failed for %s: %s", symbol, exc)
 
     category_scores, comp = build_composite(all_signals)
     profile_matches = evaluate_profiles(all_signals, category_scores, comp)
@@ -378,6 +394,49 @@ def _params_hash(timeframe: TimeframeEnum) -> str:
     return hashlib.md5(timeframe.value.encode()).hexdigest()
 
 
+async def _fetch_yolo_detections(
+    symbol_id: int,
+    db: AsyncSession,
+    timeframe: TimeframeEnum = TimeframeEnum.D1,
+) -> list[YoloDetection]:
+    """Fetch recent YOLO chart pattern detections from pattern_detections table.
+
+    Returns detections from the last 7 calendar days (approx 5 trading days).
+    """
+    from datetime import timedelta
+
+    from app.models.enums import PatternType
+    from app.models.pattern_detections import PatternDetection
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    result = await db.execute(
+        select(PatternDetection)
+        .where(
+            PatternDetection.symbol_id == symbol_id,
+            PatternDetection.timeframe == timeframe,
+            PatternDetection.pattern_type == PatternType.CHART_GEOMETRIC,
+            PatternDetection.detected_at >= cutoff,
+        )
+        .order_by(PatternDetection.confidence.desc())
+    )
+    rows = result.scalars().all()
+
+    detections: list[YoloDetection] = []
+    for row in rows:
+        geometry = row.geometry or {}
+        detections.append(
+            YoloDetection(
+                pattern_name=row.pattern_name,
+                confidence=float(row.confidence),
+                bbox=tuple(geometry.get("bbox", [0, 0, 0, 0])),
+                direction=row.direction.value,
+                bar_start=geometry.get("bar_start", 0),
+                bar_end=geometry.get("bar_end", 0),
+            )
+        )
+    return detections
+
+
 async def run_analysis_for_ticker(
     symbol_id: int,
     ticker: str,
@@ -389,9 +448,14 @@ async def run_analysis_for_ticker(
     if df is None:
         return None
 
+    # Fetch pre-computed YOLO detections (if any exist from the nightly scan)
+    yolo_detections = await _fetch_yolo_detections(symbol_id, db, timeframe)
+
     # Run sync analysis in thread pool to avoid blocking event loop
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, run_analysis, df, ticker)
+    result = await loop.run_in_executor(
+        None, run_analysis, df, ticker, yolo_detections
+    )
 
     # Cache in indicator_cache
     try:

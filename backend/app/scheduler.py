@@ -72,6 +72,22 @@ def create_scheduler() -> AsyncIOScheduler:
         logger.info(
             "Scheduled daily_ohlcv_refresh: weekdays at 16:30 America/New_York"
         )
+
+        from app.analysis.yolo_scanner import run_yolo_scan_all
+
+        scheduler.add_job(
+            run_yolo_scan_all,
+            CronTrigger(
+                hour=6,
+                minute=0,
+                timezone="America/New_York",
+            ),
+            id="yolo_nightly_scan",
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled yolo_nightly_scan: daily at 06:00 America/New_York"
+        )
     else:
         logger.info("Scheduler disabled (settings.scheduler_enabled=False)")
 

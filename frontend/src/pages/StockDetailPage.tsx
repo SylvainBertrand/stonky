@@ -7,6 +7,7 @@ import { CandlestickChart } from '../components/stock/CandlestickChart'
 import { CategoryScoresPanel } from '../components/stock/CategoryScores'
 import { SignalsPanel } from '../components/stock/SignalsPanel'
 import { HarmonicBanner } from '../components/stock/HarmonicBanner'
+import { ChartPatternsBanner } from '../components/stock/ChartPatternsBanner'
 import { ProfileBadge } from '../components/scanner/ProfileBadge'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
 import { ScoreDisplay } from '../components/shared/ScoreDisplay'
@@ -135,6 +136,12 @@ export function StockDetailPage() {
         {detail.harmonics?.detected && (
           <HarmonicBanner harmonic={detail.harmonics} />
         )}
+
+        {/* Chart patterns banner (YOLOv8) */}
+        <ChartPatternsBanner
+          patterns={detail.chart_patterns ?? []}
+          scannedAt={detail.scanned_at}
+        />
 
         {/* Volume contradiction warning */}
         {detail.volume_contradiction && (

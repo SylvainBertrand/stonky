@@ -4,9 +4,9 @@ Pydantic schemas for the scanner API.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel
+
+from app.schemas.patterns import PatternDetectionResponse
 
 
 class CategoryScores(BaseModel):
@@ -51,6 +51,7 @@ class AnalysisResponse(BaseModel):
     signals: dict[str, float]
     meta: AnalysisMeta
     harmonics: HarmonicInfo | None = None
+    chart_patterns: list[PatternDetectionResponse] = []
     is_actionable: bool = False
     volume_contradiction: bool = False
 

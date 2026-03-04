@@ -31,6 +31,20 @@ export interface HarmonicInfo {
   bars_since_completion?: number
 }
 
+export interface ChartPatternDetection {
+  pattern: string
+  direction: 'bullish' | 'bearish' | 'neutral'
+  confidence: number
+  bar_start: number
+  bar_end: number
+}
+
+export interface SymbolPatterns {
+  symbol: string
+  scanned_at: string | null
+  detections: ChartPatternDetection[]
+}
+
 export interface ScannerResult {
   symbol: string
   rank: number
@@ -41,6 +55,7 @@ export interface ScannerResult {
   signals: Record<string, number>
   meta: AnalysisMeta
   harmonics?: HarmonicInfo
+  chart_patterns?: ChartPatternDetection[]
   is_actionable: boolean
   volume_contradiction: boolean
 }

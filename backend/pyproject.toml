@@ -26,6 +26,9 @@ dependencies = [
     "pyharmonics>=1.5.3",
     "urllib3>=2.0",
     "docker>=7.0",
+    "ultralytics>=8.0.0",
+    "mplfinance>=0.12.10b0",
+    "huggingface_hub>=0.20.0",
 ]
 
 [project.optional-dependencies]

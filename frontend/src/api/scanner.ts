@@ -1,4 +1,4 @@
-import type { OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult } from '../types'
+import type { OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SymbolPatterns } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
 
@@ -40,4 +40,19 @@ export const scannerApi = {
     apiFetch<OHLCVResponse>(
       `/api/stocks/${encodeURIComponent(symbol)}/ohlcv?timeframe=${timeframe}&bars=${bars}`,
     ),
+}
+
+export const patternsApi = {
+  getPatterns: (symbol: string, timeframe = '1d'): Promise<SymbolPatterns> =>
+    apiFetch<SymbolPatterns>(
+      `/api/patterns/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
+    ),
+
+  triggerScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
+    return apiFetch<ScanRunResponse>(`/api/patterns/scan${qs}`, { method: 'POST' })
+  },
+
+  getScanStatus: (): Promise<ScanRunStatus> =>
+    apiFetch<ScanRunStatus>('/api/patterns/scan/status'),
 }

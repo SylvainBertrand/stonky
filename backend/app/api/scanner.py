@@ -27,11 +27,13 @@ from app.analysis.pipeline import (
 )
 from app.analysis.profiles import PROFILES
 from app.db.session import AsyncSessionLocal, get_session
-from app.models.enums import ScanRunStatus, TimeframeEnum
+from app.models.enums import PatternType, ScanRunStatus, TimeframeEnum
 from app.models.indicator_cache import IndicatorCache
+from app.models.pattern_detections import PatternDetection
 from app.models.scan_runs import ScanRun
 from app.models.symbols import Symbol
 from app.models.watchlists import Watchlist, WatchlistItem
+from app.schemas.patterns import PatternDetectionResponse
 from app.schemas.scanner import (
     AnalysisMeta,
     AnalysisResponse,
@@ -74,7 +76,62 @@ def _dict_to_harmonic_info(d: dict | None) -> HarmonicInfo | None:
     )
 
 
-def _result_to_response(result: AnalysisResult, scanned_at: str = "") -> AnalysisResponse:
+async def _fetch_chart_patterns_bulk(
+    db: AsyncSession,
+    symbol_ids: set[int],
+    timeframe: TimeframeEnum,
+) -> dict[int, list[PatternDetectionResponse]]:
+    """Fetch latest YOLO chart pattern detections for multiple symbols at once."""
+    if not symbol_ids:
+        return {}
+
+    result = await db.execute(
+        select(PatternDetection)
+        .where(
+            PatternDetection.symbol_id.in_(symbol_ids),
+            PatternDetection.timeframe == timeframe,
+            PatternDetection.pattern_type == PatternType.CHART_GEOMETRIC,
+        )
+        .order_by(desc(PatternDetection.detected_at), desc(PatternDetection.confidence))
+    )
+    rows = result.scalars().all()
+
+    # Group by symbol_id, keep only detections from the most recent scan per symbol
+    by_symbol: dict[int, list[PatternDetectionResponse]] = {}
+    latest_date_per_symbol: dict[int, object] = {}
+
+    for row in rows:
+        sid = row.symbol_id
+        det_date = row.detected_at.date() if row.detected_at else None
+
+        if sid not in latest_date_per_symbol:
+            latest_date_per_symbol[sid] = det_date
+
+        # Only include detections from the most recent scan date
+        if det_date != latest_date_per_symbol[sid]:
+            continue
+
+        geometry = row.geometry or {}
+        if sid not in by_symbol:
+            by_symbol[sid] = []
+        by_symbol[sid].append(
+            PatternDetectionResponse(
+                pattern=row.pattern_name,
+                direction=row.direction.value,
+                confidence=float(row.confidence),
+                bar_start=geometry.get("bar_start", 0),
+                bar_end=geometry.get("bar_end", 0),
+            )
+        )
+
+    return by_symbol
+
+
+def _result_to_response(
+    result: AnalysisResult,
+    scanned_at: str = "",
+    chart_patterns: list[PatternDetectionResponse] | None = None,
+) -> AnalysisResponse:
     meta = result.meta
     return AnalysisResponse(
         symbol=result.symbol,
@@ -93,6 +150,7 @@ def _result_to_response(result: AnalysisResult, scanned_at: str = "") -> Analysi
             bars=int(meta.get("bars", 0)),
         ),
         harmonics=_dict_to_harmonic_info(result.harmonics),
+        chart_patterns=chart_patterns or [],
         is_actionable=result.is_actionable,
         volume_contradiction=result.volume_contradiction,
     )
@@ -332,6 +390,10 @@ async def get_latest_results(
 
     log.info("Results query unique rows after dedupe/filter: %d", len(unique))
 
+    # Fetch chart patterns in bulk for all result symbols
+    all_symbol_ids = {row.symbol_id for row in unique}
+    patterns_by_symbol = await _fetch_chart_patterns_bulk(session, all_symbol_ids, tf_enum)
+
     # Parse
     responses: list[AnalysisResponse] = []
     for row in unique:
@@ -358,6 +420,7 @@ async def get_latest_results(
                         bars=int(meta_raw.get("bars", 0)),
                     ),
                     harmonics=_dict_to_harmonic_info(val.get("harmonics")),
+                    chart_patterns=patterns_by_symbol.get(row.symbol_id, []),
                     is_actionable=bool(val.get("is_actionable", False)),
                     volume_contradiction=bool(val.get("volume_contradiction", False)),
                 )
@@ -436,6 +499,10 @@ async def get_symbol_result(
     )
     row = cache_result.scalar_one_or_none()
 
+    # Fetch chart patterns for this symbol
+    patterns_map = await _fetch_chart_patterns_bulk(session, {symbol_id}, tf_enum)
+    symbol_patterns = patterns_map.get(symbol_id, [])
+
     # Auto-run analysis when no cache exists (e.g. first weekly request)
     if row is None:
         result = await run_analysis_for_ticker(
@@ -447,7 +514,7 @@ async def get_symbol_result(
                 detail=f"No {timeframe} OHLCV data for {symbol}. Trigger a data refresh first.",
             )
         await session.commit()
-        return _result_to_response(result)
+        return _result_to_response(result, chart_patterns=symbol_patterns)
 
     val = row.value
     meta_raw = val.get("meta", {})
@@ -468,6 +535,7 @@ async def get_symbol_result(
             bars=int(meta_raw.get("bars", 0)),
         ),
         harmonics=_dict_to_harmonic_info(val.get("harmonics")),
+        chart_patterns=symbol_patterns,
         is_actionable=bool(val.get("is_actionable", False)),
         volume_contradiction=bool(val.get("volume_contradiction", False)),
     )
