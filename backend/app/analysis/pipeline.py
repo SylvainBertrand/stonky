@@ -65,6 +65,24 @@ MIN_BARS = 200
 _INDICATOR_NAME = "full_analysis"
 
 
+def aggregate_daily_to_weekly(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate daily OHLCV bars into weekly (Friday-close) bars.
+
+    Expects columns: time, open, high, low, close, volume.
+    Returns a DataFrame with the same columns, one row per week.
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+    df["time"] = pd.to_datetime(df["time"], utc=True)
+    df = df.set_index("time")
+    weekly = df.resample("W-FRI").agg(
+        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
+    ).dropna(subset=["open", "close"])
+    weekly = weekly.reset_index()
+    return weekly
+
+
 @dataclass
 class AnalysisResult:
     symbol: str
@@ -253,6 +271,54 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
     )
 
 
+async def _fetch_weekly_from_daily(
+    symbol_id: int,
+    ticker: str,
+    db: AsyncSession,
+    limit: int = 500,
+) -> pd.DataFrame | None:
+    """Aggregate daily bars into weekly when no native weekly OHLCV exists."""
+    result = await db.execute(
+        select(OHLCV)
+        .where(OHLCV.symbol_id == symbol_id, OHLCV.timeframe == TimeframeEnum.D1)
+        .order_by(desc(OHLCV.time))
+        .limit(limit * 5)  # ~5 daily bars per weekly bar
+    )
+    rows = result.scalars().all()
+    if not rows or len(rows) < 20:
+        return None
+
+    data = [
+        {
+            "time": row.time,
+            "open": float(row.open),
+            "high": float(row.high),
+            "low": float(row.low),
+            "close": float(row.close),
+            "volume": int(row.volume),
+        }
+        for row in reversed(rows)
+    ]
+    daily_df = pd.DataFrame(data)
+    weekly = aggregate_daily_to_weekly(daily_df)
+
+    if len(weekly) < 20:
+        return None
+
+    if len(weekly) > limit:
+        weekly = weekly.tail(limit).reset_index(drop=True)
+
+    log.info(
+        "%s: aggregated %d daily → %d weekly bars (%s → %s)",
+        ticker,
+        len(data),
+        len(weekly),
+        weekly["time"].iloc[0],
+        weekly["time"].iloc[-1],
+    )
+    return weekly
+
+
 async def fetch_ohlcv_for_symbol(
     symbol_id: int,
     ticker: str,
@@ -260,7 +326,11 @@ async def fetch_ohlcv_for_symbol(
     timeframe: TimeframeEnum = TimeframeEnum.D1,
     limit: int = 500,
 ) -> pd.DataFrame | None:
-    """Fetch OHLCV from DB, return DataFrame or None if insufficient data."""
+    """Fetch OHLCV from DB, return DataFrame or None if insufficient data.
+
+    For weekly timeframe, falls back to aggregating daily bars if no native
+    weekly data is stored.
+    """
     try:
         result = await db.execute(
             select(OHLCV)
@@ -269,6 +339,11 @@ async def fetch_ohlcv_for_symbol(
             .limit(limit)
         )
         rows = result.scalars().all()
+
+        if (not rows or len(rows) < 20) and timeframe == TimeframeEnum.W1:
+            log.info("%s: no native weekly data, aggregating from daily", ticker)
+            return await _fetch_weekly_from_daily(symbol_id, ticker, db, limit)
+
         if not rows or len(rows) < 20:
             log.debug("%s: not enough OHLCV rows (%d)", ticker, len(rows) if rows else 0)
             return None

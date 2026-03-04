@@ -435,11 +435,19 @@ async def get_symbol_result(
         .limit(1)
     )
     row = cache_result.scalar_one_or_none()
+
+    # Auto-run analysis when no cache exists (e.g. first weekly request)
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No cached {timeframe} analysis for {symbol}. Run /scanner/run/{symbol} first.",
+        result = await run_analysis_for_ticker(
+            symbol_id, symbol.upper(), session, timeframe=tf_enum
         )
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No {timeframe} OHLCV data for {symbol}. Trigger a data refresh first.",
+            )
+        await session.commit()
+        return _result_to_response(result)
 
     val = row.value
     meta_raw = val.get("meta", {})

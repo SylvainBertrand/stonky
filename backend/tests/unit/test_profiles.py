@@ -61,6 +61,30 @@ class TestMomentumBreakoutProfile:
         result = p.check(signals, cats, comp)
         assert result.matches is True
 
+    def test_matches_when_momentum_slightly_negative(self) -> None:
+        """Momentum in (-0.15, 0) should still qualify — MACD often lags early breakouts."""
+        signals, cats, comp = _all_bullish()
+        signals["adx_dmi"] = 0.5
+        cats["trend"] = 0.5
+        cats["momentum"] = -0.10  # slightly negative
+        cats["volume"] = 0.5
+        p = MomentumBreakout()
+        result = p.check(signals, cats, comp)
+        assert result.matches is True
+        assert result.conditions_met["momentum_positive"] is True
+
+    def test_fails_when_momentum_firmly_negative(self) -> None:
+        """Momentum below -0.15 should not qualify."""
+        signals, cats, comp = _all_bullish()
+        signals["adx_dmi"] = 0.5
+        cats["trend"] = 0.5
+        cats["momentum"] = -0.20
+        cats["volume"] = 0.5
+        p = MomentumBreakout()
+        result = p.check(signals, cats, comp)
+        assert result.matches is False
+        assert result.conditions_met["momentum_positive"] is False
+
     def test_fails_when_adx_not_trending(self) -> None:
         signals, cats, comp = _all_bullish()
         signals["adx_dmi"] = 0.05  # too low

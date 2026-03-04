@@ -55,7 +55,8 @@ class MomentumBreakout:
     ) -> ProfileResult:
         conditions: dict[str, bool] = {
             "trend_bullish": category_scores.get("trend", 0.0) > 0.3,
-            "momentum_positive": category_scores.get("momentum", 0.0) > 0.0,
+            # Allow slightly negative momentum: breakouts form while MACD is still turning
+            "momentum_positive": category_scores.get("momentum", 0.0) > -0.15,
             "volume_positive": category_scores.get("volume", 0.0) > 0.0,
             # ADX-based trend strength (adx_dmi > 0.1 ≈ ADX > ~20)
             "adx_trending": signals.get("adx_dmi", 0.0) > 0.1,
