@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -216,6 +216,15 @@ def run_analysis(df: pd.DataFrame, symbol: str) -> AnalysisResult:
     category_scores, comp = build_composite(all_signals)
     profile_matches = evaluate_profiles(all_signals, category_scores, comp)
 
+    log.info(
+        "Analysis %s: bars=%d, composite=%.4f, profiles=%s, actionable=%s",
+        symbol,
+        len(df),
+        comp,
+        profile_matches,
+        _passes_confluence(category_scores, comp),
+    )
+
     is_actionable = _passes_confluence(category_scores, comp)
     vol_contradiction = _has_volume_contradiction(all_signals, comp)
 
@@ -275,6 +284,15 @@ async def fetch_ohlcv_for_symbol(
             }
             for row in reversed(rows)  # ascending time order
         ]
+        if data:
+            log.info(
+                "%s: fetched %d %s bars (%s → %s)",
+                ticker,
+                len(data),
+                timeframe.value,
+                data[0]["time"],
+                data[-1]["time"],
+            )
         return pd.DataFrame(data)
     except Exception as exc:
         log.error("Failed to fetch OHLCV for %s: %s", ticker, exc)
@@ -329,6 +347,7 @@ async def run_analysis_for_ticker(
         if existing_row is not None:
             existing_row.value = cache_value
             existing_row.time = now
+            cache_action = "updated"
         else:
             db.add(
                 IndicatorCache(
@@ -340,7 +359,17 @@ async def run_analysis_for_ticker(
                     value=cache_value,
                 )
             )
+            cache_action = "inserted"
         await db.flush()
+        log.info(
+            "%s: cache %s for %s (%s), composite=%.4f, profile_matches=%s",
+            ticker,
+            cache_action,
+            _INDICATOR_NAME,
+            timeframe.value,
+            result.composite_score,
+            result.profile_matches,
+        )
     except Exception as exc:
         log.warning("Failed to cache analysis for %s: %s", ticker, exc)
 
@@ -359,11 +388,29 @@ async def run_scanner(
     """
     sem = asyncio.Semaphore(concurrency)
 
+    log.info(
+        "Scanner start: timeframe=%s, symbols=%d, concurrency=%d",
+        timeframe.value,
+        len(symbol_ids),
+        concurrency,
+    )
+
     async def _run_one(symbol_id: int, ticker: str) -> AnalysisResult | None:
         async with sem:
             async with AsyncSessionLocal() as db:
+                log.info("Scanner symbol start: %s (id=%d)", ticker, symbol_id)
                 result = await run_analysis_for_ticker(symbol_id, ticker, db, timeframe)
                 await db.commit()
+                if result is None:
+                    log.info("Scanner symbol skipped: %s (id=%d) - no analyzable OHLCV", ticker, symbol_id)
+                else:
+                    log.info(
+                        "Scanner symbol done: %s (id=%d), score=%.4f, profiles=%s",
+                        ticker,
+                        symbol_id,
+                        result.composite_score,
+                        result.profile_matches,
+                    )
                 return result
 
     tasks = [_run_one(sid, ticker) for sid, ticker in symbol_ids]
@@ -377,4 +424,16 @@ async def run_scanner(
             log.error("Scanner task failed: %s", item)
 
     results.sort(key=lambda r: r.composite_score, reverse=True)
+    log.info(
+        "Scanner end: analyzed=%d, top=%s",
+        len(results),
+        [
+            {
+                "symbol": r.symbol,
+                "score": round(r.composite_score, 4),
+                "profiles": r.profile_matches,
+            }
+            for r in results[:5]
+        ],
+    )
     return results

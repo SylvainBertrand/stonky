@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
@@ -126,7 +126,14 @@ async def _get_watchlist_symbols(
             Watchlist.is_default.is_(True)
         )
     result = await db.execute(query.distinct())
-    return [(row[0], row[1]) for row in result.all()]
+    symbols = [(row[0], row[1]) for row in result.all()]
+    log.info(
+        "Resolved watchlist symbols: watchlist_id=%s, count=%d, sample=%s",
+        watchlist_id,
+        len(symbols),
+        [ticker for _, ticker in symbols[:10]],
+    )
+    return symbols
 
 
 async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
@@ -148,6 +155,12 @@ async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
         # Execute
         try:
             symbols = await _get_watchlist_symbols(db, watchlist_id)
+            log.info(
+                "Scanner run %d start: watchlist_id=%s, symbol_count=%d",
+                run_id,
+                watchlist_id,
+                len(symbols),
+            )
             if not symbols:
                 log.info("Scanner run %d: no symbols found", run_id)
                 scan_run.status = ScanRunStatus.COMPLETED
@@ -162,8 +175,16 @@ async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
             scan_run.symbols_scored = len(results)
             await db.commit()
             log.info(
-                "Scanner run %d: completed %d symbols, scored %d",
+                "Scanner run %d: completed %d symbols, scored %d, top=%s",
                 run_id, len(symbols), len(results),
+                [
+                    {
+                        "symbol": r.symbol,
+                        "score": round(r.composite_score, 4),
+                        "profiles": r.profile_matches,
+                    }
+                    for r in results[:5]
+                ],
             )
         except Exception as exc:
             log.error("Scanner run %d failed: %s", run_id, exc)
@@ -211,6 +232,13 @@ async def trigger_scan(
     run_id = scan_run.id
     await session.commit()
 
+    log.info(
+        "Queued scan run %d: watchlist_id=%s, symbols=%d",
+        run_id,
+        watchlist_id,
+        len(symbols),
+    )
+
     background_tasks.add_task(_run_scanner_bg, run_id, watchlist_id)
     return ScanRunResponse(
         run_id=run_id,
@@ -245,7 +273,10 @@ async def get_run_status(
 @router.get("/results", response_model=list[AnalysisResponse])
 async def get_latest_results(
     session: SessionDep,
-    profile: Annotated[str | None, Query(description="Filter by profile name (e.g. momentum_breakout or MomentumBreakout)")] = None,
+    profile: Annotated[
+        str | None,
+        Query(description="Filter by profile name (e.g. momentum_breakout or MomentumBreakout)"),
+    ] = None,
     timeframe: Annotated[str, Query(description="Timeframe: 1d or 1w")] = "1d",
     watchlist_id: Annotated[int | None, Query(description="Limit results to symbols in this watchlist")] = None,
 ) -> list[AnalysisResponse]:
@@ -264,6 +295,19 @@ async def get_latest_results(
             select(WatchlistItem.symbol_id).where(WatchlistItem.watchlist_id == watchlist_id)
         )
         watchlist_symbol_ids = {row[0] for row in wl_rows.all()}
+        log.info(
+            "Results query: timeframe=%s, watchlist_id=%s, watchlist_symbol_count=%d, profile=%s",
+            tf_enum.value,
+            watchlist_id,
+            len(watchlist_symbol_ids),
+            profile,
+        )
+    else:
+        log.info(
+            "Results query: timeframe=%s, watchlist_id=None, profile=%s",
+            tf_enum.value,
+            profile,
+        )
 
     # Get latest full_analysis entry per symbol for the requested timeframe
     result = await session.execute(
@@ -275,6 +319,7 @@ async def get_latest_results(
         .order_by(desc(IndicatorCache.time))
     )
     rows = result.scalars().all()
+    log.info("Results query raw rows: %d", len(rows))
 
     # Deduplicate: keep latest per symbol_id, optionally scoped to watchlist
     seen: set[int] = set()
@@ -284,6 +329,8 @@ async def get_latest_results(
             if watchlist_symbol_ids is None or row.symbol_id in watchlist_symbol_ids:
                 seen.add(row.symbol_id)
                 unique.append(row)
+
+    log.info("Results query unique rows after dedupe/filter: %d", len(unique))
 
     # Parse
     responses: list[AnalysisResponse] = []
@@ -321,14 +368,41 @@ async def get_latest_results(
     # Sort by composite score descending
     responses.sort(key=lambda r: r.composite_score, reverse=True)
 
+    pre_profile_count = len(responses)
+
     # Filter by profile if requested
     if profile:
         canonical = _normalize_profile_name(profile)
+        profile_counts: dict[str, int] = {}
+        for resp in responses:
+            for matched in resp.profile_matches:
+                profile_counts[matched] = profile_counts.get(matched, 0) + 1
         responses = [r for r in responses if canonical in r.profile_matches]
+        log.info(
+            "Results profile filter: requested=%s canonical=%s before=%d after=%d counts=%s",
+            profile,
+            canonical,
+            pre_profile_count,
+            len(responses),
+            profile_counts,
+        )
 
     # Assign rank (1 = highest composite score)
     for i, resp in enumerate(responses):
         resp.rank = i + 1
+
+    log.info(
+        "Results response: count=%d top=%s",
+        len(responses),
+        [
+            {
+                "symbol": r.symbol,
+                "score": round(r.composite_score, 4),
+                "profiles": r.profile_matches,
+            }
+            for r in responses[:5]
+        ],
+    )
 
     return responses
 

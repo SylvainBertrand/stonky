@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,9 +12,29 @@ from app.api.stocks import router as stocks_router
 from app.api.watchlist import router as watchlist_router
 
 
+def _configure_logging() -> None:
+    """Route app.* logs through uvicorn handlers so INFO diagnostics are visible."""
+    level = logging.DEBUG if settings.debug else logging.INFO
+
+    uvicorn_error = logging.getLogger("uvicorn.error")
+    app_logger = logging.getLogger("app")
+    app_logger.setLevel(level)
+
+    if uvicorn_error.handlers:
+        app_logger.handlers = uvicorn_error.handlers
+        app_logger.propagate = False
+    elif not app_logger.handlers:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(levelname)s: %(name)s: %(message)s")
+        handler.setFormatter(formatter)
+        app_logger.addHandler(handler)
+        app_logger.propagate = False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
+    _configure_logging()
     from app.scheduler import create_scheduler
     scheduler = create_scheduler()
     scheduler.start()
