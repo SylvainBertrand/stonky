@@ -158,7 +158,7 @@ class HarmonicSetup:
         "Harmonic XABCD pattern completions near their Potential Reversal Zone. "
         "Requires a detected pattern (ratio_quality >= 0.75) plus RSI or MACD divergence."
     )
-    score_threshold: float = -1.0
+    score_threshold: float = 0.2
     required_conditions: list[str] = field(default_factory=lambda: [
         "harmonic_pattern_detected",
         "harmonic_quality",
