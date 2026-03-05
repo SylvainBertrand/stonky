@@ -24,7 +24,6 @@ from app.analysis.indicators.divergence import (
     compute_rsi_divergence_signals,
 )
 from app.analysis.indicators.elliott_wave import (
-    EWResult,
     compute_ew_signals,
     detect_elliott_waves,
 )
@@ -256,12 +255,11 @@ def run_analysis(
 
     # Elliott Wave detection — greedy scan on swing points
     try:
-        atr_ser = ta.atr(df["high"], df["low"], df["close"], length=14)
         sh_bool, _ = detect_swing_points(
-            df["high"], order=5, atr_filter=0.5, atr_series=atr_ser,
+            df["high"], order=5, atr_filter=0.5, atr_series=atr_series,
         )
         _, sl_bool = detect_swing_points(
-            df["low"], order=5, atr_filter=0.5, atr_series=atr_ser,
+            df["low"], order=5, atr_filter=0.5, atr_series=atr_series,
         )
         sh_idx = np.where(sh_bool)[0]
         sl_idx = np.where(sl_bool)[0]
