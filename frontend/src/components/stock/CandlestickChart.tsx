@@ -1,6 +1,6 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { createChart, type IChartApi, type ISeriesApi, type HistogramData, type LineData, type CandlestickData, type Time } from 'lightweight-charts'
-import type { ChartPatternDetection, OHLCVBar, OHLCVResponse } from '../../types'
+import type { ChartPatternDetection, OHLCVBar, OHLCVResponse, EWWavePoint } from '../../types'
 import type { OverlayToggles } from './ChartControls'
 
 // Number of bars the YOLO chart renderer uses — bar_start/bar_end are indices into this window
@@ -15,6 +15,8 @@ interface Props {
   height?: number
   detections?: ChartPatternDetection[]
   overlays?: Partial<OverlayToggles>
+  ewWaves?: EWWavePoint[] | null
+  ewDirection?: 'bullish' | 'bearish' | null
 }
 
 // ── Pure drawing function (exported for unit testing) ──────────────────────────
@@ -94,10 +96,59 @@ export function drawDetectionOverlays(
   }
 }
 
+export function drawEWOverlay(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  waves: EWWavePoint[] | null,
+  timeToCoordinate: (time: string) => number | null,
+  priceToCoordinate: (price: number) => number | null,
+  direction: 'bullish' | 'bearish' | null = null,
+): void {
+  ctx.clearRect(0, 0, width, height)
+  if (!waves || waves.length < 2) return
+
+  // Resolve coordinates — skip if any point is unresolvable
+  const coords: Array<{ x: number; y: number; label: string }> = []
+  for (const w of waves) {
+    const x = timeToCoordinate(w.time)
+    const y = priceToCoordinate(w.price)
+    if (x === null || y === null) return   // bail on first unresolvable point
+    coords.push({ x, y, label: w.label })
+  }
+  if (coords.length < 2) return
+
+  const color = direction === 'bullish'
+    ? 'rgba(34, 197, 94, 0.9)'
+    : direction === 'bearish'
+      ? 'rgba(239, 68, 68, 0.9)'
+      : 'rgba(150, 150, 150, 0.9)'
+
+  // Draw polyline
+  ctx.strokeStyle = color
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  ctx.moveTo(coords[0].x, coords[0].y)
+  for (let i = 1; i < coords.length; i++) {
+    ctx.lineTo(coords[i].x, coords[i].y)
+  }
+  ctx.stroke()
+
+  // Draw labels at each pivot
+  ctx.font = '10px sans-serif'
+  ctx.fillStyle = color
+  for (const pt of coords) {
+    ctx.beginPath()
+    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillText(pt.label, pt.x + 5, pt.y - 5)
+  }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const CandlestickChart = forwardRef<ChartHandle, Props>(function CandlestickChart(
-  { data, height = 420, detections, overlays },
+  { data, height = 420, detections, overlays, ewWaves, ewDirection },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -105,6 +156,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
   // canvasRef is populated imperatively in useEffect AFTER createChart so it sits
   // above LW's own canvases in DOM order (z-index: 1 and z-index: 2).
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const ewCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // Series refs for overlay visibility control
   const ema21Ref = useRef<ISeriesApi<'Line'> | null>(null)
@@ -273,6 +325,40 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       chart.timeScale().subscribeVisibleTimeRangeChange(redraw)
     }
 
+    // ── EW wave canvas overlay (z-index: 4) ──────────────────────────────────
+    let ewCanvas: HTMLCanvasElement | null = null
+    if (ewWaves !== undefined) {
+      ewCanvas = document.createElement('canvas')
+      ewCanvas.style.position = 'absolute'
+      ewCanvas.style.top = '0'
+      ewCanvas.style.left = '0'
+      ewCanvas.style.pointerEvents = 'none'
+      ewCanvas.style.zIndex = '4'
+      container.appendChild(ewCanvas)
+      ewCanvasRef.current = ewCanvas
+
+      const timeToCoordEW = (time: string): number | null => {
+        const coord = chart.timeScale().timeToCoordinate(time as unknown as Time)
+        return coord ?? null
+      }
+      const priceToCoordEW = (price: number): number | null => {
+        const coord = candleSeries.priceToCoordinate(price)
+        return coord ?? null
+      }
+
+      const redrawEW = () => {
+        const canvas = ewCanvasRef.current
+        if (!canvas) return
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        canvas.width = container.clientWidth
+        canvas.height = height
+        drawEWOverlay(ctx, canvas.width, canvas.height, ewWaves ?? null, timeToCoordEW, priceToCoordEW, ewDirection ?? null)
+      }
+      redrawEW()
+      chart.timeScale().subscribeVisibleTimeRangeChange(redrawEW)
+    }
+
     // ── Resize observer ────────────────────────────────────────────────────────
     const observer = new ResizeObserver(() => {
       if (container && chartRef.current) {
@@ -294,8 +380,12 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
         overlayCanvas.parentNode.removeChild(overlayCanvas)
       }
       canvasRef.current = null
+      if (ewCanvas && ewCanvas.parentNode) {
+        ewCanvas.parentNode.removeChild(ewCanvas)
+      }
+      ewCanvasRef.current = null
     }
-  }, [data, height, detections])
+  }, [data, height, detections, ewWaves, ewDirection])
 
   // ── Apply overlay visibility changes without recreating the chart ──────────
   useEffect(() => {
@@ -315,6 +405,11 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
     // Patterns visibility: show/hide canvas overlay
     if (overlays.patterns !== undefined && canvasRef.current) {
       canvasRef.current.style.display = overlays.patterns ? '' : 'none'
+    }
+
+    // Waves visibility: show/hide EW canvas overlay
+    if (overlays.waves !== undefined && ewCanvasRef.current) {
+      ewCanvasRef.current.style.display = overlays.waves ? '' : 'none'
     }
   }, [overlays])
 
