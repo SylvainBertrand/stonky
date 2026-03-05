@@ -44,3 +44,19 @@ class PatternScanStatusResponse(BaseModel):
     completed_at: str | None = None
     symbols_scanned: int = 0
     total_detections: int = 0
+
+
+class EWWavePointResponse(BaseModel):
+    time: str
+    price: float
+    label: str
+    bar_index: int
+
+
+class EWDetectionResponse(BaseModel):
+    symbol: str
+    wave_type: str | None = None         # "impulse" | "corrective" | None
+    direction: str | None = None         # "bullish" | "bearish" | None
+    current_position: str | None = None  # "wave_3", "wave_C", etc.
+    confidence: float = 0.0
+    waves: list[EWWavePointResponse] = []

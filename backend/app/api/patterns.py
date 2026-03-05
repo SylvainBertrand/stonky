@@ -1,6 +1,7 @@
 """Chart Patterns API — YOLOv8 pattern detection endpoints.
 
 Endpoints:
+  GET  /api/patterns/elliott-wave/{symbol} → Elliott Wave detection for a symbol
   GET  /api/patterns/{symbol}    → latest YOLO detections for a symbol
   POST /api/patterns/scan        → trigger manual YOLO scan (background)
   GET  /api/patterns/scan/status → status of latest YOLO scan run
@@ -8,21 +9,31 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from functools import partial
 from typing import Annotated
 
+import numpy as np
+import pandas as pd
+import pandas_ta as ta
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analysis.indicators.elliott_wave import detect_elliott_waves
+from app.analysis.swing_points import detect_swing_points
 from app.analysis.yolo_scanner import YOLO_SCAN_MARKER, run_yolo_scan_all
 from app.db.session import get_session
 from app.models.enums import PatternType, ScanRunStatus, TimeframeEnum
+from app.models.ohlcv import OHLCV
 from app.models.pattern_detections import PatternDetection
 from app.models.scan_runs import ScanRun
 from app.models.symbols import Symbol
 from app.models.watchlists import Watchlist, WatchlistItem
 from app.schemas.patterns import (
+    EWDetectionResponse,
+    EWWavePointResponse,
     PatternDetectionResponse,
     PatternScanRunResponse,
     PatternScanStatusResponse,
@@ -39,6 +50,80 @@ _TF_MAP: dict[str, TimeframeEnum] = {
     "1d": TimeframeEnum.D1,
     "1w": TimeframeEnum.W1,
 }
+
+
+@router.get("/elliott-wave/{symbol}", response_model=EWDetectionResponse)
+async def get_elliott_wave(
+    symbol: str,
+    session: SessionDep,
+    timeframe: Annotated[str, Query(description="1d or 1w")] = "1d",
+) -> EWDetectionResponse:
+    """Return the latest Elliott Wave detection for a symbol."""
+    tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
+
+    # Look up symbol
+    sym_result = await session.execute(
+        select(Symbol).where(Symbol.ticker == symbol.upper())
+    )
+    sym = sym_result.scalar_one_or_none()
+    if sym is None:
+        raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
+
+    # Fetch OHLCV
+    bars_result = await session.execute(
+        select(OHLCV)
+        .where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf_enum)
+        .order_by(desc(OHLCV.time))
+        .limit(300)
+    )
+    rows = bars_result.scalars().all()
+    if not rows:
+        return EWDetectionResponse(symbol=symbol.upper())
+
+    rows = list(reversed(rows))
+    df = pd.DataFrame([
+        {
+            "time": r.time.strftime("%Y-%m-%d"),
+            "high": float(r.high),
+            "low": float(r.low),
+            "close": float(r.close),
+            "open": float(r.open),
+            "volume": float(r.volume),
+        }
+        for r in rows
+    ])
+
+    # Run detection in thread pool (CPU-bound)
+    def _run(df: pd.DataFrame):  # type: ignore[return]
+        atr_ser = ta.atr(df["high"], df["low"], df["close"], length=14)
+        sh_bool, _ = detect_swing_points(df["high"], order=5, atr_filter=0.5, atr_series=atr_ser)
+        _, sl_bool = detect_swing_points(df["low"], order=5, atr_filter=0.5, atr_series=atr_ser)
+        sh_idx = np.where(sh_bool)[0]
+        sl_idx = np.where(sl_bool)[0]
+        return detect_elliott_waves(df, sh_idx, sl_idx)
+
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, partial(_run, df))
+
+    if result.best_wave is None:
+        return EWDetectionResponse(symbol=symbol.upper())
+
+    return EWDetectionResponse(
+        symbol=symbol.upper(),
+        wave_type=result.best_wave.wave_type,
+        direction=result.best_wave.direction,
+        current_position=result.current_position,
+        confidence=round(result.confidence, 4),
+        waves=[
+            EWWavePointResponse(
+                time=wp.time,
+                price=wp.price,
+                label=wp.label,
+                bar_index=wp.bar_index,
+            )
+            for wp in result.best_wave.waves
+        ],
+    )
 
 
 @router.get("/{symbol}", response_model=SymbolPatternsResponse)
