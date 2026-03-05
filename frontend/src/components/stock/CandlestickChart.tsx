@@ -1,15 +1,84 @@
 import { useEffect, useRef } from 'react'
-import { createChart, type IChartApi, type ISeriesApi, type HistogramData, type LineData, type CandlestickData } from 'lightweight-charts'
-import type { OHLCVResponse } from '../../types'
+import { createChart, type IChartApi, type ISeriesApi, type HistogramData, type LineData, type CandlestickData, type Time } from 'lightweight-charts'
+import type { ChartPatternDetection, OHLCVBar, OHLCVResponse } from '../../types'
+
+// Number of bars the YOLO chart renderer uses — bar_start/bar_end are indices into this window
+const YOLO_CHART_BARS = 120
 
 interface Props {
   data: OHLCVResponse
   height?: number
+  detections?: ChartPatternDetection[]
 }
 
-export function CandlestickChart({ data, height = 420 }: Props) {
+// ── Pure drawing function (exported for unit testing) ──────────────────────────
+
+export function drawDetectionOverlays(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  detections: ChartPatternDetection[],
+  barOffset: number,
+  bars: OHLCVBar[],
+  timeToCoordinate: (time: string) => number | null,
+): void {
+  ctx.clearRect(0, 0, width, height)
+
+  for (const det of detections) {
+    const startBar = bars[barOffset + det.bar_start]
+    const endBar = bars[barOffset + det.bar_end]
+    if (!startBar || !endBar) continue
+
+    const x1 = timeToCoordinate(startBar.time)
+    const x2 = timeToCoordinate(endBar.time)
+    if (x1 === null || x2 === null) continue
+
+    const rectX = Math.min(x1, x2)
+    const rectW = Math.abs(x2 - x1)
+
+    const isBullish = det.direction === 'bullish'
+    const isBearish = det.direction === 'bearish'
+
+    // Filled region
+    ctx.fillStyle = isBullish
+      ? 'rgba(0, 255, 100, 0.12)'
+      : isBearish
+        ? 'rgba(255, 60, 60, 0.12)'
+        : 'rgba(150, 150, 150, 0.10)'
+    ctx.fillRect(rectX, 0, rectW, height)
+
+    // Border
+    ctx.strokeStyle = isBullish
+      ? 'rgba(0, 255, 100, 0.4)'
+      : isBearish
+        ? 'rgba(255, 60, 60, 0.4)'
+        : 'rgba(150, 150, 150, 0.4)'
+    ctx.lineWidth = 1
+    ctx.strokeRect(rectX, 0, rectW, height)
+
+    // Label at top edge
+    const label = det.pattern
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ')
+    ctx.font = '11px sans-serif'
+    ctx.fillStyle = isBullish
+      ? 'rgba(0, 255, 100, 0.8)'
+      : isBearish
+        ? 'rgba(255, 60, 60, 0.8)'
+        : 'rgba(150, 150, 150, 0.8)'
+    ctx.fillText(`${label} ${Math.round(det.confidence * 100)}%`, rectX + 4, 14)
+  }
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export function CandlestickChart({ data, height = 420, detections }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
+  // canvasRef is populated imperatively in useEffect AFTER createChart so it sits
+  // above LW's own canvases in DOM order (z-index: 1 and z-index: 2).
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -122,6 +191,42 @@ export function CandlestickChart({ data, height = 420 }: Props) {
 
     chart.timeScale().fitContent()
 
+    // ── Canvas overlay for detection rectangles ───────────────────────────────
+    // IMPORTANT: the canvas is created imperatively HERE, after createChart(),
+    // so it is appended to the container AFTER LW's own canvases.  LW sets
+    // z-index:1 (main canvas) and z-index:2 (crosshair canvas) on its elements.
+    // By appending after them AND using z-index:3, our canvas paints on top.
+    let overlayCanvas: HTMLCanvasElement | null = null
+    if (detections !== undefined) {
+      overlayCanvas = document.createElement('canvas')
+      overlayCanvas.style.position = 'absolute'
+      overlayCanvas.style.top = '0'
+      overlayCanvas.style.left = '0'
+      overlayCanvas.style.pointerEvents = 'none'
+      overlayCanvas.style.zIndex = '3'
+      container.appendChild(overlayCanvas)
+      canvasRef.current = overlayCanvas
+
+      const offset = Math.max(0, data.bars.length - YOLO_CHART_BARS)
+      const timeToCoord = (time: string): number | null => {
+        const coord = chart.timeScale().timeToCoordinate(time as unknown as Time)
+        return coord ?? null
+      }
+
+      const redraw = () => {
+        const canvas = canvasRef.current
+        if (!canvas) return
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        canvas.width = container.clientWidth
+        canvas.height = height
+        drawDetectionOverlays(ctx, canvas.width, canvas.height, detections, offset, data.bars, timeToCoord)
+      }
+
+      redraw()
+      chart.timeScale().subscribeVisibleTimeRangeChange(redraw)
+    }
+
     // ── Resize observer ────────────────────────────────────────────────────────
     const observer = new ResizeObserver(() => {
       if (container && chartRef.current) {
@@ -134,8 +239,18 @@ export function CandlestickChart({ data, height = 420 }: Props) {
       observer.disconnect()
       chart.remove()
       chartRef.current = null
+      if (overlayCanvas && overlayCanvas.parentNode) {
+        overlayCanvas.parentNode.removeChild(overlayCanvas)
+      }
+      canvasRef.current = null
     }
-  }, [data, height])
+  }, [data, height, detections])
 
-  return <div ref={containerRef} style={{ height }} className="rounded overflow-hidden" />
+  return (
+    <div
+      ref={containerRef}
+      style={{ position: 'relative', height }}
+      className="rounded overflow-hidden"
+    />
+  )
 }

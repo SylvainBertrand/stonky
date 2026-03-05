@@ -107,7 +107,7 @@ export function StockDetailPage() {
               <LoadingSpinner size="lg" />
             </div>
           ) : ohlcv ? (
-            <CandlestickChart data={ohlcv} height={420} />
+            <CandlestickChart data={ohlcv} height={420} detections={detail.chart_patterns ?? []} />
           ) : (
             <div className="flex justify-center items-center h-[420px] bg-gray-900/50 rounded border border-gray-700/40 text-gray-500 text-sm">
               No OHLCV data available. Trigger a data refresh first.
