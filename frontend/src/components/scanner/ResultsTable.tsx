@@ -63,6 +63,7 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
             <th className="px-3 py-2 text-right">ATR%</th>
             <th className="px-3 py-2 text-left">Profiles</th>
             <th className="px-3 py-2 text-left">Patterns</th>
+            <th className="px-3 py-2 text-left">EW</th>
             <th className="px-3 py-2 w-10" />
           </tr>
         </thead>
@@ -130,6 +131,33 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
                       )
                     })()}
                   </td>
+                  <td className="px-3 py-2.5">
+                    {(() => {
+                      const sigs = r.signals ?? {}
+                      const w3 = sigs.ew_wave3_active ?? 0
+                      const w5 = sigs.ew_wave5_active ?? 0
+                      const abc = sigs.ew_corrective_abc ?? 0
+                      const quality = sigs.ew_ratio_quality ?? 0
+
+                      if (quality < 0.1) return <span className="text-gray-600 text-xs">—</span>
+
+                      let label = ''
+                      let colorClass = 'text-gray-400'
+                      if (w3 > 0.5) { label = 'W3 ↑'; colorClass = 'text-green-400' }
+                      else if (w5 > 0.3) { label = 'W5 ↑'; colorClass = 'text-green-300' }
+                      else if (abc < -0.1) { label = 'ABC ↓'; colorClass = 'text-red-400' }
+                      else { label = `EW ${Math.round(quality * 100)}%`; colorClass = 'text-gray-400' }
+
+                      return (
+                        <span
+                          className={`text-xs font-medium ${colorClass}`}
+                          title={`EW quality: ${Math.round(quality * 100)}%`}
+                        >
+                          {label}
+                        </span>
+                      )
+                    })()}
+                  </td>
                   <td
                     className="px-3 py-2.5 text-center text-gray-500 hover:text-gray-200"
                     onClick={(e) => { e.stopPropagation(); toggleExpand(r.symbol) }}
@@ -139,7 +167,7 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
                 </tr>
                 {isExpanded && (
                   <tr key={`${r.symbol}-expand`} className="border-t border-gray-700/30">
-                    <td colSpan={9} className="p-0">
+                    <td colSpan={10} className="p-0">
                       <RowExpansion categoryScores={r.category_scores} />
                     </td>
                   </tr>
