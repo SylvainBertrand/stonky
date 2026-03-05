@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.chart_renderer import render_chart_image
+from app.analysis.chart_renderer import render_chart_image_with_price_range
 from app.analysis.pipeline import fetch_ohlcv_for_symbol
 from app.analysis.yolo_screener import YoloDetection, run_yolo_inference
 from app.db.session import AsyncSessionLocal
@@ -80,23 +80,19 @@ async def run_yolo_scan_symbol(
         log.info("YOLO scan %s: insufficient OHLCV data, skipping", ticker)
         return []
 
-    # Render chart (CPU-bound, run in executor)
+    # Render chart (CPU-bound, run in executor) — also returns price range for bbox mapping
     loop = asyncio.get_event_loop()
-    image_bytes = await loop.run_in_executor(
-        None, render_chart_image, df, ticker, timeframe.value, bars
+    render_result = await loop.run_in_executor(
+        None, render_chart_image_with_price_range, df, ticker, timeframe.value, bars
     )
-    if isinstance(image_bytes, bytes) and len(image_bytes) == 0:
+    image_bytes, price_min, price_max = render_result
+    if len(image_bytes) == 0:
         log.warning("YOLO scan %s: empty chart image", ticker)
         return []
-    if not isinstance(image_bytes, bytes):
-        # If output_path was used (shouldn't happen here), read the file
-        import pathlib
 
-        image_bytes = pathlib.Path(image_bytes).read_bytes()
-
-    # Run YOLO inference (CPU-bound)
+    # Run YOLO inference (CPU-bound) — pass price range for tight bbox in price space
     detections = await loop.run_in_executor(
-        None, run_yolo_inference, image_bytes, 0.35, bars
+        None, run_yolo_inference, image_bytes, 0.35, bars, price_min, price_max
     )
 
     if not detections:
@@ -114,6 +110,8 @@ async def run_yolo_scan_symbol(
             "bar_start": det.bar_start,
             "bar_end": det.bar_end,
             "bars_in_chart": bars,
+            "price_top": det.price_top,
+            "price_bottom": det.price_bottom,
         }
 
         # Upsert: delete existing detection for same symbol/timeframe/pattern/day

@@ -305,6 +305,38 @@ class TestChartRenderer:
         assert result.exists()
         assert result.stat().st_size > 1000
 
+    def test_render_with_price_range_returns_tuple(self) -> None:
+        from app.analysis.chart_renderer import render_chart_image_with_price_range
+
+        df = _gen_ohlcv(bars=120)
+        result = render_chart_image_with_price_range(df, "TEST")
+        assert isinstance(result, tuple)
+        assert len(result) == 3
+
+    def test_render_with_price_range_image_is_bytes(self) -> None:
+        from app.analysis.chart_renderer import render_chart_image_with_price_range
+
+        df = _gen_ohlcv(bars=120)
+        image_bytes, _, _ = render_chart_image_with_price_range(df, "TEST")
+        assert isinstance(image_bytes, bytes)
+        assert len(image_bytes) > 1000
+
+    def test_render_with_price_range_spans_ohlcv_data(self) -> None:
+        from app.analysis.chart_renderer import render_chart_image_with_price_range
+
+        df = _gen_ohlcv(bars=120)
+        _, price_min, price_max = render_chart_image_with_price_range(df, "TEST")
+        # mplfinance adds margin, so axes limits go beyond the raw data range
+        assert price_min <= df["low"].min()
+        assert price_max >= df["high"].max()
+
+    def test_render_with_price_range_min_less_than_max(self) -> None:
+        from app.analysis.chart_renderer import render_chart_image_with_price_range
+
+        df = _gen_ohlcv(bars=120)
+        _, price_min, price_max = render_chart_image_with_price_range(df, "TEST")
+        assert price_min < price_max
+
 
 # ── Model singleton ─────────────────────────────────────────────────────────
 
@@ -453,6 +485,71 @@ class TestRunYoloInference:
         detections = run_yolo_inference(buf.getvalue())
         assert len(detections) == 2
         assert detections[0].confidence > detections[1].confidence
+
+    @patch("app.analysis.yolo_screener.get_model")
+    def test_price_top_bottom_computed_from_bbox_y_and_price_range(self, mock_get_model: MagicMock) -> None:
+        from PIL import Image
+
+        mock_model = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        names = {0: "W_Bottom"}
+        # bbox: y1=128, y2=512 in 640px image → y1_norm=0.2, y2_norm=0.8
+        # price_top  = 110 - 0.2 * (110-90) = 106.0
+        # price_bottom = 110 - 0.8 * (110-90) = 94.0
+        result_obj = self._make_mock_result(names, [(0, 0.80, [480, 128, 608, 512])])
+        mock_model.return_value = [result_obj]
+
+        img = Image.new("RGB", (640, 640), "black")
+        import io
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+
+        detections = run_yolo_inference(buf.getvalue(), price_min=90.0, price_max=110.0)
+        assert len(detections) == 1
+        det = detections[0]
+        assert det.price_top == pytest.approx(106.0, abs=0.1)
+        assert det.price_bottom == pytest.approx(94.0, abs=0.1)
+
+    @patch("app.analysis.yolo_screener.get_model")
+    def test_price_top_is_higher_than_price_bottom(self, mock_get_model: MagicMock) -> None:
+        from PIL import Image
+
+        mock_model = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        names = {0: "W_Bottom"}
+        result_obj = self._make_mock_result(names, [(0, 0.80, [480, 100, 608, 500])])
+        mock_model.return_value = [result_obj]
+
+        img = Image.new("RGB", (640, 640), "black")
+        import io
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+
+        detections = run_yolo_inference(buf.getvalue(), price_min=90.0, price_max=110.0)
+        det = detections[0]
+        assert det.price_top > det.price_bottom
+
+    @patch("app.analysis.yolo_screener.get_model")
+    def test_price_top_bottom_none_without_price_range(self, mock_get_model: MagicMock) -> None:
+        from PIL import Image
+
+        mock_model = MagicMock()
+        mock_get_model.return_value = mock_model
+
+        names = {0: "W_Bottom"}
+        result_obj = self._make_mock_result(names, [(0, 0.80, [480, 128, 608, 512])])
+        mock_model.return_value = [result_obj]
+
+        img = Image.new("RGB", (640, 640), "black")
+        import io
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+
+        detections = run_yolo_inference(buf.getvalue())  # no price range
+        assert detections[0].price_top is None
+        assert detections[0].price_bottom is None
 
     @patch("app.analysis.yolo_screener.get_model")
     def test_unknown_class_skipped(self, mock_get_model: MagicMock) -> None:

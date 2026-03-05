@@ -205,4 +205,53 @@ describe('drawDetectionOverlays', () => {
     const expectedX = toCoord(bars[barOffset + BULLISH.bar_start].time)!
     expect(x).toBe(expectedX)
   })
+
+  // ── priceToCoordinate for tight vertical bounds ───────────────────────────
+
+  it('uses priceToCoordinate for y-bounds when price_top/price_bottom are provided', () => {
+    // priceToCoord maps: higher price → smaller canvas y (top of chart)
+    // price_top=110 → y=80; price_bottom=90 → y=320
+    const priceToCoord = (price: number) => price === 110 ? 80 : price === 90 ? 320 : null
+    const detection: ChartPatternDetection = { ...BULLISH, price_top: 110, price_bottom: 90 }
+    drawDetectionOverlays(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [detection], 0, bars, toCoord, priceToCoord)
+    const [, y, , h] = ctx.fillRect.mock.calls[0] as [number, number, number, number]
+    expect(y).toBe(80)   // min(80, 320)
+    expect(h).toBe(240)  // abs(320 - 80)
+  })
+
+  it('falls back to full height (y=0, h=CANVAS_H) when price_top/price_bottom are absent', () => {
+    const priceToCoord = (price: number) => price * 2
+    const detection: ChartPatternDetection = { ...BULLISH }  // no price_top/price_bottom
+    drawDetectionOverlays(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [detection], 0, bars, toCoord, priceToCoord)
+    const [, y, , h] = ctx.fillRect.mock.calls[0] as [number, number, number, number]
+    expect(y).toBe(0)
+    expect(h).toBe(CANVAS_H)
+  })
+
+  it('falls back to full height when priceToCoordinate returns null for price_top', () => {
+    const nullPriceToCoord = (_price: number) => null
+    const detection: ChartPatternDetection = { ...BULLISH, price_top: 110, price_bottom: 90 }
+    drawDetectionOverlays(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [detection], 0, bars, toCoord, nullPriceToCoord)
+    const [, y, , h] = ctx.fillRect.mock.calls[0] as [number, number, number, number]
+    expect(y).toBe(0)
+    expect(h).toBe(CANVAS_H)
+  })
+
+  it('falls back to full height when priceToCoordinate is not provided', () => {
+    const detection: ChartPatternDetection = { ...BULLISH, price_top: 110, price_bottom: 90 }
+    drawDetectionOverlays(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [detection], 0, bars, toCoord)
+    const [, y, , h] = ctx.fillRect.mock.calls[0] as [number, number, number, number]
+    expect(y).toBe(0)
+    expect(h).toBe(CANVAS_H)
+  })
+
+  it('falls back to full height when price_top is null (API serializes Python None as null)', () => {
+    const priceToCoord = vi.fn((price: number) => price * 2)
+    // Simulate what the API returns for old detections: price_top/price_bottom are null, not undefined
+    const detection = { ...BULLISH, price_top: null, price_bottom: null } as unknown as ChartPatternDetection
+    drawDetectionOverlays(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [detection], 0, bars, toCoord, priceToCoord)
+    const [, y, , h] = ctx.fillRect.mock.calls[0] as [number, number, number, number]
+    expect(y).toBe(0)
+    expect(h).toBe(CANVAS_H)
+  })
 })

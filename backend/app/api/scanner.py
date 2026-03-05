@@ -121,6 +121,8 @@ async def _fetch_chart_patterns_bulk(
                 confidence=float(row.confidence),
                 bar_start=geometry.get("bar_start", 0),
                 bar_end=geometry.get("bar_end", 0),
+                price_top=geometry.get("price_top"),
+                price_bottom=geometry.get("price_bottom"),
             )
         )
 

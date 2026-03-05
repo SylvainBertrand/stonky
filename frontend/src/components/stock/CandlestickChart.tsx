@@ -27,6 +27,7 @@ export function drawDetectionOverlays(
   barOffset: number,
   bars: OHLCVBar[],
   timeToCoordinate: (time: string) => number | null,
+  priceToCoordinate?: (price: number) => number | null,
 ): void {
   ctx.clearRect(0, 0, width, height)
 
@@ -42,6 +43,22 @@ export function drawDetectionOverlays(
     const rectX = Math.min(x1, x2)
     const rectW = Math.abs(x2 - x1)
 
+    // Vertical bounds: use price coords when available, else full canvas height
+    let rectY = 0
+    let rectH = height
+    if (
+      priceToCoordinate &&
+      det.price_top != null &&
+      det.price_bottom != null
+    ) {
+      const yTop = priceToCoordinate(det.price_top)
+      const yBottom = priceToCoordinate(det.price_bottom)
+      if (yTop !== null && yBottom !== null) {
+        rectY = Math.min(yTop, yBottom)
+        rectH = Math.abs(yBottom - yTop)
+      }
+    }
+
     const isBullish = det.direction === 'bullish'
     const isBearish = det.direction === 'bearish'
 
@@ -51,7 +68,7 @@ export function drawDetectionOverlays(
       : isBearish
         ? 'rgba(255, 60, 60, 0.12)'
         : 'rgba(150, 150, 150, 0.10)'
-    ctx.fillRect(rectX, 0, rectW, height)
+    ctx.fillRect(rectX, rectY, rectW, rectH)
 
     // Border
     ctx.strokeStyle = isBullish
@@ -60,9 +77,9 @@ export function drawDetectionOverlays(
         ? 'rgba(255, 60, 60, 0.4)'
         : 'rgba(150, 150, 150, 0.4)'
     ctx.lineWidth = 1
-    ctx.strokeRect(rectX, 0, rectW, height)
+    ctx.strokeRect(rectX, rectY, rectW, rectH)
 
-    // Label at top edge
+    // Label at top edge of the rectangle
     const label = det.pattern
       .split('_')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -73,7 +90,7 @@ export function drawDetectionOverlays(
       : isBearish
         ? 'rgba(255, 60, 60, 0.8)'
         : 'rgba(150, 150, 150, 0.8)'
-    ctx.fillText(`${label} ${Math.round(det.confidence * 100)}%`, rectX + 4, 14)
+    ctx.fillText(`${label} ${Math.round(det.confidence * 100)}%`, rectX + 4, rectY + 14)
   }
 }
 
@@ -237,6 +254,10 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
         const coord = chart.timeScale().timeToCoordinate(time as unknown as Time)
         return coord ?? null
       }
+      const priceToCoord = (price: number): number | null => {
+        const coord = candleSeries.priceToCoordinate(price)
+        return coord ?? null
+      }
 
       const redraw = () => {
         const canvas = canvasRef.current
@@ -245,7 +266,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
         if (!ctx) return
         canvas.width = container.clientWidth
         canvas.height = height
-        drawDetectionOverlays(ctx, canvas.width, canvas.height, detections, offset, data.bars, timeToCoord)
+        drawDetectionOverlays(ctx, canvas.width, canvas.height, detections, offset, data.bars, timeToCoord, priceToCoord)
       }
 
       redraw()

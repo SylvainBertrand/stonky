@@ -15,6 +15,8 @@ class PatternDetectionResponse(BaseModel):
     confidence: float
     bar_start: int
     bar_end: int
+    price_top: float | None = None
+    price_bottom: float | None = None
 
 
 class SymbolPatternsResponse(BaseModel):

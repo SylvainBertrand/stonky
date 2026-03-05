@@ -101,6 +101,8 @@ async def get_symbol_patterns(
             confidence=float(row.confidence),
             bar_start=row.geometry.get("bar_start", 0) if row.geometry else 0,
             bar_end=row.geometry.get("bar_end", 0) if row.geometry else 0,
+            price_top=row.geometry.get("price_top") if row.geometry else None,
+            price_bottom=row.geometry.get("price_bottom") if row.geometry else None,
         )
         for row in rows
     ]

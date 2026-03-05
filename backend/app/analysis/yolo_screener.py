@@ -77,6 +77,8 @@ class YoloDetection:
     direction: str
     bar_start: int
     bar_end: int
+    price_top: float | None = None     # upper price boundary of the pattern
+    price_bottom: float | None = None  # lower price boundary of the pattern
 
 
 # ── Model singleton ──────────────────────────────────────────────────────────
@@ -131,6 +133,8 @@ def run_yolo_inference(
     image: bytes,
     confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
     total_bars: int = 120,
+    price_min: float | None = None,
+    price_max: float | None = None,
 ) -> list[YoloDetection]:
     """Run YOLOv8 inference on a chart image.
 
@@ -143,6 +147,11 @@ def run_yolo_inference(
         Detections above LOG_THRESHOLD (0.20) are logged for tuning.
     total_bars : int
         Number of bars in the chart, used to map bbox x-coords to bar indices.
+    price_min : float | None
+        Lower y-axis limit of the rendered chart (from ax.get_ylim()).
+        When provided with price_max, bbox y-coords are converted to prices.
+    price_max : float | None
+        Upper y-axis limit of the rendered chart (from ax.get_ylim()).
 
     Returns
     -------
@@ -201,6 +210,17 @@ def run_yolo_inference(
 
             direction = PATTERN_DIRECTIONS.get(pattern_name, "neutral")
 
+            # Convert normalized y-coords to prices when price range is available.
+            # y1_norm is the TOP of the bbox (smaller pixel value = higher price).
+            # y2_norm is the BOTTOM of the bbox (larger pixel value = lower price).
+            # Formula: price = price_max - y_norm * (price_max - price_min)
+            det_price_top: float | None = None
+            det_price_bottom: float | None = None
+            if price_min is not None and price_max is not None:
+                price_range = price_max - price_min
+                det_price_top = round(price_max - y1_norm * price_range, 6)
+                det_price_bottom = round(price_max - y2_norm * price_range, 6)
+
             detection = YoloDetection(
                 pattern_name=pattern_name,
                 confidence=round(conf, 4),
@@ -208,6 +228,8 @@ def run_yolo_inference(
                 direction=direction,
                 bar_start=bar_start,
                 bar_end=bar_end,
+                price_top=det_price_top,
+                price_bottom=det_price_bottom,
             )
 
             # Log everything above LOG_THRESHOLD for threshold tuning

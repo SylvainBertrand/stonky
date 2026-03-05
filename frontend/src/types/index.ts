@@ -37,6 +37,8 @@ export interface ChartPatternDetection {
   confidence: number
   bar_start: number
   bar_end: number
+  price_top?: number
+  price_bottom?: number
 }
 
 export interface SymbolPatterns {
