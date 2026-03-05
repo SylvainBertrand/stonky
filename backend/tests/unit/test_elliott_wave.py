@@ -194,3 +194,31 @@ def test_compute_ew_signals_no_wave():
     assert sigs['ew_wave5_active'] == pytest.approx(0.0)
     assert sigs['ew_corrective_abc'] == pytest.approx(0.0)
     assert sigs['ew_ratio_quality'] == pytest.approx(0.0)
+
+
+from app.analysis.pipeline import run_analysis
+
+
+def _make_long_df(n: int = 250) -> pd.DataFrame:
+    """Flat price DataFrame with enough bars for pipeline MIN_BARS (200)."""
+    rng = np.random.default_rng(42)
+    prices = 100.0 + np.cumsum(rng.normal(0, 1, n))
+    return pd.DataFrame({
+        'time': pd.date_range('2020-01-01', periods=n, freq='D').strftime('%Y-%m-%d'),
+        'open': prices,
+        'high': prices + 1,
+        'low': prices - 1,
+        'close': prices,
+        'volume': [1_000_000] * n,
+    })
+
+
+@pytest.mark.unit
+def test_pipeline_includes_ew_signals():
+    """run_analysis must emit all four ew_* signals."""
+    df = _make_long_df()
+    result = run_analysis(df, 'TEST')
+    assert 'ew_ratio_quality' in result.signals
+    assert 'ew_wave3_active' in result.signals
+    assert 'ew_wave5_active' in result.signals
+    assert 'ew_corrective_abc' in result.signals

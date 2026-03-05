@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import pandas_ta as ta
 from sqlalchemy import desc, select
@@ -22,11 +23,17 @@ from app.analysis.indicators.divergence import (
     compute_macd_divergence_signals,
     compute_rsi_divergence_signals,
 )
+from app.analysis.indicators.elliott_wave import (
+    EWResult,
+    compute_ew_signals,
+    detect_elliott_waves,
+)
 from app.analysis.indicators.harmonics import (
     HarmonicMatch,
     compute_harmonics_signals,
     detect_harmonics,
 )
+from app.analysis.swing_points import detect_swing_points
 from app.analysis.yolo_screener import YoloDetection, compute_yolo_signals
 from app.analysis.indicators.momentum import (
     compute_macd_signals,
@@ -246,6 +253,22 @@ def run_analysis(
             all_signals.update(yolo_sigs)
         except Exception as exc:
             log.warning("YOLO signal computation failed for %s: %s", symbol, exc)
+
+    # Elliott Wave detection — greedy scan on swing points
+    try:
+        atr_ser = ta.atr(df["high"], df["low"], df["close"], length=14)
+        sh_bool, _ = detect_swing_points(
+            df["high"], order=5, atr_filter=0.5, atr_series=atr_ser,
+        )
+        _, sl_bool = detect_swing_points(
+            df["low"], order=5, atr_filter=0.5, atr_series=atr_ser,
+        )
+        sh_idx = np.where(sh_bool)[0]
+        sl_idx = np.where(sl_bool)[0]
+        ew_result = detect_elliott_waves(df, sh_idx, sl_idx)
+        all_signals.update(compute_ew_signals(ew_result))
+    except Exception as exc:
+        log.warning("Elliott Wave analysis failed for %s: %s", symbol, exc)
 
     category_scores, comp = build_composite(all_signals)
     profile_matches = evaluate_profiles(all_signals, category_scores, comp)
