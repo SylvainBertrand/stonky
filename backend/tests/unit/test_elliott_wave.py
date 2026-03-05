@@ -9,7 +9,6 @@ from app.analysis.indicators.elliott_wave import (
     detect_elliott_waves, compute_ew_signals,
 )
 from app.analysis.swing_points import detect_swing_points
-import pandas_ta as ta
 
 pytestmark = pytest.mark.unit
 
