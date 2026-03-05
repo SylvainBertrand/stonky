@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { ChartControls } from '../components/stock/ChartControls'
+import { ChartControls, DEFAULT_OVERLAYS } from '../components/stock/ChartControls'
 import type { OverlayToggles } from '../components/stock/ChartControls'
 
 const ALL_ON: OverlayToggles = {
@@ -150,5 +150,19 @@ describe('ChartControls', () => {
     const dot = btn.querySelector('[data-dot]')
     expect(dot).toBeTruthy()
     expect((dot as HTMLElement).style.backgroundColor).toBe('rgb(107, 114, 128)')
+  })
+
+  it('renders the EW Waves toggle button', () => {
+    const overlays = { ...DEFAULT_OVERLAYS, waves: true } as OverlayToggles
+    render(<ChartControls overlays={overlays} onToggle={vi.fn()} onReset={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /EW Waves/i })).toBeInTheDocument()
+  })
+
+  it('fires onToggle with "waves" when EW Waves button clicked', () => {
+    const onToggle = vi.fn()
+    const overlays = { ...DEFAULT_OVERLAYS, waves: true } as OverlayToggles
+    render(<ChartControls overlays={overlays} onToggle={onToggle} onReset={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /EW Waves/i }))
+    expect(onToggle).toHaveBeenCalledWith('waves')
   })
 })
