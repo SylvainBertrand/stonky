@@ -11,6 +11,8 @@ import { CategoryScoresPanel } from '../components/stock/CategoryScores'
 import { SignalsPanel } from '../components/stock/SignalsPanel'
 import { HarmonicBanner } from '../components/stock/HarmonicBanner'
 import { ChartPatternsBanner } from '../components/stock/ChartPatternsBanner'
+import { ElliottWaveBanner } from '../components/stock/ElliottWaveBanner'
+import { useEWPatterns } from '../hooks/useEWPatterns'
 import { ProfileBadge } from '../components/scanner/ProfileBadge'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
 import { ScoreDisplay } from '../components/shared/ScoreDisplay'
@@ -41,6 +43,8 @@ export function StockDetailPage() {
     enabled: !!symbol,
     staleTime: 120_000,
   })
+
+  const { data: ewData } = useEWPatterns(symbol, chartTimeframe)
 
   if (detailLoading) {
     return (
@@ -127,6 +131,8 @@ export function StockDetailPage() {
               height={420}
               detections={detail.chart_patterns ?? []}
               overlays={overlays}
+              ewWaves={ewData?.waves ?? null}
+              ewDirection={ewData?.direction ?? null}
             />
           ) : (
             <div className="flex justify-center items-center h-[420px] bg-gray-900/50 rounded border border-gray-700/40 text-gray-500 text-sm">
@@ -162,6 +168,9 @@ export function StockDetailPage() {
           patterns={detail.chart_patterns ?? []}
           scannedAt={detail.scanned_at}
         />
+
+        {/* Elliott Wave banner */}
+        <ElliottWaveBanner detection={ewData} />
 
         {/* Volume contradiction warning */}
         {detail.volume_contradiction && (
