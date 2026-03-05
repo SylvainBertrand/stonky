@@ -48,3 +48,6 @@ Thumbs.db
 *.pem
 *.key
 secrets/
+
+# Git worktrees
+.worktrees/
