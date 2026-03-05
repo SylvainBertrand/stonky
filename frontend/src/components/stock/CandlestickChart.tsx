@@ -116,7 +116,6 @@ export function drawEWOverlay(
     if (x === null || y === null) return   // bail on first unresolvable point
     coords.push({ x, y, label: w.label })
   }
-  if (coords.length < 2) return
 
   const color = direction === 'bullish'
     ? 'rgba(34, 197, 94, 0.9)'
@@ -285,6 +284,16 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
 
     chart.timeScale().fitContent()
 
+    // ── Shared coordinate helpers (used by both canvas overlays) ─────────────
+    const timeToCoord = (time: string): number | null => {
+      const coord = chart.timeScale().timeToCoordinate(time as unknown as Time)
+      return coord ?? null
+    }
+    const priceToCoord = (price: number): number | null => {
+      const coord = candleSeries.priceToCoordinate(price)
+      return coord ?? null
+    }
+
     // ── Canvas overlay for detection rectangles ───────────────────────────────
     // IMPORTANT: the canvas is created imperatively HERE, after createChart(),
     // so it is appended to the container AFTER LW's own canvases.  LW sets
@@ -302,14 +311,6 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       canvasRef.current = overlayCanvas
 
       const offset = Math.max(0, data.bars.length - YOLO_CHART_BARS)
-      const timeToCoord = (time: string): number | null => {
-        const coord = chart.timeScale().timeToCoordinate(time as unknown as Time)
-        return coord ?? null
-      }
-      const priceToCoord = (price: number): number | null => {
-        const coord = candleSeries.priceToCoordinate(price)
-        return coord ?? null
-      }
 
       const redraw = () => {
         const canvas = canvasRef.current
@@ -337,15 +338,6 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       container.appendChild(ewCanvas)
       ewCanvasRef.current = ewCanvas
 
-      const timeToCoordEW = (time: string): number | null => {
-        const coord = chart.timeScale().timeToCoordinate(time as unknown as Time)
-        return coord ?? null
-      }
-      const priceToCoordEW = (price: number): number | null => {
-        const coord = candleSeries.priceToCoordinate(price)
-        return coord ?? null
-      }
-
       const redrawEW = () => {
         const canvas = ewCanvasRef.current
         if (!canvas) return
@@ -353,7 +345,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
         if (!ctx) return
         canvas.width = container.clientWidth
         canvas.height = height
-        drawEWOverlay(ctx, canvas.width, canvas.height, ewWaves ?? null, timeToCoordEW, priceToCoordEW, ewDirection ?? null)
+        drawEWOverlay(ctx, canvas.width, canvas.height, ewWaves ?? null, timeToCoord, priceToCoord, ewDirection ?? null)
       }
       redrawEW()
       chart.timeScale().subscribeVisibleTimeRangeChange(redrawEW)

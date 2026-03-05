@@ -76,4 +76,29 @@ describe('drawEWOverlay', () => {
     drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, nullCoord, priceToCoord, 'bullish')
     expect(ctx.moveTo).not.toHaveBeenCalled()
   })
+
+  it('draws nothing when waves array has only one point', () => {
+    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [WAVES[0]], timeToCoord, priceToCoord, 'bullish')
+    expect(ctx.moveTo).not.toHaveBeenCalled()
+  })
+
+  it('bearish direction uses red strokeStyle', () => {
+    const styles: string[] = []
+    Object.defineProperty(ctx, 'strokeStyle', {
+      set(v: string) { styles.push(v) },
+      get() { return styles[styles.length - 1] ?? '' },
+    })
+    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, timeToCoord, priceToCoord, 'bearish')
+    expect(styles).toContain('rgba(239, 68, 68, 0.9)')
+  })
+
+  it('null direction uses grey strokeStyle', () => {
+    const styles: string[] = []
+    Object.defineProperty(ctx, 'strokeStyle', {
+      set(v: string) { styles.push(v) },
+      get() { return styles[styles.length - 1] ?? '' },
+    })
+    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, timeToCoord, priceToCoord, null)
+    expect(styles).toContain('rgba(150, 150, 150, 0.9)')
+  })
 })
