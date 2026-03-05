@@ -1,4 +1,4 @@
-import type { OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SymbolPatterns } from '../types'
+import type { EWDetection, OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SymbolPatterns } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
 
@@ -55,4 +55,9 @@ export const patternsApi = {
 
   getScanStatus: (): Promise<ScanRunStatus> =>
     apiFetch<ScanRunStatus>('/api/patterns/scan/status'),
+
+  getEWDetection: (symbol: string, timeframe = '1d'): Promise<EWDetection> =>
+    apiFetch<EWDetection>(
+      `/api/patterns/elliott-wave/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
+    ),
 }

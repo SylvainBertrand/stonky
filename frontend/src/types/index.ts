@@ -47,6 +47,22 @@ export interface SymbolPatterns {
   detections: ChartPatternDetection[]
 }
 
+export interface EWWavePoint {
+  time: string
+  price: number
+  label: string
+  bar_index: number
+}
+
+export interface EWDetection {
+  symbol: string
+  wave_type: 'impulse' | 'corrective' | null
+  direction: 'bullish' | 'bearish' | null
+  current_position: string | null
+  confidence: number
+  waves: EWWavePoint[]
+}
+
 export interface ScannerResult {
   symbol: string
   rank: number
