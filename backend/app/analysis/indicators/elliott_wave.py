@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-import pandas as pd
+import pandas as pd  # noqa: F401  # used by detect_elliott_waves (added in next task)
 
 
 # ── Data types ────────────────────────────────────────────────────────────────

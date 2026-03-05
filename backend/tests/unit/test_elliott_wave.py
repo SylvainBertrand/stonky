@@ -8,6 +8,8 @@ from app.analysis.indicators.elliott_wave import (
     _corrective_confidence,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def test_fib_score_exact_match():
     assert _fib_score(0.618, 0.618) == pytest.approx(1.0)
@@ -27,7 +29,7 @@ def test_impulse_confidence_perfect_fib():
     # Perfect Fibonacci ratios for bullish: W1 up 100, W2 down 61.8, W3 up 161.8, W4 down 38.2*161.8≈61.8, W5 up 100
     p = [100.0, 200.0, 138.2, 300.0, 238.2, 338.2]
     conf = _impulse_confidence(p)
-    assert conf > 0.5  # should be reasonably high
+    assert conf > 0.8  # near-perfect Fibonacci ratios → high confidence
 
 
 def test_impulse_confidence_terrible_ratios():
@@ -75,9 +77,16 @@ def test_corrective_confidence_perfect_fib():
     # B retraces 61.8% of A, C = A
     p = [200.0, 100.0, 161.8, 61.8]
     conf = _corrective_confidence(p)
-    assert conf > 0.5
+    assert conf > 0.8  # near-perfect Fibonacci ratios → high confidence
 
 
 def test_corrective_confidence_zero_amplitude():
     p = [100.0, 100.0, 90.0, 80.0]  # amp_a = 0
     assert _corrective_confidence(p) == 0.0
+
+
+def test_impulse_confidence_flat_w3():
+    # When W3 has zero amplitude, the W4/W3 ratio guard should handle it gracefully
+    p = [100.0, 200.0, 138.2, 138.2, 90.0, 190.0]  # W3 is flat (degenerate)
+    conf = _impulse_confidence(p)
+    assert 0.0 <= conf <= 1.0  # should not raise
