@@ -47,6 +47,8 @@ class PatternScanStatusResponse(BaseModel):
 
 
 class EWWavePointResponse(BaseModel):
+    """Single wave pivot point in an Elliott Wave sequence."""
+
     time: str
     price: float
     label: str
@@ -54,6 +56,8 @@ class EWWavePointResponse(BaseModel):
 
 
 class EWDetectionResponse(BaseModel):
+    """Elliott Wave detection result for a symbol."""
+
     symbol: str
     wave_type: str | None = None         # "impulse" | "corrective" | None
     direction: str | None = None         # "bullish" | "bearish" | None

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from functools import partial
 from typing import Annotated
 
 import numpy as np
@@ -21,7 +20,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, s
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analysis.indicators.elliott_wave import detect_elliott_waves
+from app.analysis.indicators.elliott_wave import EWResult, detect_elliott_waves
 from app.analysis.swing_points import detect_swing_points
 from app.analysis.yolo_scanner import YOLO_SCAN_MARKER, run_yolo_scan_all
 from app.db.session import get_session
@@ -94,7 +93,7 @@ async def get_elliott_wave(
     ])
 
     # Run detection in thread pool (CPU-bound)
-    def _run(df: pd.DataFrame):  # type: ignore[return]
+    def _run() -> EWResult:
         atr_ser = ta.atr(df["high"], df["low"], df["close"], length=14)
         sh_bool, _ = detect_swing_points(df["high"], order=5, atr_filter=0.5, atr_series=atr_ser)
         _, sl_bool = detect_swing_points(df["low"], order=5, atr_filter=0.5, atr_series=atr_ser)
@@ -102,8 +101,8 @@ async def get_elliott_wave(
         sl_idx = np.where(sl_bool)[0]
         return detect_elliott_waves(df, sh_idx, sl_idx)
 
-    loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, partial(_run, df))
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(None, _run)
 
     if result.best_wave is None:
         return EWDetectionResponse(symbol=symbol.upper())
