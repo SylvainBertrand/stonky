@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { scannerApi } from '../api/scanner'
 import { useStockStore } from '../stores/stockStore'
 import { CandlestickChart } from '../components/stock/CandlestickChart'
+import type { ChartHandle } from '../components/stock/CandlestickChart'
+import { ChartControls, DEFAULT_OVERLAYS } from '../components/stock/ChartControls'
+import type { OverlayKey, OverlayToggles } from '../components/stock/ChartControls'
 import { CategoryScoresPanel } from '../components/stock/CategoryScores'
 import { SignalsPanel } from '../components/stock/SignalsPanel'
 import { HarmonicBanner } from '../components/stock/HarmonicBanner'
@@ -18,6 +21,12 @@ export function StockDetailPage() {
   const navigate = useNavigate()
   const { chartTimeframe, setChartTimeframe } = useStockStore()
   const [selectedCategory, setSelectedCategory] = useState<keyof CategoryScores | null>(null)
+  const [overlays, setOverlays] = useState<OverlayToggles>(DEFAULT_OVERLAYS)
+  const chartRef = useRef<ChartHandle>(null)
+
+  const handleToggle = (key: OverlayKey) => {
+    setOverlays((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   const { data: detail, isLoading: detailLoading, isError: detailError } = useQuery({
     queryKey: ['scanner', 'detail', symbol, chartTimeframe],
@@ -102,12 +111,23 @@ export function StockDetailPage() {
               </button>
             ))}
           </div>
+          <ChartControls
+            overlays={overlays}
+            onToggle={handleToggle}
+            onReset={() => chartRef.current?.fitContent()}
+          />
           {chartLoading ? (
             <div className="flex justify-center items-center h-[420px] bg-gray-900 rounded">
               <LoadingSpinner size="lg" />
             </div>
           ) : ohlcv ? (
-            <CandlestickChart data={ohlcv} height={420} detections={detail.chart_patterns ?? []} />
+            <CandlestickChart
+              ref={chartRef}
+              data={ohlcv}
+              height={420}
+              detections={detail.chart_patterns ?? []}
+              overlays={overlays}
+            />
           ) : (
             <div className="flex justify-center items-center h-[420px] bg-gray-900/50 rounded border border-gray-700/40 text-gray-500 text-sm">
               No OHLCV data available. Trigger a data refresh first.

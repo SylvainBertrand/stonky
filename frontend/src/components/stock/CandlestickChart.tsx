@@ -1,14 +1,20 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { createChart, type IChartApi, type ISeriesApi, type HistogramData, type LineData, type CandlestickData, type Time } from 'lightweight-charts'
 import type { ChartPatternDetection, OHLCVBar, OHLCVResponse } from '../../types'
+import type { OverlayToggles } from './ChartControls'
 
 // Number of bars the YOLO chart renderer uses — bar_start/bar_end are indices into this window
 const YOLO_CHART_BARS = 120
+
+export interface ChartHandle {
+  fitContent: () => void
+}
 
 interface Props {
   data: OHLCVResponse
   height?: number
   detections?: ChartPatternDetection[]
+  overlays?: Partial<OverlayToggles>
 }
 
 // ── Pure drawing function (exported for unit testing) ──────────────────────────
@@ -73,12 +79,28 @@ export function drawDetectionOverlays(
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function CandlestickChart({ data, height = 420, detections }: Props) {
+export const CandlestickChart = forwardRef<ChartHandle, Props>(function CandlestickChart(
+  { data, height = 420, detections, overlays },
+  ref,
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   // canvasRef is populated imperatively in useEffect AFTER createChart so it sits
   // above LW's own canvases in DOM order (z-index: 1 and z-index: 2).
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  // Series refs for overlay visibility control
+  const ema21Ref = useRef<ISeriesApi<'Line'> | null>(null)
+  const ema50Ref = useRef<ISeriesApi<'Line'> | null>(null)
+  const ema200Ref = useRef<ISeriesApi<'Line'> | null>(null)
+  const supertrendRef = useRef<ISeriesApi<'Line'> | null>(null)
+  const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+
+  useImperativeHandle(ref, () => ({
+    fitContent: () => {
+      chartRef.current?.timeScale().fitContent()
+    },
+  }))
 
   useEffect(() => {
     const container = containerRef.current
@@ -147,14 +169,15 @@ export function CandlestickChart({ data, height = 420, detections }: Props) {
       color: b.close >= b.open ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)',
     }))
     volumeSeries.setData(volData)
+    volumeRef.current = volumeSeries
 
     // ── EMA lines ─────────────────────────────────────────────────────────────
     const emaConfigs = [
-      { key: 'ema_21' as const, color: '#3b82f6' },  // blue
-      { key: 'ema_50' as const, color: '#f97316' },  // orange
-      { key: 'ema_200' as const, color: '#6b7280' }, // gray
+      { key: 'ema_21' as const, color: '#3b82f6', ref: ema21Ref },
+      { key: 'ema_50' as const, color: '#f97316', ref: ema50Ref },
+      { key: 'ema_200' as const, color: '#6b7280', ref: ema200Ref },
     ]
-    for (const { key, color } of emaConfigs) {
+    for (const { key, color, ref: seriesRef } of emaConfigs) {
       const pts = data.overlays[key]
       if (pts.length === 0) continue
       const s = chart.addLineSeries({
@@ -170,6 +193,7 @@ export function CandlestickChart({ data, height = 420, detections }: Props) {
           value: p.value,
         })),
       )
+      seriesRef.current = s
     }
 
     // ── Supertrend line (per-point color) ─────────────────────────────────────
@@ -187,6 +211,7 @@ export function CandlestickChart({ data, height = 420, detections }: Props) {
         color: p.direction === 1 ? '#22c55e' : '#ef4444',
       }))
       stSeries.setData(stData)
+      supertrendRef.current = stSeries
     }
 
     chart.timeScale().fitContent()
@@ -239,12 +264,38 @@ export function CandlestickChart({ data, height = 420, detections }: Props) {
       observer.disconnect()
       chart.remove()
       chartRef.current = null
+      ema21Ref.current = null
+      ema50Ref.current = null
+      ema200Ref.current = null
+      supertrendRef.current = null
+      volumeRef.current = null
       if (overlayCanvas && overlayCanvas.parentNode) {
         overlayCanvas.parentNode.removeChild(overlayCanvas)
       }
       canvasRef.current = null
     }
   }, [data, height, detections])
+
+  // ── Apply overlay visibility changes without recreating the chart ──────────
+  useEffect(() => {
+    if (!overlays) return
+    const applyVisible = <T extends 'Line' | 'Histogram'>(
+      seriesRef: React.RefObject<ISeriesApi<T> | null>,
+      visible: boolean,
+    ) => {
+      seriesRef.current?.applyOptions({ visible })
+    }
+    if (overlays.ema21 !== undefined) applyVisible(ema21Ref, overlays.ema21)
+    if (overlays.ema50 !== undefined) applyVisible(ema50Ref, overlays.ema50)
+    if (overlays.ema200 !== undefined) applyVisible(ema200Ref, overlays.ema200)
+    if (overlays.supertrend !== undefined) applyVisible(supertrendRef, overlays.supertrend)
+    if (overlays.volume !== undefined) applyVisible(volumeRef, overlays.volume)
+
+    // Patterns visibility: show/hide canvas overlay
+    if (overlays.patterns !== undefined && canvasRef.current) {
+      canvasRef.current.style.display = overlays.patterns ? '' : 'none'
+    }
+  }, [overlays])
 
   return (
     <div
@@ -253,4 +304,4 @@ export function CandlestickChart({ data, height = 420, detections }: Props) {
       className="rounded overflow-hidden"
     />
   )
-}
+})

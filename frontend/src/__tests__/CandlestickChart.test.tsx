@@ -1,7 +1,10 @@
 import { render } from '@testing-library/react'
+import { createRef } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CandlestickChart } from '../components/stock/CandlestickChart'
+import type { ChartHandle } from '../components/stock/CandlestickChart'
 import type { ChartPatternDetection, OHLCVResponse } from '../types'
+import type { OverlayToggles } from '../components/stock/ChartControls'
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 
@@ -18,10 +21,12 @@ const mockTimeScale = {
   subscribeVisibleTimeRangeChange: mockSubscribeVisibleTimeRangeChange,
   unsubscribeVisibleTimeRangeChange: vi.fn(),
 }
+const mockLineSeries = { setData: vi.fn(), applyOptions: vi.fn() }
+const mockHistogramSeries = { setData: vi.fn(), applyOptions: vi.fn() }
 const mockChart = {
   addCandlestickSeries: vi.fn(() => mockCandleSeries),
-  addHistogramSeries: vi.fn(() => ({ setData: vi.fn() })),
-  addLineSeries: vi.fn(() => ({ setData: vi.fn() })),
+  addHistogramSeries: vi.fn(() => mockHistogramSeries),
+  addLineSeries: vi.fn(() => mockLineSeries),
   priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
   timeScale: vi.fn(() => mockTimeScale),
   applyOptions: vi.fn(),
@@ -43,7 +48,7 @@ HTMLCanvasElement.prototype.getContext = () => null
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
 
-function makeOHLCV(barCount = 150): OHLCVResponse {
+function makeOHLCV(barCount = 150, withEmas = false): OHLCVResponse {
   const bars = Array.from({ length: barCount }, (_, i) => ({
     time: `2024-${String(Math.floor(i / 30) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
     open: 100 + i,
@@ -52,13 +57,16 @@ function makeOHLCV(barCount = 150): OHLCVResponse {
     close: 102 + i,
     volume: 1_000_000,
   }))
+  const emaPoints = withEmas
+    ? bars.map((b) => ({ time: b.time, value: b.close }))
+    : []
   return {
     symbol: 'AAPL',
     bars,
     overlays: {
-      ema_21: [],
-      ema_50: [],
-      ema_200: [],
+      ema_21: emaPoints,
+      ema_50: emaPoints,
+      ema_200: emaPoints,
       supertrend: [],
     },
   }
@@ -155,5 +163,46 @@ describe('CandlestickChart', () => {
   it('does not subscribe to visible time range changes when detections prop is omitted', () => {
     render(<CandlestickChart data={makeOHLCV()} />)
     expect(mockSubscribeVisibleTimeRangeChange).not.toHaveBeenCalled()
+  })
+
+  // ── Overlay visibility ────────────────────────────────────────────────────
+
+  it('hiding volume calls applyOptions({ visible: false }) on volume series', () => {
+    const overlays: OverlayToggles = {
+      ema21: true, ema50: true, ema200: true, supertrend: true, volume: false, patterns: true,
+    }
+    render(<CandlestickChart data={makeOHLCV()} overlays={overlays} />)
+    expect(mockHistogramSeries.applyOptions).toHaveBeenCalledWith({ visible: false })
+  })
+
+  it('showing volume calls applyOptions({ visible: true }) on volume series', () => {
+    const overlays: OverlayToggles = {
+      ema21: true, ema50: true, ema200: true, supertrend: true, volume: true, patterns: true,
+    }
+    render(<CandlestickChart data={makeOHLCV()} overlays={overlays} />)
+    expect(mockHistogramSeries.applyOptions).toHaveBeenCalledWith({ visible: true })
+  })
+
+  it('hiding an EMA calls applyOptions({ visible: false }) on a line series', () => {
+    const overlays: OverlayToggles = {
+      ema21: false, ema50: true, ema200: true, supertrend: true, volume: true, patterns: true,
+    }
+    render(<CandlestickChart data={makeOHLCV(150, true)} overlays={overlays} />)
+    expect(mockLineSeries.applyOptions).toHaveBeenCalledWith({ visible: false })
+  })
+
+  // ── forwardRef / ChartHandle ──────────────────────────────────────────────
+
+  it('exposes fitContent via ref', () => {
+    const ref = createRef<ChartHandle>()
+    render(<CandlestickChart ref={ref} data={makeOHLCV()} />)
+    expect(typeof ref.current?.fitContent).toBe('function')
+  })
+
+  it('calling ref.fitContent() calls chart.timeScale().fitContent()', () => {
+    const ref = createRef<ChartHandle>()
+    render(<CandlestickChart ref={ref} data={makeOHLCV()} />)
+    ref.current?.fitContent()
+    expect(mockTimeScale.fitContent).toHaveBeenCalled()
   })
 })
