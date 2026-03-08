@@ -68,6 +68,9 @@ export const watchlistApi = {
       method: 'DELETE',
     }),
 
+  refreshData: (id: number): Promise<{ status: string }> =>
+    apiFetch<{ status: string }>(`/api/watchlists/${id}/refresh`, { method: 'POST' }),
+
   importSA: (id: number, file: File): Promise<SAImportResult> => {
     const form = new FormData()
     form.append('file', file)

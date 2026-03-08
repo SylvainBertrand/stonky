@@ -28,6 +28,7 @@ export function ScannerPage() {
   } = useScannerStore()
   const [scanError, setScanError] = useState<string | null>(null)
   const [isYoloScanning, setIsYoloScanning] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Mirror the WatchlistSwitcher's cache key so we react when the active watchlist changes
   const { data: watchlists = [] } = useQuery({
@@ -113,6 +114,19 @@ export function ScannerPage() {
     }
   }, [setIsScanning, setScanStartTime, setActiveRunId, activeWatchlistId])
 
+  const handleRefreshData = useCallback(async () => {
+    if (!activeWatchlistId) return
+    setIsRefreshing(true)
+    setScanError(null)
+    try {
+      await watchlistApi.refreshData(activeWatchlistId)
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : 'Data refresh failed')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [activeWatchlistId])
+
   const handleYoloScan = useCallback(async () => {
     setIsYoloScanning(true)
     setScanError(null)
@@ -168,6 +182,15 @@ export function ScannerPage() {
           </div>
           <WatchlistSwitcher />
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => { void handleRefreshData() }}
+              disabled={isRefreshing || !activeWatchlistId}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-gray-700 hover:border-gray-500 disabled:opacity-50 text-xs text-gray-400 hover:text-white transition-colors"
+              title="Fetch latest OHLCV data from yfinance"
+            >
+              {isRefreshing && <LoadingSpinner size="sm" />}
+              {isRefreshing ? 'Refreshing…' : 'Refresh Data'}
+            </button>
             <span className="text-xs text-gray-500">
               {isLoading ? 'Fetching…' : lastFetched ? `Last refreshed: ${formatTimeAgo(lastFetched)}` : 'Not yet scanned'}
             </span>
