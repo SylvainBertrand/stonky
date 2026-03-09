@@ -1,6 +1,6 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { createChart, type IChartApi, type ISeriesApi, type HistogramData, type LineData, type CandlestickData, type Time } from 'lightweight-charts'
-import type { ChartPatternDetection, OHLCVBar, OHLCVResponse, EWWavePoint } from '../../types'
+import type { ChartPatternDetection, OHLCVBar, OHLCVResponse, EWWavePoint, ForecastData } from '../../types'
 import type { OverlayToggles } from './ChartControls'
 
 // Number of bars the YOLO chart renderer uses — bar_start/bar_end are indices into this window
@@ -17,6 +17,7 @@ interface Props {
   overlays?: Partial<OverlayToggles>
   ewWaves?: EWWavePoint[] | null
   ewDirection?: 'bullish' | 'bearish' | null
+  forecastData?: ForecastData | null
 }
 
 // ── Pure drawing function (exported for unit testing) ──────────────────────────
@@ -144,10 +145,121 @@ export function drawEWOverlay(
   }
 }
 
+export function drawForecastOverlay(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  forecast: ForecastData,
+  lastBarTime: string,
+  timeToCoordinate: (time: string) => number | null,
+  priceToCoordinate: (price: number) => number | null,
+  bars: OHLCVBar[],
+): void {
+  ctx.clearRect(0, 0, width, height)
+
+  const { median, quantile_10, quantile_90, quantile_25, quantile_75 } = forecast.forecast
+  const horizon = median.length
+
+  // We need pixel positions — estimate bar spacing from the last two bars
+  const lastBarX = timeToCoordinate(lastBarTime)
+  if (lastBarX === null) return
+
+  let barSpacing = 8
+  if (bars.length >= 2) {
+    const secondLastX = timeToCoordinate(bars[bars.length - 2].time)
+    if (secondLastX !== null) {
+      barSpacing = Math.abs(lastBarX - secondLastX)
+    }
+  }
+
+  // Build coords for each horizon step
+  const coords: Array<{
+    x: number
+    med: number | null
+    q10: number | null
+    q90: number | null
+    q25: number | null
+    q75: number | null
+  }> = []
+  for (let i = 0; i < horizon; i++) {
+    const x = lastBarX + (i + 1) * barSpacing
+    coords.push({
+      x,
+      med: priceToCoordinate(median[i]),
+      q10: priceToCoordinate(quantile_10[i]),
+      q90: priceToCoordinate(quantile_90[i]),
+      q25: priceToCoordinate(quantile_25[i]),
+      q75: priceToCoordinate(quantile_75[i]),
+    })
+  }
+
+  const isBullish = forecast.direction === 'bullish'
+  const isBearish = forecast.direction === 'bearish'
+  const baseColor = isBullish ? '34, 197, 94' : isBearish ? '239, 68, 68' : '156, 163, 175'
+
+  // Outer band (q10–q90), 0.08 alpha
+  ctx.fillStyle = `rgba(${baseColor}, 0.08)`
+  ctx.beginPath()
+  for (let i = 0; i < coords.length; i++) {
+    const c = coords[i]
+    if (c.q90 === null) continue
+    if (i === 0) ctx.moveTo(c.x, c.q90)
+    else ctx.lineTo(c.x, c.q90)
+  }
+  for (let i = coords.length - 1; i >= 0; i--) {
+    const c = coords[i]
+    if (c.q10 === null) continue
+    ctx.lineTo(c.x, c.q10)
+  }
+  ctx.closePath()
+  ctx.fill()
+
+  // Inner band (q25–q75), 0.15 alpha
+  ctx.fillStyle = `rgba(${baseColor}, 0.15)`
+  ctx.beginPath()
+  for (let i = 0; i < coords.length; i++) {
+    const c = coords[i]
+    if (c.q75 === null) continue
+    if (i === 0) ctx.moveTo(c.x, c.q75)
+    else ctx.lineTo(c.x, c.q75)
+  }
+  for (let i = coords.length - 1; i >= 0; i--) {
+    const c = coords[i]
+    if (c.q25 === null) continue
+    ctx.lineTo(c.x, c.q25)
+  }
+  ctx.closePath()
+  ctx.fill()
+
+  // Median dashed line
+  ctx.strokeStyle = `rgba(${baseColor}, 0.7)`
+  ctx.lineWidth = 1.5
+  ctx.setLineDash([4, 3])
+  ctx.beginPath()
+  let started = false
+  for (const c of coords) {
+    if (c.med === null) continue
+    if (!started) { ctx.moveTo(c.x, c.med); started = true }
+    else ctx.lineTo(c.x, c.med)
+  }
+  ctx.stroke()
+  ctx.setLineDash([])
+
+  // Label at end
+  const lastCoord = coords[coords.length - 1]
+  if (lastCoord.med !== null) {
+    const moveSign = forecast.expected_move_pct >= 0 ? '+' : ''
+    const label = `${moveSign}${forecast.expected_move_pct.toFixed(1)}% (${forecast.horizon_bars}d)`
+    ctx.font = '10px sans-serif'
+    ctx.fillStyle = `rgba(${baseColor}, 0.9)`
+    ctx.fillText(label, lastCoord.x + 4, lastCoord.med - 4)
+  }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const CandlestickChart = forwardRef<ChartHandle, Props>(function CandlestickChart(
-  { data, height = 420, detections, overlays, ewWaves, ewDirection },
+  { data, height = 420, detections, overlays, ewWaves, ewDirection, forecastData },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -351,6 +463,33 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       chart.timeScale().subscribeVisibleTimeRangeChange(redrawEW)
     }
 
+    // ── Forecast canvas overlay (z-index: 5) ──────────────────────────────
+    let forecastCanvas: HTMLCanvasElement | null = null
+    if (forecastData) {
+      forecastCanvas = document.createElement('canvas')
+      forecastCanvas.style.position = 'absolute'
+      forecastCanvas.style.top = '0'
+      forecastCanvas.style.left = '0'
+      forecastCanvas.style.pointerEvents = 'none'
+      forecastCanvas.style.zIndex = '5'
+      container.appendChild(forecastCanvas)
+
+      const redrawForecast = () => {
+        if (!forecastCanvas) return
+        const fctx = forecastCanvas.getContext('2d')
+        if (!fctx) return
+        forecastCanvas.width = container.clientWidth
+        forecastCanvas.height = height
+        drawForecastOverlay(
+          fctx, forecastCanvas.width, forecastCanvas.height,
+          forecastData, data.bars[data.bars.length - 1].time,
+          timeToCoord, priceToCoord, data.bars,
+        )
+      }
+      redrawForecast()
+      chart.timeScale().subscribeVisibleTimeRangeChange(redrawForecast)
+    }
+
     // ── Resize observer ────────────────────────────────────────────────────────
     const observer = new ResizeObserver(() => {
       if (container && chartRef.current) {
@@ -376,8 +515,11 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
         ewCanvas.parentNode.removeChild(ewCanvas)
       }
       ewCanvasRef.current = null
+      if (forecastCanvas && forecastCanvas.parentNode) {
+        forecastCanvas.parentNode.removeChild(forecastCanvas)
+      }
     }
-  }, [data, height, detections, ewWaves, ewDirection])
+  }, [data, height, detections, ewWaves, ewDirection, forecastData])
 
   // ── Apply overlay visibility changes without recreating the chart ──────────
   useEffect(() => {
@@ -402,6 +544,17 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
     // Waves visibility: show/hide EW canvas overlay
     if (overlays.waves !== undefined && ewCanvasRef.current) {
       ewCanvasRef.current.style.display = overlays.waves ? '' : 'none'
+    }
+
+    // Forecast visibility
+    if (overlays.forecast !== undefined) {
+      const el = containerRef.current
+      if (el) {
+        const fcCanvas = el.querySelector<HTMLCanvasElement>('canvas[style*="z-index: 5"]')
+        if (fcCanvas) {
+          fcCanvas.style.display = overlays.forecast ? '' : 'none'
+        }
+      }
     }
   }, [overlays])
 
