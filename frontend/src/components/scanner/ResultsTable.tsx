@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { ScannerResult } from '../../types'
+import type { ForecastData, ScannerResult } from '../../types'
 import { ProfileBadge } from './ProfileBadge'
 import { RowExpansion } from './RowExpansion'
 import { ScoreDisplay, scoreColor } from '../shared/ScoreDisplay'
@@ -16,9 +16,10 @@ interface Props {
   results: ScannerResult[]
   activeProfile?: string | null
   hasScanned?: boolean
+  forecasts?: Record<string, ForecastData>
 }
 
-export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
+export function ResultsTable({ results, activeProfile, hasScanned, forecasts }: Props) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -64,6 +65,7 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
             <th className="px-3 py-2 text-left">Profiles</th>
             <th className="px-3 py-2 text-left">Patterns</th>
             <th className="px-3 py-2 text-left">EW</th>
+            <th className="px-3 py-2 text-right">Forecast</th>
             <th className="px-3 py-2 w-10" />
           </tr>
         </thead>
@@ -158,6 +160,26 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
                       )
                     })()}
                   </td>
+                  <td className="px-3 py-2.5 text-right">
+                    {(() => {
+                      const fc = forecasts?.[r.symbol]
+                      if (!fc || fc.direction_confidence < 0.6) {
+                        return <span className="text-gray-600 text-xs">—</span>
+                      }
+                      const colorClass = fc.direction === 'bullish'
+                        ? 'text-green-400'
+                        : fc.direction === 'bearish'
+                          ? 'text-red-400'
+                          : 'text-gray-400'
+                      const arrow = fc.direction === 'bullish' ? '▲' : fc.direction === 'bearish' ? '▼' : '◆'
+                      const sign = fc.expected_move_pct >= 0 ? '+' : ''
+                      return (
+                        <span className={`text-xs font-medium ${colorClass}`}>
+                          {arrow} {sign}{fc.expected_move_pct.toFixed(1)}%
+                        </span>
+                      )
+                    })()}
+                  </td>
                   <td
                     className="px-3 py-2.5 text-center text-gray-500 hover:text-gray-200"
                     onClick={(e) => { e.stopPropagation(); toggleExpand(r.symbol) }}
@@ -167,7 +189,7 @@ export function ResultsTable({ results, activeProfile, hasScanned }: Props) {
                 </tr>
                 {isExpanded && (
                   <tr key={`${r.symbol}-expand`} className="border-t border-gray-700/30">
-                    <td colSpan={10} className="p-0">
+                    <td colSpan={11} className="p-0">
                       <RowExpansion categoryScores={r.category_scores} />
                     </td>
                   </tr>
