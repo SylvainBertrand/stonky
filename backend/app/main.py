@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.api.forecasts import router as forecasts_router
 from app.api.health import router as health_router
 from app.api.patterns import router as patterns_router
 from app.api.scanner import router as scanner_router
@@ -68,6 +69,7 @@ def create_app() -> FastAPI:
     app.include_router(scanner_router, prefix="/api")
     app.include_router(patterns_router, prefix="/api")
     app.include_router(stocks_router, prefix="/api")
+    app.include_router(forecasts_router, prefix="/api")
 
     return app
 
