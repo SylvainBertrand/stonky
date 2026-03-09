@@ -13,6 +13,8 @@ import { HarmonicBanner } from '../components/stock/HarmonicBanner'
 import { ChartPatternsBanner } from '../components/stock/ChartPatternsBanner'
 import { ElliottWaveBanner } from '../components/stock/ElliottWaveBanner'
 import { useEWPatterns } from '../hooks/useEWPatterns'
+import { ForecastBanner } from '../components/stock/ForecastBanner'
+import { useForecast } from '../hooks/useForecast'
 import { ProfileBadge } from '../components/scanner/ProfileBadge'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
 import { ScoreDisplay } from '../components/shared/ScoreDisplay'
@@ -45,6 +47,7 @@ export function StockDetailPage() {
   })
 
   const { data: ewData } = useEWPatterns(symbol, chartTimeframe)
+  const { data: forecastData } = useForecast(symbol, chartTimeframe)
 
   if (detailLoading) {
     return (
@@ -171,6 +174,9 @@ export function StockDetailPage() {
 
         {/* Elliott Wave banner */}
         <ElliottWaveBanner detection={ewData} />
+
+        {/* Chronos-2 forecast banner */}
+        <ForecastBanner forecast={forecastData} />
 
         {/* Volume contradiction warning */}
         {detail.volume_contradiction && (
