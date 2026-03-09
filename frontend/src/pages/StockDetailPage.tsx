@@ -136,6 +136,7 @@ export function StockDetailPage() {
               overlays={overlays}
               ewWaves={ewData?.waves ?? null}
               ewDirection={ewData?.direction ?? null}
+              forecastData={overlays.forecast ? forecastData ?? null : null}
             />
           ) : (
             <div className="flex justify-center items-center h-[420px] bg-gray-900/50 rounded border border-gray-700/40 text-gray-500 text-sm">
