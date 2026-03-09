@@ -88,6 +88,22 @@ def create_scheduler() -> AsyncIOScheduler:
         logger.info(
             "Scheduled yolo_nightly_scan: daily at 06:00 America/New_York"
         )
+
+        from app.analysis.forecast_scanner import run_forecast_scan_all
+
+        scheduler.add_job(
+            run_forecast_scan_all,
+            CronTrigger(
+                hour=8,
+                minute=0,
+                timezone="America/New_York",
+            ),
+            id="chronos_nightly_forecast",
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled chronos_nightly_forecast: daily at 08:00 America/New_York"
+        )
     else:
         logger.info("Scheduler disabled (settings.scheduler_enabled=False)")
 
