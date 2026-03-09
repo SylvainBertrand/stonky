@@ -1,4 +1,4 @@
-export type OverlayKey = 'ema21' | 'ema50' | 'ema200' | 'supertrend' | 'volume' | 'patterns' | 'waves'
+export type OverlayKey = 'ema21' | 'ema50' | 'ema200' | 'supertrend' | 'volume' | 'patterns' | 'waves' | 'forecast'
 export type OverlayToggles = Record<OverlayKey, boolean>
 
 export const DEFAULT_OVERLAYS: OverlayToggles = {
@@ -9,6 +9,7 @@ export const DEFAULT_OVERLAYS: OverlayToggles = {
   volume: true,
   patterns: true,
   waves: true,
+  forecast: false,
 }
 
 interface Props {
@@ -31,9 +32,10 @@ const BUTTON_LABELS: Record<OverlayKey, string> = {
   volume: 'Volume',
   patterns: 'Patterns',
   waves: 'EW Waves',
+  forecast: 'Forecast',
 }
 
-const OVERLAY_KEYS: OverlayKey[] = ['ema21', 'ema50', 'ema200', 'supertrend', 'volume', 'patterns', 'waves']
+const OVERLAY_KEYS: OverlayKey[] = ['ema21', 'ema50', 'ema200', 'supertrend', 'volume', 'patterns', 'waves', 'forecast']
 
 export function ChartControls({ overlays, onToggle, onReset }: Props) {
   return (
