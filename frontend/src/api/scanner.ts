@@ -1,4 +1,4 @@
-import type { EWDetection, OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SymbolPatterns } from '../types'
+import type { EWDetection, ForecastData, OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SymbolPatterns } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
 
@@ -60,4 +60,19 @@ export const patternsApi = {
     apiFetch<EWDetection>(
       `/api/patterns/elliott-wave/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
     ),
+}
+
+export const forecastsApi = {
+  getForecast: (symbol: string, timeframe = '1d'): Promise<ForecastData | null> =>
+    apiFetch<ForecastData | null>(
+      `/api/forecasts/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
+    ),
+
+  triggerScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
+    return apiFetch<ScanRunResponse>(`/api/forecasts/scan${qs}`, { method: 'POST' })
+  },
+
+  getScanStatus: (): Promise<{ run_id: number; status: string; started_at: string | null; completed_at: string | null; symbols_scanned: number; symbols_forecast: number }> =>
+    apiFetch('/api/forecasts/scan/status'),
 }

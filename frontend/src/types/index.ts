@@ -63,6 +63,27 @@ export interface EWDetection {
   waves: EWWavePoint[]
 }
 
+export interface ForecastQuantiles {
+  median: number[]
+  quantile_10: number[]
+  quantile_25: number[]
+  quantile_75: number[]
+  quantile_90: number[]
+}
+
+export interface ForecastData {
+  symbol: string
+  timeframe: string
+  generated_at: string
+  last_bar_date: string
+  last_close: number
+  horizon_bars: number
+  direction: 'bullish' | 'bearish' | 'neutral'
+  direction_confidence: number
+  expected_move_pct: number
+  forecast: ForecastQuantiles
+}
+
 export interface ScannerResult {
   symbol: string
   rank: number
