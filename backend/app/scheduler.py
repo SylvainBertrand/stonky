@@ -94,6 +94,7 @@ def create_scheduler() -> AsyncIOScheduler:
         scheduler.add_job(
             run_forecast_scan_all,
             CronTrigger(
+                day_of_week="mon-fri",
                 hour=8,
                 minute=0,
                 timezone="America/New_York",
@@ -102,7 +103,7 @@ def create_scheduler() -> AsyncIOScheduler:
             replace_existing=True,
         )
         logger.info(
-            "Scheduled chronos_nightly_forecast: daily at 08:00 America/New_York"
+            "Scheduled chronos_nightly_forecast: weekdays at 08:00 America/New_York"
         )
     else:
         logger.info("Scheduler disabled (settings.scheduler_enabled=False)")

@@ -81,13 +81,16 @@ def run_forecast(
 
     context = torch.tensor(closes, dtype=torch.float32).unsqueeze(0)
 
-    forecast_samples = pipeline.predict(
-        context,
-        prediction_length=horizon,
-        num_samples=num_samples,
-    )
-
-    samples = forecast_samples.squeeze(0).numpy()
+    try:
+        forecast_samples = pipeline.predict(
+            context,
+            prediction_length=horizon,
+            num_samples=num_samples,
+        )
+        samples = forecast_samples.squeeze(0).numpy()
+    except Exception as exc:
+        log.error("Forecast %s: inference failed: %s", symbol, exc)
+        return None
 
     median = np.quantile(samples, 0.50, axis=0).tolist()
     quantile_10 = np.quantile(samples, 0.10, axis=0).tolist()

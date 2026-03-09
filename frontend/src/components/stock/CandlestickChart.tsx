@@ -268,6 +268,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
   // above LW's own canvases in DOM order (z-index: 1 and z-index: 2).
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const ewCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const forecastCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // Series refs for overlay visibility control
   const ema21Ref = useRef<ISeriesApi<'Line'> | null>(null)
@@ -473,6 +474,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       forecastCanvas.style.pointerEvents = 'none'
       forecastCanvas.style.zIndex = '5'
       container.appendChild(forecastCanvas)
+      forecastCanvasRef.current = forecastCanvas
 
       const redrawForecast = () => {
         if (!forecastCanvas) return
@@ -518,6 +520,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       if (forecastCanvas && forecastCanvas.parentNode) {
         forecastCanvas.parentNode.removeChild(forecastCanvas)
       }
+      forecastCanvasRef.current = null
     }
   }, [data, height, detections, ewWaves, ewDirection, forecastData])
 
@@ -546,15 +549,9 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       ewCanvasRef.current.style.display = overlays.waves ? '' : 'none'
     }
 
-    // Forecast visibility
-    if (overlays.forecast !== undefined) {
-      const el = containerRef.current
-      if (el) {
-        const fcCanvas = el.querySelector<HTMLCanvasElement>('canvas[style*="z-index: 5"]')
-        if (fcCanvas) {
-          fcCanvas.style.display = overlays.forecast ? '' : 'none'
-        }
-      }
+    // Forecast visibility: show/hide forecast canvas overlay
+    if (overlays.forecast !== undefined && forecastCanvasRef.current) {
+      forecastCanvasRef.current.style.display = overlays.forecast ? '' : 'none'
     }
   }, [overlays])
 

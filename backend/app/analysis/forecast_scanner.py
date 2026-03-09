@@ -114,7 +114,6 @@ async def run_forecast_scan_all(
 
             total_forecast = 0
             scanned = 0
-            loop = asyncio.get_event_loop()
 
             for symbol_id, ticker in symbols:
                 try:
@@ -128,8 +127,8 @@ async def run_forecast_scan_all(
                         scanned += 1
                         continue
 
-                    result = await loop.run_in_executor(
-                        None, run_forecast, df, ticker, "1d", 20, 50
+                    result = await asyncio.to_thread(
+                        run_forecast, df, ticker, "1d", 20, 50
                     )
 
                     if result is None:
