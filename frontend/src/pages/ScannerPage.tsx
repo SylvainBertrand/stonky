@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { scannerApi, patternsApi } from '../api/scanner'
+import { scannerApi, patternsApi, forecastsApi } from '../api/scanner'
 import { watchlistApi } from '../api/watchlists'
 import { useScannerStore } from '../stores/scannerStore'
+import type { ForecastData } from '../types'
 import { ProfileFilterTabs } from '../components/scanner/ProfileFilterTabs'
 import { ResultsTable } from '../components/scanner/ResultsTable'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
@@ -29,6 +30,8 @@ export function ScannerPage() {
   const [scanError, setScanError] = useState<string | null>(null)
   const [isYoloScanning, setIsYoloScanning] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isForecastScanning, setIsForecastScanning] = useState(false)
+  const [forecasts, setForecasts] = useState<Record<string, ForecastData>>({})
 
   // Mirror the WatchlistSwitcher's cache key so we react when the active watchlist changes
   const { data: watchlists = [] } = useQuery({
@@ -88,6 +91,24 @@ export function ScannerPage() {
       setLastFetched(new Date())
     }
   }, [results, setLastFetched])
+
+  // Fetch forecasts for scanner results
+  useEffect(() => {
+    if (results.length === 0) return
+    const fetchForecasts = async () => {
+      const map: Record<string, ForecastData> = {}
+      await Promise.all(
+        results.map(async (r) => {
+          try {
+            const fc = await forecastsApi.getForecast(r.symbol)
+            if (fc) map[r.symbol] = fc
+          } catch { /* forecast not available */ }
+        })
+      )
+      setForecasts(map)
+    }
+    void fetchForecasts()
+  }, [results])
 
   // Safety-net timeout: give up after SCAN_TIMEOUT_MS regardless of status
   useEffect(() => {
@@ -162,6 +183,40 @@ export function ScannerPage() {
     }
   }, [activeWatchlistId, queryClient])
 
+  const handleForecastScan = useCallback(async () => {
+    setIsForecastScanning(true)
+    setScanError(null)
+    try {
+      await forecastsApi.triggerScan(activeWatchlistId)
+      const poll = async () => {
+        for (let i = 0; i < 120; i++) {
+          await new Promise((r) => setTimeout(r, 5000))
+          try {
+            const status = await forecastsApi.getScanStatus()
+            if (status.status === 'completed') {
+              void queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] })
+              setIsForecastScanning(false)
+              return
+            }
+            if (status.status === 'failed') {
+              setScanError('Forecast scan failed — check backend logs.')
+              setIsForecastScanning(false)
+              return
+            }
+          } catch {
+            // Status endpoint may not exist yet if scan just started
+          }
+        }
+        setScanError('Forecast scan timed out.')
+        setIsForecastScanning(false)
+      }
+      void poll()
+    } catch (err) {
+      setIsForecastScanning(false)
+      setScanError(err instanceof Error ? err.message : 'Forecast scan failed')
+    }
+  }, [activeWatchlistId, queryClient])
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -210,6 +265,14 @@ export function ScannerPage() {
               {isYoloScanning && <LoadingSpinner size="sm" />}
               {isYoloScanning ? 'Detecting…' : 'Scan Chart Patterns'}
             </button>
+            <button
+              onClick={() => { void handleForecastScan() }}
+              disabled={isForecastScanning || isScanning}
+              className="flex items-center gap-2 px-3 py-1.5 rounded bg-teal-700 hover:bg-teal-600 disabled:opacity-60 text-xs font-semibold text-white transition-colors"
+            >
+              {isForecastScanning && <LoadingSpinner size="sm" />}
+              {isForecastScanning ? 'Forecasting…' : 'Run Forecasts'}
+            </button>
           </div>
         </div>
       </header>
@@ -241,7 +304,7 @@ export function ScannerPage() {
             Failed to load results. Is the backend running?
           </div>
         ) : (
-          <ResultsTable results={results} activeProfile={activeProfile} hasScanned={lastFetched != null} />
+          <ResultsTable results={results} activeProfile={activeProfile} hasScanned={lastFetched != null} forecasts={forecasts} />
         )}
       </main>
     </div>
