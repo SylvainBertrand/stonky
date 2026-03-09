@@ -37,12 +37,6 @@ vi.mock('lightweight-charts', () => ({
   createChart: vi.fn(() => mockChart),
 }))
 
-// ResizeObserver is not available in jsdom — must be a class constructor
-global.ResizeObserver = class {
-  observe = vi.fn()
-  disconnect = vi.fn()
-} as unknown as typeof ResizeObserver
-
 // jsdom doesn't implement canvas — silence the "not implemented" warning
 HTMLCanvasElement.prototype.getContext = () => null
 
@@ -86,14 +80,6 @@ const BEARISH_DETECTION: ChartPatternDetection = {
   confidence: 0.67,
   bar_start: 10,
   bar_end: 80,
-}
-
-const NEUTRAL_DETECTION: ChartPatternDetection = {
-  pattern: 'triangle',
-  direction: 'neutral',
-  confidence: 0.55,
-  bar_start: 50,
-  bar_end: 100,
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -169,7 +155,7 @@ describe('CandlestickChart', () => {
 
   it('hiding volume calls applyOptions({ visible: false }) on volume series', () => {
     const overlays: OverlayToggles = {
-      ema21: true, ema50: true, ema200: true, supertrend: true, volume: false, patterns: true,
+      ema21: true, ema50: true, ema200: true, supertrend: true, volume: false, patterns: true, waves: true, forecast: false,
     }
     render(<CandlestickChart data={makeOHLCV()} overlays={overlays} />)
     expect(mockHistogramSeries.applyOptions).toHaveBeenCalledWith({ visible: false })
@@ -177,7 +163,7 @@ describe('CandlestickChart', () => {
 
   it('showing volume calls applyOptions({ visible: true }) on volume series', () => {
     const overlays: OverlayToggles = {
-      ema21: true, ema50: true, ema200: true, supertrend: true, volume: true, patterns: true,
+      ema21: true, ema50: true, ema200: true, supertrend: true, volume: true, patterns: true, waves: true, forecast: false,
     }
     render(<CandlestickChart data={makeOHLCV()} overlays={overlays} />)
     expect(mockHistogramSeries.applyOptions).toHaveBeenCalledWith({ visible: true })
@@ -185,7 +171,7 @@ describe('CandlestickChart', () => {
 
   it('hiding an EMA calls applyOptions({ visible: false }) on a line series', () => {
     const overlays: OverlayToggles = {
-      ema21: false, ema50: true, ema200: true, supertrend: true, volume: true, patterns: true,
+      ema21: false, ema50: true, ema200: true, supertrend: true, volume: true, patterns: true, waves: true, forecast: false,
     }
     render(<CandlestickChart data={makeOHLCV(150, true)} overlays={overlays} />)
     expect(mockLineSeries.applyOptions).toHaveBeenCalledWith({ visible: false })

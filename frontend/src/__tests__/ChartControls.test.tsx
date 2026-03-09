@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { ChartControls, DEFAULT_OVERLAYS } from '../components/stock/ChartControls'
-import type { OverlayToggles } from '../components/stock/ChartControls'
+import type { OverlayKey, OverlayToggles } from '../components/stock/ChartControls'
 
 const ALL_ON: OverlayToggles = {
   ema21: true,
@@ -10,6 +10,8 @@ const ALL_ON: OverlayToggles = {
   supertrend: true,
   volume: true,
   patterns: true,
+  waves: true,
+  forecast: true,
 }
 
 const ALL_OFF: OverlayToggles = {
@@ -19,11 +21,13 @@ const ALL_OFF: OverlayToggles = {
   supertrend: false,
   volume: false,
   patterns: false,
+  waves: false,
+  forecast: false,
 }
 
 describe('ChartControls', () => {
-  let onToggle: ReturnType<typeof vi.fn>
-  let onReset: ReturnType<typeof vi.fn>
+  let onToggle: (key: OverlayKey) => void
+  let onReset: () => void
 
   beforeEach(() => {
     onToggle = vi.fn()
@@ -32,7 +36,7 @@ describe('ChartControls', () => {
 
   // ── Rendering ────────────────────────────────────────────────────────────
 
-  it('renders all 6 overlay toggle buttons', () => {
+  it('renders all 8 overlay toggle buttons', () => {
     render(<ChartControls overlays={ALL_ON} onToggle={onToggle} onReset={onReset} />)
     expect(screen.getByRole('button', { name: /ema 21/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /ema 50/i })).toBeTruthy()
@@ -40,6 +44,8 @@ describe('ChartControls', () => {
     expect(screen.getByRole('button', { name: /supertrend/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /volume/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /patterns/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /ew waves/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /forecast/i })).toBeTruthy()
   })
 
   it('renders a Reset button', () => {
@@ -129,7 +135,7 @@ describe('ChartControls', () => {
   // ── EMA colored dots ─────────────────────────────────────────────────────
 
   it('EMA 21 button contains a blue dot', () => {
-    const { container } = render(<ChartControls overlays={ALL_ON} onToggle={onToggle} onReset={onReset} />)
+    render(<ChartControls overlays={ALL_ON} onToggle={onToggle} onReset={onReset} />)
     const btn = screen.getByRole('button', { name: /ema 21/i })
     const dot = btn.querySelector('[data-dot]')
     expect(dot).toBeTruthy()
@@ -164,5 +170,19 @@ describe('ChartControls', () => {
     render(<ChartControls overlays={overlays} onToggle={onToggle} onReset={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /EW Waves/i }))
     expect(onToggle).toHaveBeenCalledWith('waves')
+  })
+
+  it('renders the Forecast toggle button', () => {
+    const overlays = { ...DEFAULT_OVERLAYS, forecast: false } as OverlayToggles
+    render(<ChartControls overlays={overlays} onToggle={vi.fn()} onReset={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /Forecast/i })).toBeInTheDocument()
+  })
+
+  it('fires onToggle with "forecast" when Forecast button clicked', () => {
+    const onToggle = vi.fn()
+    const overlays = { ...DEFAULT_OVERLAYS, forecast: false } as OverlayToggles
+    render(<ChartControls overlays={overlays} onToggle={onToggle} onReset={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Forecast/i }))
+    expect(onToggle).toHaveBeenCalledWith('forecast')
   })
 })
