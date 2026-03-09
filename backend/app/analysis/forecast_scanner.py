@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,7 +48,7 @@ async def _get_watchlist_symbols(
 
 async def _purge_old_forecasts(db: AsyncSession, symbol_id: int) -> None:
     """Remove forecasts older than RETENTION_DAYS for a symbol."""
-    cutoff = datetime.now(timezone.utc) - timedelta(days=RETENTION_DAYS)
+    cutoff = datetime.now(UTC) - timedelta(days=RETENTION_DAYS)
     await db.execute(
         delete(ForecastCache).where(
             and_(
@@ -80,14 +80,14 @@ async def run_forecast_scan_all(
                 log.error("Forecast scan: ScanRun %d not found", run_id)
                 return
             scan_run.status = ScanRunStatus.RUNNING
-            scan_run.started_at = datetime.now(timezone.utc)
+            scan_run.started_at = datetime.now(UTC)
             await db.commit()
         else:
             scan_run = ScanRun(
                 profile_id=None,
                 watchlist_id=watchlist_id,
                 status=ScanRunStatus.RUNNING,
-                started_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
                 symbols_scanned=0,
                 symbols_scored=0,
                 error_message=FORECAST_SCAN_MARKER,
@@ -107,7 +107,7 @@ async def run_forecast_scan_all(
                 scan_run = await db.get(ScanRun, run_id)
                 if scan_run:
                     scan_run.status = ScanRunStatus.COMPLETED
-                    scan_run.completed_at = datetime.now(timezone.utc)
+                    scan_run.completed_at = datetime.now(UTC)
                     scan_run.error_message = FORECAST_SCAN_MARKER
                     await db.commit()
                 return
@@ -139,7 +139,7 @@ async def run_forecast_scan_all(
                     forecast_row = ForecastCache(
                         symbol_id=symbol_id,
                         timeframe=result.timeframe,
-                        generated_at=datetime.now(timezone.utc),
+                        generated_at=datetime.now(UTC),
                         horizon_bars=result.forecast_horizon,
                         last_bar_date=datetime.strptime(
                             result.last_bar_date[:10], "%Y-%m-%d"
@@ -168,7 +168,7 @@ async def run_forecast_scan_all(
             scan_run = await db.get(ScanRun, run_id)
             if scan_run:
                 scan_run.status = ScanRunStatus.COMPLETED
-                scan_run.completed_at = datetime.now(timezone.utc)
+                scan_run.completed_at = datetime.now(UTC)
                 scan_run.symbols_scanned = len(symbols)
                 scan_run.symbols_scored = total_forecast
                 scan_run.error_message = FORECAST_SCAN_MARKER
@@ -187,7 +187,7 @@ async def run_forecast_scan_all(
                 scan_run = await db.get(ScanRun, run_id)
                 if scan_run:
                     scan_run.status = ScanRunStatus.FAILED
-                    scan_run.completed_at = datetime.now(timezone.utc)
+                    scan_run.completed_at = datetime.now(UTC)
                     scan_run.error_message = f"{FORECAST_SCAN_MARKER}: {str(exc)[:1900]}"
                     await db.commit()
             except Exception as commit_exc:
