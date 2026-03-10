@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { ForecastData, ScannerResult } from '../../types'
+import type { ForecastData, ScannerResult, SynthesisData } from '../../types'
 import { ProfileBadge } from './ProfileBadge'
 import { RowExpansion } from './RowExpansion'
 import { ScoreDisplay, scoreColor } from '../shared/ScoreDisplay'
@@ -17,9 +17,10 @@ interface Props {
   activeProfile?: string | null
   hasScanned?: boolean
   forecasts?: Record<string, ForecastData>
+  syntheses?: Record<string, SynthesisData>
 }
 
-export function ResultsTable({ results, activeProfile, hasScanned, forecasts }: Props) {
+export function ResultsTable({ results, activeProfile, hasScanned, forecasts, syntheses }: Props) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -63,6 +64,7 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts }: 
             <th className="px-3 py-2 text-right">Chg%</th>
             <th className="px-3 py-2 text-right">ATR%</th>
             <th className="px-3 py-2 text-left">Profiles</th>
+            <th className="px-3 py-2 text-left">Setup</th>
             <th className="px-3 py-2 text-left">Patterns</th>
             <th className="px-3 py-2 text-left">EW</th>
             <th className="px-3 py-2 text-right">Forecast</th>
@@ -111,6 +113,32 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts }: 
                         r.profile_matches.map((p) => <ProfileBadge key={p} profile={p} />)
                       )}
                     </div>
+                  </td>
+                  <td className="px-3 py-2.5">
+                    {(() => {
+                      const syn = syntheses?.[r.symbol]
+                      if (!syn) return <span className="text-gray-600 text-xs">—</span>
+                      const biasColors: Record<string, string> = {
+                        bullish: 'text-green-400',
+                        bearish: 'text-red-400',
+                        neutral: 'text-gray-400',
+                      }
+                      const confBadgeStyles: Record<string, { bg: string; text: string; label: string }> = {
+                        high: { bg: 'bg-green-900/50', text: 'text-green-300', label: 'H' },
+                        medium: { bg: 'bg-yellow-900/50', text: 'text-yellow-300', label: 'M' },
+                        low: { bg: 'bg-gray-800/50', text: 'text-gray-400', label: 'L' },
+                      }
+                      const confStyle = confBadgeStyles[syn.confidence]
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span className={`${biasColors[syn.bias]}`}>●</span>
+                          <span className="text-xs font-medium text-gray-300">{syn.setup_type}</span>
+                          <span className={`${confStyle.bg} ${confStyle.text} rounded px-1 py-0.5 text-xs font-semibold`}>
+                            {confStyle.label}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td className="px-3 py-2.5">
                     {(() => {
@@ -189,7 +217,7 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts }: 
                 </tr>
                 {isExpanded && (
                   <tr key={`${r.symbol}-expand`} className="border-t border-gray-700/30">
-                    <td colSpan={11} className="p-0">
+                    <td colSpan={12} className="p-0">
                       <RowExpansion categoryScores={r.category_scores} />
                     </td>
                   </tr>

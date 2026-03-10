@@ -20,6 +20,7 @@ from app.models.scan_runs import ScanRun
 from app.models.signal_results import SignalResult
 from app.models.swing_points import SwingPoint
 from app.models.symbols import Symbol
+from app.models.synthesis_result import SynthesisResult
 from app.models.watchlists import Watchlist, WatchlistItem
 
 __all__ = [
@@ -45,5 +46,6 @@ __all__ = [
     "PatternDetection",
     "Divergence",
     "SwingPoint",
+    "SynthesisResult",
     "IngestionLog",
 ]

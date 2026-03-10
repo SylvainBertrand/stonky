@@ -127,6 +127,9 @@ stonky/
 | GET | `/api/scanner/results/{symbol}` | Full detail for one ticker |
 | GET | `/api/scanner/profiles` | List scan profiles |
 | GET | `/api/stocks/{symbol}/ohlcv` | OHLCV bars + EMA/Supertrend overlays |
+| GET | `/api/synthesis/{symbol}` | Latest LLM synthesis for a symbol |
+| POST | `/api/synthesis/scan` | Trigger synthesis scan (background) |
+| GET | `/api/synthesis/scan/status` | Synthesis scan status |
 
 Full interactive docs at `http://localhost:8000/docs`.
 
@@ -148,6 +151,35 @@ cd frontend && npm test -- --run
 docker compose up -d
 docker compose down -v    # Tear down with volumes (destroys all data)
 ```
+
+## LLM Synthesis Agent Setup
+
+The synthesis agent uses a local LLM (via Ollama) to generate trade setup analysis from all computed signals.
+
+### Install Ollama
+
+1. Install Ollama: https://ollama.com
+2. Pull the default model: `ollama pull llama3.1:8b`
+3. Ensure Ollama is running before starting Stonky: `ollama serve`
+
+### RTX 5070 / Blackwell GPU
+
+Ollama may require a recent build for full Blackwell (RTX 50xx) CUDA support.
+Check `ollama --version` and update if inference falls back to CPU.
+Verify GPU is being used: `ollama run llama3.1:8b "hello"` should show GPU utilization.
+
+### Configuration
+
+Set in `.env`:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LLM_PROVIDER` | `ollama` | LLM backend (`ollama` or `claude`) |
+| `OLLAMA_MODEL` | `llama3.1:8b` | Ollama model name (try `mistral:7b` as alternative) |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API endpoint |
+| `ANTHROPIC_API_KEY` | — | Required when `LLM_PROVIDER=claude` |
+
+The synthesis scan runs nightly at 9 AM ET (after YOLO, EW, and Chronos jobs). It can also be triggered manually via the "Run Analysis" button in the scanner UI or `POST /api/synthesis/scan`.
 
 ## Architecture
 

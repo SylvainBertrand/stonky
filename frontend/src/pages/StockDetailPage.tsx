@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { scannerApi } from '../api/scanner'
+import { scannerApi, synthesisApi } from '../api/scanner'
 import { useStockStore } from '../stores/stockStore'
 import { CandlestickChart } from '../components/stock/CandlestickChart'
 import type { ChartHandle } from '../components/stock/CandlestickChart'
@@ -15,6 +15,7 @@ import { ElliottWaveBanner } from '../components/stock/ElliottWaveBanner'
 import { useEWPatterns } from '../hooks/useEWPatterns'
 import { ForecastBanner } from '../components/stock/ForecastBanner'
 import { useForecast } from '../hooks/useForecast'
+import { TradeSetupCard } from '../components/stock/TradeSetupCard'
 import { ProfileBadge } from '../components/scanner/ProfileBadge'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
 import { ScoreDisplay } from '../components/shared/ScoreDisplay'
@@ -48,6 +49,13 @@ export function StockDetailPage() {
 
   const { data: ewData } = useEWPatterns(symbol, chartTimeframe)
   const { data: forecastData } = useForecast(symbol, chartTimeframe)
+
+  const { data: synthesisData, isLoading: synthesisLoading } = useQuery({
+    queryKey: ['synthesis', symbol],
+    queryFn: () => synthesisApi.getSynthesis(symbol),
+    enabled: !!symbol,
+    staleTime: 300_000,
+  })
 
   if (detailLoading) {
     return (
@@ -101,6 +109,9 @@ export function StockDetailPage() {
       </header>
 
       <main className="max-w-screen-xl mx-auto px-6 py-4 space-y-4">
+        {/* Trade setup card */}
+        <TradeSetupCard synthesis={synthesisData} isLoading={synthesisLoading} />
+
         {/* Timeframe selector + Chart */}
         <div>
           <div className="flex gap-1 mb-2">

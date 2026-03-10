@@ -84,6 +84,23 @@ export interface ForecastData {
   forecast: ForecastQuantiles
 }
 
+export interface SynthesisData {
+  symbol: string
+  generated_at: string
+  setup_type: string
+  bias: 'bullish' | 'bearish' | 'neutral'
+  confidence: 'high' | 'medium' | 'low'
+  summary: string
+  signal_confluence: string
+  signal_conflicts: string
+  entry: number | null
+  stop: number | null
+  target: number | null
+  risk_reward: number | null
+  key_risk: string
+  parse_error: boolean
+}
+
 export interface ScannerResult {
   symbol: string
   rank: number

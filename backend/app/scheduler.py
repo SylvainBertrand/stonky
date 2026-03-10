@@ -105,6 +105,22 @@ def create_scheduler() -> AsyncIOScheduler:
         logger.info(
             "Scheduled chronos_nightly_forecast: weekdays at 08:00 America/New_York"
         )
+
+        from app.analysis.synthesis_scanner import run_synthesis_scan_all
+
+        scheduler.add_job(
+            run_synthesis_scan_all,
+            CronTrigger(
+                hour=9,
+                minute=0,
+                timezone="America/New_York",
+            ),
+            id="synthesis_nightly",
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled synthesis_nightly: daily at 09:00 America/New_York"
+        )
     else:
         logger.info("Scheduler disabled (settings.scheduler_enabled=False)")
 

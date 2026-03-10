@@ -24,5 +24,11 @@ class Settings(BaseSettings):
     # Scheduler
     scheduler_enabled: bool = True
 
+    # LLM Synthesis Agent
+    llm_provider: str = "ollama"
+    ollama_model: str = "llama3.1:8b"
+    ollama_base_url: str = "http://localhost:11434"
+    anthropic_api_key: str | None = None
+
 
 settings = Settings()

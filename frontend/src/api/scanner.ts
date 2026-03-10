@@ -1,4 +1,4 @@
-import type { EWDetection, ForecastData, OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SymbolPatterns } from '../types'
+import type { EWDetection, ForecastData, OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SynthesisData, SymbolPatterns } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
 
@@ -75,4 +75,19 @@ export const forecastsApi = {
 
   getScanStatus: (): Promise<{ run_id: number; status: string; started_at: string | null; completed_at: string | null; symbols_scanned: number; symbols_forecast: number }> =>
     apiFetch('/api/forecasts/scan/status'),
+}
+
+export const synthesisApi = {
+  getSynthesis: (symbol: string): Promise<SynthesisData | null> =>
+    apiFetch<SynthesisData | null>(
+      `/api/synthesis/${encodeURIComponent(symbol)}`,
+    ),
+
+  triggerScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
+    return apiFetch<ScanRunResponse>(`/api/synthesis/scan${qs}`, { method: 'POST' })
+  },
+
+  getScanStatus: (): Promise<{ run_id: number; status: string; started_at: string | null; completed_at: string | null; symbols_scanned: number; symbols_synthesized: number }> =>
+    apiFetch('/api/synthesis/scan/status'),
 }
