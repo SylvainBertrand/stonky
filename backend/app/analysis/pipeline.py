@@ -494,7 +494,8 @@ async def run_analysis_for_ticker(
             "volume_contradiction": result.volume_contradiction,
         }
 
-        # Upsert: delete existing then insert
+        # Upsert: delete existing then insert (UPDATE breaks TimescaleDB
+        # chunk constraints when the time column moves across chunk boundaries)
         existing = await db.execute(
             select(IndicatorCache).where(
                 IndicatorCache.symbol_id == symbol_id,
@@ -505,21 +506,19 @@ async def run_analysis_for_ticker(
         )
         existing_row = existing.scalar_one_or_none()
         if existing_row is not None:
-            existing_row.value = cache_value
-            existing_row.time = now
-            cache_action = "updated"
-        else:
-            db.add(
-                IndicatorCache(
-                    time=now,
-                    symbol_id=symbol_id,
-                    timeframe=timeframe,
-                    indicator_name=_INDICATOR_NAME,
-                    params_hash=params_hash,
-                    value=cache_value,
-                )
+            await db.delete(existing_row)
+            await db.flush()
+        db.add(
+            IndicatorCache(
+                time=now,
+                symbol_id=symbol_id,
+                timeframe=timeframe,
+                indicator_name=_INDICATOR_NAME,
+                params_hash=params_hash,
+                value=cache_value,
             )
-            cache_action = "inserted"
+        )
+        cache_action = "replaced" if existing_row is not None else "inserted"
         await db.flush()
         log.info(
             "%s: cache %s for %s (%s), composite=%.4f, profile_matches=%s",
