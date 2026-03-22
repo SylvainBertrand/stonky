@@ -1,5 +1,11 @@
 """SQLAlchemy models — import all so Base.metadata is fully populated for Alembic."""
+
+from app.models.backtest import BacktestResultModel
 from app.models.base import Base
+from app.models.divergences import Divergence
+from app.models.macro_series import MacroSeries
+from app.models.market_regime import MarketRegimeModel
+from app.models.sentiment_data import SentimentData
 from app.models.enums import (
     PatternType,
     SALetterGrade,
@@ -8,7 +14,6 @@ from app.models.enums import (
     SignalDirection,
     TimeframeEnum,
 )
-from app.models.divergences import Divergence
 from app.models.indicator_cache import IndicatorCache
 from app.models.ingestion_log import IngestionLog
 from app.models.ohlcv import OHLCV
@@ -33,6 +38,10 @@ __all__ = [
     "ScanRunStatus",
     "SALetterGrade",
     # Models
+    "BacktestResultModel",
+    "MacroSeries",
+    "MarketRegimeModel",
+    "SentimentData",
     "Symbol",
     "SARating",
     "Watchlist",
