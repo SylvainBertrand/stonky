@@ -66,9 +66,24 @@ async def ensure_market_symbols(session: AsyncSession) -> None:
 
 
 async def fetch_market_ohlcv(session: AsyncSession) -> None:
-    """Fetch OHLCV for all market tickers using existing fetcher."""
+    """Fetch OHLCV for all market tickers using existing fetcher.
+
+    Uses incremental=False on first run (no existing bars) to backfill history,
+    then incremental=True on subsequent runs.
+    """
+    from app.models.ohlcv import OHLCV
+
+    # Check if we have any market data yet
+    sample = await session.execute(
+        select(OHLCV.time)
+        .join(Symbol, OHLCV.symbol_id == Symbol.id)
+        .where(Symbol.ticker == "^GSPC", OHLCV.timeframe == TimeframeEnum.D1)
+        .limit(1)
+    )
+    has_data = sample.scalar_one_or_none() is not None
+
     result = await fetch_and_store(
-        session, MARKET_TICKERS, timeframe=TimeframeEnum.D1, incremental=True
+        session, MARKET_TICKERS, timeframe=TimeframeEnum.D1, incremental=has_data
     )
     logger.info("Market OHLCV fetch: %s", result)
 

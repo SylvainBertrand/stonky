@@ -66,12 +66,23 @@ def parse_naaim_csv(content: str) -> list[dict]:
 
 
 async def scrape_aaii() -> list[AAIISentiment]:
-    """Scrape AAII sentiment survey page. Returns empty list on failure."""
+    """Scrape AAII sentiment survey page. Returns empty list on failure.
+
+    Note: AAII blocks most automated user agents (403).  Use CSV import
+    via POST /api/market/sentiment/import?source=aaii as the primary path.
+    """
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             resp = await client.get(
                 "https://www.aaii.com/sentimentsurvey/sent_results",
-                headers={"User-Agent": "Stonky/1.0"},
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/125.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "text/html",
+                },
             )
             resp.raise_for_status()
             from bs4 import BeautifulSoup
@@ -114,10 +125,17 @@ async def scrape_aaii() -> list[AAIISentiment]:
 async def scrape_naaim() -> list[dict]:
     """Scrape NAAIM exposure index page. Returns empty list on failure."""
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             resp = await client.get(
                 "https://www.naaim.org/programs/naaim-exposure-index/",
-                headers={"User-Agent": "Stonky/1.0"},
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/125.0.0.0 Safari/537.36"
+                    ),
+                    "Accept": "text/html",
+                },
             )
             resp.raise_for_status()
             from bs4 import BeautifulSoup
