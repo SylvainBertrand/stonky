@@ -1,18 +1,20 @@
-from contextlib import asynccontextmanager
-from collections.abc import AsyncGenerator
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings
+from app.api.backtests import router as backtests_router
 from app.api.forecasts import router as forecasts_router
 from app.api.health import router as health_router
+from app.api.market import router as market_router
 from app.api.patterns import router as patterns_router
 from app.api.scanner import router as scanner_router
 from app.api.stocks import router as stocks_router
 from app.api.synthesis import router as synthesis_router
 from app.api.watchlist import router as watchlist_router
+from app.config import settings
 
 
 def _configure_logging() -> None:
@@ -39,6 +41,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     _configure_logging()
     from app.scheduler import create_scheduler
+
     scheduler = create_scheduler()
     scheduler.start()
 
@@ -47,6 +50,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
     scheduler.shutdown(wait=False)
     from app.db.session import engine
+
     await engine.dispose()
 
 
@@ -65,7 +69,9 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.include_router(backtests_router, prefix="/api")
     app.include_router(health_router, prefix="/api")
+    app.include_router(market_router, prefix="/api")
     app.include_router(watchlist_router, prefix="/api")
     app.include_router(scanner_router, prefix="/api")
     app.include_router(patterns_router, prefix="/api")
