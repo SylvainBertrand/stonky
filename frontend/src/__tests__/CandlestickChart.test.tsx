@@ -57,6 +57,7 @@ function makeOHLCV(barCount = 150, withEmas = false): OHLCVResponse {
   return {
     symbol: 'AAPL',
     bars,
+    has_more: false,
     overlays: {
       ema_21: emaPoints,
       ema_50: emaPoints,

@@ -12,12 +12,16 @@ export interface ChartHandle {
 
 interface Props {
   data: OHLCVResponse
+  allBars?: OHLCVBar[]
   height?: number
   detections?: ChartPatternDetection[]
   overlays?: Partial<OverlayToggles>
   ewWaves?: EWWavePoint[] | null
   ewDirection?: 'bullish' | 'bearish' | null
   forecastData?: ForecastData | null
+  onLoadMore?: () => void
+  isLoadingMore?: boolean
+  hasMore?: boolean
 }
 
 // ── Pure drawing function (exported for unit testing) ──────────────────────────
@@ -29,7 +33,7 @@ export function drawDetectionOverlays(
   detections: ChartPatternDetection[],
   barOffset: number,
   bars: OHLCVBar[],
-  timeToCoordinate: (time: string) => number | null,
+  timeToCoordinate: (time: string | number) => number | null,
   priceToCoordinate?: (price: number) => number | null,
 ): void {
   ctx.clearRect(0, 0, width, height)
@@ -102,7 +106,7 @@ export function drawEWOverlay(
   width: number,
   height: number,
   waves: EWWavePoint[] | null,
-  timeToCoordinate: (time: string) => number | null,
+  timeToCoordinate: (time: string | number) => number | null,
   priceToCoordinate: (price: number) => number | null,
   direction: 'bullish' | 'bearish' | null = null,
 ): void {
@@ -150,8 +154,8 @@ export function drawForecastOverlay(
   width: number,
   height: number,
   forecast: ForecastData,
-  lastBarTime: string,
-  timeToCoordinate: (time: string) => number | null,
+  lastBarTime: string | number,
+  timeToCoordinate: (time: string | number) => number | null,
   priceToCoordinate: (price: number) => number | null,
   bars: OHLCVBar[],
 ): void {
@@ -259,7 +263,7 @@ export function drawForecastOverlay(
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const CandlestickChart = forwardRef<ChartHandle, Props>(function CandlestickChart(
-  { data, height = 420, detections, overlays, ewWaves, ewDirection, forecastData },
+  { data, allBars, height = 420, detections, overlays, ewWaves, ewDirection, forecastData, onLoadMore, isLoadingMore, hasMore },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -271,11 +275,15 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
   const forecastCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   // Series refs for overlay visibility control
+  const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const ema21Ref = useRef<ISeriesApi<'Line'> | null>(null)
   const ema50Ref = useRef<ISeriesApi<'Line'> | null>(null)
   const ema200Ref = useRef<ISeriesApi<'Line'> | null>(null)
   const supertrendRef = useRef<ISeriesApi<'Line'> | null>(null)
   const volumeRef = useRef<ISeriesApi<'Histogram'> | null>(null)
+
+  // Track bar count for viewport preservation
+  const prevBarCountRef = useRef(0)
 
   useImperativeHandle(ref, () => ({
     fitContent: () => {
@@ -294,6 +302,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
     }
 
     // ── Create chart ──────────────────────────────────────────────────────────
+    const barsToUse = allBars && allBars.length > 0 ? allBars : data.bars
     const chart = createChart(container, {
       layout: {
         background: { color: '#0d1117' },
@@ -310,7 +319,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       rightPriceScale: { borderColor: '#30363d' },
       timeScale: {
         borderColor: '#30363d',
-        timeVisible: false,
+        timeVisible: barsToUse.some((b) => typeof b.time === 'number'),
       },
       width: container.clientWidth,
       height,
@@ -326,7 +335,8 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       wickUpColor: '#22c55e',
       wickDownColor: '#ef4444',
     })
-    const candles: CandlestickData[] = data.bars.map((b) => ({
+    candleSeriesRef.current = candleSeries
+    const candles: CandlestickData[] = barsToUse.map((b) => ({
       time: b.time as unknown as import('lightweight-charts').Time,
       open: b.open,
       high: b.high,
@@ -334,6 +344,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       close: b.close,
     }))
     candleSeries.setData(candles)
+    prevBarCountRef.current = barsToUse.length
 
     // ── Volume series (own price scale, pinned to bottom 20%) ─────────────────
     const volumeSeries: ISeriesApi<'Histogram'> = chart.addHistogramSeries({
@@ -344,7 +355,7 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
     chart.priceScale('volume').applyOptions({
       scaleMargins: { top: 0.8, bottom: 0 },
     })
-    const volData: HistogramData[] = data.bars.map((b) => ({
+    const volData: HistogramData[] = barsToUse.map((b) => ({
       time: b.time as unknown as import('lightweight-charts').Time,
       value: b.volume,
       color: b.close >= b.open ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)',
@@ -397,8 +408,22 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
 
     chart.timeScale().fitContent()
 
+    // ── Dynamic loading: detect left-edge approach ─────────────────────────────
+    let loadMoreTimer: ReturnType<typeof setTimeout> | null = null
+    if (onLoadMore && hasMore) {
+      chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+        if (range === null) return
+        if (range.from < 10 && !isLoadingMore && hasMore) {
+          if (loadMoreTimer) clearTimeout(loadMoreTimer)
+          loadMoreTimer = setTimeout(() => {
+            onLoadMore()
+          }, 300)
+        }
+      })
+    }
+
     // ── Shared coordinate helpers (used by both canvas overlays) ─────────────
-    const timeToCoord = (time: string): number | null => {
+    const timeToCoord = (time: string | number): number | null => {
       const coord = chart.timeScale().timeToCoordinate(time as unknown as Time)
       return coord ?? null
     }
@@ -501,9 +526,11 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
     observer.observe(container)
 
     return () => {
+      if (loadMoreTimer) clearTimeout(loadMoreTimer)
       observer.disconnect()
       chart.remove()
       chartRef.current = null
+      candleSeriesRef.current = null
       ema21Ref.current = null
       ema50Ref.current = null
       ema200Ref.current = null
@@ -523,6 +550,48 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       forecastCanvasRef.current = null
     }
   }, [data, height, detections, ewWaves, ewDirection, forecastData])
+
+  // ── Dynamic bar updates (doesn't recreate chart) ────────────────────────────
+  useEffect(() => {
+    const series = candleSeriesRef.current
+    const chart = chartRef.current
+    if (!series || !chart || !allBars || allBars.length === 0) return
+
+    const prevCount = prevBarCountRef.current
+    const candles: CandlestickData[] = allBars.map((b) => ({
+      time: b.time as unknown as import('lightweight-charts').Time,
+      open: b.open,
+      high: b.high,
+      low: b.low,
+      close: b.close,
+    }))
+
+    // Save current range BEFORE updating data
+    const currentRange = chart.timeScale().getVisibleLogicalRange()
+    const prepended = allBars.length - prevCount
+
+    series.setData(candles)
+
+    // Also update volume
+    if (volumeRef.current) {
+      const volData: HistogramData[] = allBars.map((b) => ({
+        time: b.time as unknown as import('lightweight-charts').Time,
+        value: b.volume,
+        color: b.close >= b.open ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.35)',
+      }))
+      volumeRef.current.setData(volData)
+    }
+
+    // Restore viewport position if bars were prepended
+    if (prevCount > 0 && prepended > 0 && currentRange) {
+      chart.timeScale().setVisibleLogicalRange({
+        from: currentRange.from + prepended,
+        to: currentRange.to + prepended,
+      })
+    }
+
+    prevBarCountRef.current = allBars.length
+  }, [allBars])
 
   // ── Apply overlay visibility changes without recreating the chart ──────────
   useEffect(() => {
@@ -560,6 +629,12 @@ export const CandlestickChart = forwardRef<ChartHandle, Props>(function Candlest
       ref={containerRef}
       style={{ position: 'relative', height }}
       className="rounded overflow-hidden"
-    />
+    >
+      {isLoadingMore && (
+        <div className="absolute top-2 left-2 z-10 bg-gray-900/80 text-gray-400 text-xs px-2 py-1 rounded">
+          Loading...
+        </div>
+      )}
+    </div>
   )
 })

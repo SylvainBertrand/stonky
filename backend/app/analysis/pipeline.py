@@ -92,6 +92,46 @@ def aggregate_daily_to_weekly(df: pd.DataFrame) -> pd.DataFrame:
     return weekly
 
 
+def aggregate_daily_to_monthly(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate daily OHLCV bars into monthly bars.
+
+    Expects columns: time, open, high, low, close, volume.
+    Returns a DataFrame with the same columns, one row per month.
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+    df["time"] = pd.to_datetime(df["time"], utc=True)
+    df = df.set_index("time")
+    monthly = (
+        df.resample("MS")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        .dropna(subset=["open", "close"])
+    )
+    monthly = monthly.reset_index()
+    return monthly
+
+
+def aggregate_hourly_to_4h(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate 1H OHLCV bars into 4H bars.
+
+    Expects columns: time, open, high, low, close, volume.
+    Returns a DataFrame with the same columns, one row per 4-hour period.
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+    df["time"] = pd.to_datetime(df["time"], utc=True)
+    df = df.set_index("time")
+    fourh = (
+        df.resample("4h")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        .dropna(subset=["open", "close"])
+    )
+    fourh = fourh.reset_index()
+    return fourh
+
+
 @dataclass
 class AnalysisResult:
     symbol: str

@@ -31,7 +31,7 @@ function makeBars(count: number): OHLCVBar[] {
 }
 
 // timeToCoordinate that maps times to linear pixel positions (time string → index * 5)
-function linearCoord(bars: OHLCVBar[]): (time: string) => number | null {
+function linearCoord(bars: OHLCVBar[]): (time: string | number) => number | null {
   const map = new Map(bars.map((b, i) => [b.time, i * 5]))
   return (time) => map.get(time) ?? null
 }
@@ -68,7 +68,7 @@ const NEUTRAL: ChartPatternDetection = {
 describe('drawDetectionOverlays', () => {
   let ctx: ReturnType<typeof makeCtx>
   let bars: OHLCVBar[]
-  let toCoord: (time: string) => number | null
+  let toCoord: (time: string | number) => number | null
 
   beforeEach(() => {
     ctx = makeCtx()
@@ -192,7 +192,7 @@ describe('drawDetectionOverlays', () => {
 
   it('skips detection when timeToCoordinate returns null for bar_end', () => {
     const barEndTime = bars[BULLISH.bar_end].time
-    const partialCoord = (time: string) => time === barEndTime ? null : (toCoord(time))
+    const partialCoord = (time: string | number) => time === barEndTime ? null : (toCoord(time))
     drawDetectionOverlays(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [BULLISH], 0, bars, partialCoord)
     expect(ctx.fillRect).not.toHaveBeenCalled()
   })

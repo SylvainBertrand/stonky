@@ -8,6 +8,7 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Annotated, Any
 
 import pandas as pd
@@ -17,7 +18,11 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.indicators.trend import compute_ema
-from app.analysis.pipeline import aggregate_daily_to_weekly
+from app.analysis.pipeline import (
+    aggregate_daily_to_monthly,
+    aggregate_daily_to_weekly,
+    aggregate_hourly_to_4h,
+)
 from app.db.session import get_session
 from app.models.enums import TimeframeEnum
 from app.models.ohlcv import OHLCV
@@ -30,8 +35,11 @@ router = APIRouter(prefix="/stocks", tags=["stocks"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 _TIMEFRAME_MAP: dict[str, TimeframeEnum] = {
+    "1h": TimeframeEnum.H1,
+    "4h": TimeframeEnum.H4,
     "1d": TimeframeEnum.D1,
     "1w": TimeframeEnum.W1,
+    "1mo": TimeframeEnum.MO1,
 }
 
 
@@ -51,12 +59,28 @@ def _rows_to_df(rows: list[Any]) -> pd.DataFrame:
     )
 
 
+def _is_intraday(tf: TimeframeEnum) -> bool:
+    return tf in (TimeframeEnum.H1, TimeframeEnum.H4)
+
+
+def _format_time(t: Any, intraday: bool) -> int | str:
+    """Return Unix timestamp (int) for intraday, 'YYYY-MM-DD' string otherwise."""
+    if intraday:
+        return int(pd.Timestamp(t).timestamp())
+    return pd.Timestamp(t).strftime("%Y-%m-%d")
+
+
 @router.get("/{symbol}/ohlcv", response_model=dict[str, Any])
 async def get_ohlcv(
     symbol: str,
     session: SessionDep,
-    timeframe: Annotated[str, Query(description="Timeframe: 1d or 1w")] = "1d",
+    timeframe: Annotated[
+        str, Query(description="Timeframe: 1h, 4h, 1d, 1w, or 1mo")
+    ] = "1d",
     bars: Annotated[int, Query(ge=20, le=500)] = 200,
+    before: Annotated[
+        str | None, Query(description="ISO date — return bars before this date")
+    ] = None,
 ) -> dict[str, Any]:
     """
     Return raw OHLCV bars plus pre-computed chart overlays for a symbol.
@@ -73,45 +97,146 @@ async def get_ohlcv(
         )
 
     tf = _TIMEFRAME_MAP.get(timeframe, TimeframeEnum.D1)
+    has_more = False
 
-    result = await session.execute(
-        select(OHLCV)
-        .where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf)
-        .order_by(desc(OHLCV.time))
-        .limit(bars)
-    )
-    rows = list(reversed(result.scalars().all()))
-
-    if rows:
-        df = _rows_to_df(rows)
-    elif tf == TimeframeEnum.W1:
-        # Fallback: aggregate daily → weekly when no native weekly data
-        daily_result = await session.execute(
-            select(OHLCV)
-            .where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.D1)
-            .order_by(desc(OHLCV.time))
-            .limit(bars * 5)
+    # ── Timeframes that need aggregation from a base timeframe ──────────
+    if tf == TimeframeEnum.MO1:
+        # Aggregate daily → monthly
+        daily_query = select(OHLCV).where(
+            OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.D1
         )
+        daily_query = daily_query.order_by(desc(OHLCV.time)).limit(bars * 22)
+        daily_result = await session.execute(daily_query)
         daily_rows = list(reversed(daily_result.scalars().all()))
         if not daily_rows:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
             )
-        df = aggregate_daily_to_weekly(_rows_to_df(daily_rows))
+        df = aggregate_daily_to_monthly(_rows_to_df(daily_rows))
+        if before:
+            before_dt = pd.Timestamp(datetime.fromisoformat(before), tz="UTC")
+            df = df[pd.to_datetime(df["time"]) < before_dt].reset_index(drop=True)
         if len(df) > bars:
+            has_more = True
             df = df.tail(bars).reset_index(drop=True)
+        elif len(df) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
+            )
         log.info(
-            "%s: aggregated %d daily → %d weekly bars for chart",
-            symbol,
-            len(daily_rows),
-            len(df),
+            "%s: aggregated daily → %d monthly bars for chart", symbol, len(df)
         )
+
+    elif tf == TimeframeEnum.H4:
+        # Try native 4H first, fallback to aggregate 1H → 4H
+        query = select(OHLCV).where(
+            OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.H4
+        )
+        if before:
+            before_dt = datetime.fromisoformat(before)
+            query = query.where(OHLCV.time < before_dt)
+        query = query.order_by(desc(OHLCV.time)).limit(bars + 1)
+        result = await session.execute(query)
+        rows = list(reversed(result.scalars().all()))
+
+        if rows:
+            has_more = len(rows) > bars
+            if has_more:
+                rows = rows[1:]  # drop oldest extra row
+            df = _rows_to_df(rows)
+        else:
+            # Fallback: aggregate 1H → 4H
+            h1_query = select(OHLCV).where(
+                OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.H1
+            )
+            h1_query = h1_query.order_by(desc(OHLCV.time)).limit(bars * 4)
+            h1_result = await session.execute(h1_query)
+            h1_rows = list(reversed(h1_result.scalars().all()))
+            if not h1_rows:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
+                )
+            df = aggregate_hourly_to_4h(_rows_to_df(h1_rows))
+            if before:
+                before_dt = pd.Timestamp(datetime.fromisoformat(before), tz="UTC")
+                df = df[pd.to_datetime(df["time"]) < before_dt].reset_index(drop=True)
+            if len(df) > bars:
+                has_more = True
+                df = df.tail(bars).reset_index(drop=True)
+            log.info(
+                "%s: aggregated 1H → %d 4H bars for chart", symbol, len(df)
+            )
+
+    elif tf == TimeframeEnum.W1:
+        # Try native weekly first, fallback to aggregate daily → weekly
+        query = select(OHLCV).where(
+            OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf
+        )
+        if before:
+            before_dt = datetime.fromisoformat(before)
+            query = query.where(OHLCV.time < before_dt)
+        query = query.order_by(desc(OHLCV.time)).limit(bars + 1)
+        result = await session.execute(query)
+        rows = list(reversed(result.scalars().all()))
+
+        if rows:
+            has_more = len(rows) > bars
+            if has_more:
+                rows = rows[1:]
+            df = _rows_to_df(rows)
+        else:
+            # Fallback: aggregate daily → weekly
+            daily_result = await session.execute(
+                select(OHLCV)
+                .where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.D1)
+                .order_by(desc(OHLCV.time))
+                .limit(bars * 5)
+            )
+            daily_rows = list(reversed(daily_result.scalars().all()))
+            if not daily_rows:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
+                )
+            df = aggregate_daily_to_weekly(_rows_to_df(daily_rows))
+            if before:
+                before_dt = pd.Timestamp(datetime.fromisoformat(before), tz="UTC")
+                df = df[pd.to_datetime(df["time"]) < before_dt].reset_index(drop=True)
+            if len(df) > bars:
+                has_more = True
+                df = df.tail(bars).reset_index(drop=True)
+            log.info(
+                "%s: aggregated %d daily → %d weekly bars for chart",
+                symbol,
+                len(daily_rows),
+                len(df),
+            )
+
     else:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
+        # Direct DB query (1d, 1h)
+        query = select(OHLCV).where(
+            OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf
         )
+        if before:
+            before_dt = datetime.fromisoformat(before)
+            query = query.where(OHLCV.time < before_dt)
+        query = query.order_by(desc(OHLCV.time)).limit(bars + 1)  # +1 for has_more
+        result = await session.execute(query)
+        rows = list(reversed(result.scalars().all()))
+
+        has_more = len(rows) > bars
+        if has_more:
+            rows = rows[1:]  # drop oldest extra row
+
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
+            )
+        df = _rows_to_df(rows)
 
     if df.empty:
         raise HTTPException(
@@ -119,13 +244,15 @@ async def get_ohlcv(
             detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
         )
 
-    # Format date strings (YYYY-MM-DD) for lightweight-charts
-    date_strs = [t.strftime("%Y-%m-%d") for t in pd.to_datetime(df["time"])]
+    # ── Format time values ──────────────────────────────────────────────
+    intraday = _is_intraday(tf)
+    times = pd.to_datetime(df["time"])
+    time_values = [_format_time(t, intraday) for t in times]
     n = len(df)
 
     out_bars = [
         {
-            "time": date_strs[i],
+            "time": time_values[i],
             "open": float(df["open"].iloc[i]),
             "high": float(df["high"].iloc[i]),
             "low": float(df["low"].iloc[i]),
@@ -140,7 +267,7 @@ async def get_ohlcv(
 
     def _ema_overlay(col: str) -> list[dict[str, Any]]:
         return [
-            {"time": date_strs[i], "value": round(float(ema_df[col].iloc[i]), 4)}
+            {"time": time_values[i], "value": round(float(ema_df[col].iloc[i]), 4)}
             for i in range(n)
             if pd.notna(ema_df[col].iloc[i])
         ]
@@ -167,7 +294,7 @@ async def get_ohlcv(
                     if pd.notna(val) and pd.notna(direction):
                         supertrend_out.append(
                             {
-                                "time": date_strs[i],
+                                "time": time_values[i],
                                 "value": round(float(val), 4),
                                 "direction": int(direction),
                             }
@@ -178,6 +305,7 @@ async def get_ohlcv(
     return {
         "symbol": symbol.upper(),
         "bars": out_bars,
+        "has_more": has_more,
         "overlays": {
             "ema_21": _ema_overlay("ema_21"),
             "ema_50": _ema_overlay("ema_50"),

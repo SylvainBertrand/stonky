@@ -29,8 +29,8 @@ const WAVES: EWWavePoint[] = [
 ]
 
 function makeCoords(waves: EWWavePoint[]) {
-  const map = new Map(waves.map((w, i) => [w.time, i * 50]))
-  const timeToCoord = (t: string) => map.get(t) ?? null
+  const map = new Map<string | number, number>(waves.map((w, i) => [w.time, i * 50]))
+  const timeToCoord = (t: string | number) => map.get(t) ?? null
   const priceToCoord = (p: number) => 400 - p
   return { timeToCoord, priceToCoord }
 }
@@ -40,7 +40,7 @@ const CANVAS_H = 420
 
 describe('drawEWOverlay', () => {
   let ctx: ReturnType<typeof makeCtx>
-  let timeToCoord: (t: string) => number | null
+  let timeToCoord: (t: string | number) => number | null
   let priceToCoord: (p: number) => number | null
 
   beforeEach(() => {

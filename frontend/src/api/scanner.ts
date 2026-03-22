@@ -27,6 +27,11 @@ export const scannerApi = {
     apiFetch<OHLCVResponse>(
       `/api/stocks/${encodeURIComponent(symbol)}/ohlcv?timeframe=${timeframe}&bars=${bars}`,
     ),
+
+  loadMoreBars: (symbol: string, timeframe: string, before: string, limit = 200): Promise<OHLCVResponse> =>
+    apiFetch<OHLCVResponse>(
+      `/api/stocks/${encodeURIComponent(symbol)}/ohlcv?timeframe=${timeframe}&bars=${limit}&before=${before}`,
+    ),
 }
 
 export const patternsApi = {

@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { scannerApi, synthesisApi } from '../api/scanner'
 import { useStockStore } from '../stores/stockStore'
+import type { OHLCVBar } from '../types'
 import { CandlestickChart } from '../components/stock/CandlestickChart'
 import type { ChartHandle } from '../components/stock/CandlestickChart'
 import { ChartControls, DEFAULT_OVERLAYS } from '../components/stock/ChartControls'
@@ -28,6 +29,11 @@ export function StockDetailPage() {
   const [selectedCategory, setSelectedCategory] = useState<keyof CategoryScores | null>(null)
   const [overlays, setOverlays] = useState<OverlayToggles>(DEFAULT_OVERLAYS)
   const chartRef = useRef<ChartHandle>(null)
+
+  // Dynamic bar loading
+  const [allBars, setAllBars] = useState<OHLCVBar[]>([])
+  const [hasMore, setHasMore] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
   const handleToggle = (key: OverlayKey) => {
     setOverlays((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -56,6 +62,36 @@ export function StockDetailPage() {
     enabled: !!symbol,
     staleTime: 300_000,
   })
+
+  // Initialize allBars when ohlcv changes
+  useEffect(() => {
+    if (ohlcv) {
+      setAllBars(ohlcv.bars)
+      setHasMore(ohlcv.has_more)
+    }
+  }, [ohlcv])
+
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore || allBars.length === 0) return
+    setIsLoadingMore(true)
+    try {
+      const oldestBar = allBars[0]
+      const beforeDate = typeof oldestBar.time === 'number'
+        ? new Date(oldestBar.time * 1000).toISOString()
+        : oldestBar.time
+      const more = await scannerApi.loadMoreBars(symbol, chartTimeframe, beforeDate)
+      if (more && more.bars.length > 0) {
+        setAllBars((prev) => [...more.bars, ...prev])
+        setHasMore(more.has_more)
+      } else {
+        setHasMore(false)
+      }
+    } catch {
+      // silently fail — user can retry by scrolling again
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [isLoadingMore, hasMore, allBars, symbol, chartTimeframe])
 
   if (detailLoading) {
     return (
@@ -116,17 +152,23 @@ export function StockDetailPage() {
         {/* Timeframe selector + Chart */}
         <div>
           <div className="flex gap-1 mb-2">
-            {(['1d', '1w'] as const).map((tf) => (
+            {([
+              { key: '1h' as const, label: '1H' },
+              { key: '4h' as const, label: '4H' },
+              { key: '1d' as const, label: '1D' },
+              { key: '1w' as const, label: '1W' },
+              { key: '1mo' as const, label: '1M' },
+            ]).map(({ key, label }) => (
               <button
-                key={tf}
-                onClick={() => setChartTimeframe(tf)}
+                key={key}
+                onClick={() => setChartTimeframe(key)}
                 className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                  chartTimeframe === tf
+                  chartTimeframe === key
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                 }`}
               >
-                {tf === '1d' ? 'Daily' : 'Weekly'}
+                {label}
               </button>
             ))}
           </div>
@@ -139,17 +181,25 @@ export function StockDetailPage() {
             <div className="flex justify-center items-center h-[420px] bg-gray-900 rounded">
               <LoadingSpinner size="lg" />
             </div>
-          ) : ohlcv ? (
+          ) : ohlcv && ohlcv.bars.length > 0 ? (
             <CandlestickChart
               ref={chartRef}
               data={ohlcv}
+              allBars={allBars}
               height={420}
               detections={detail.chart_patterns ?? []}
               overlays={overlays}
               ewWaves={ewData?.waves ?? null}
               ewDirection={ewData?.direction ?? null}
               forecastData={overlays.forecast ? forecastData ?? null : null}
+              onLoadMore={handleLoadMore}
+              isLoadingMore={isLoadingMore}
+              hasMore={hasMore}
             />
+          ) : ohlcv && ohlcv.bars.length === 0 && (chartTimeframe === '1h' || chartTimeframe === '4h') ? (
+            <div className="flex justify-center items-center h-[420px] bg-gray-900/50 rounded border border-gray-700/40 text-gray-500 text-sm">
+              Intraday data not yet available — runs nightly
+            </div>
           ) : (
             <div className="flex justify-center items-center h-[420px] bg-gray-900/50 rounded border border-gray-700/40 text-gray-500 text-sm">
               No OHLCV data available. Trigger a data refresh first.

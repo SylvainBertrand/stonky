@@ -34,3 +34,30 @@ GIVEN a stock detail page is open
 WHEN I change the timeframe to "Weekly"
 THEN the chart redraws with weekly candles
 AND indicator overlays recalculate for the weekly timeframe
+
+GIVEN a stock detail page is open
+WHEN I select "1H" timeframe
+THEN the chart redraws with 1-hour candles
+AND the visible range defaults to the last 5 days
+
+GIVEN a stock detail page is open
+WHEN I select "4H" timeframe
+THEN the chart redraws with 4-hour candles aggregated from 1H data
+
+GIVEN a stock detail page is open
+WHEN I select "1M" timeframe
+THEN the chart redraws with monthly candles aggregated from daily data
+
+GIVEN a stock detail page is open with daily data showing
+WHEN I pan left beyond the initially loaded data
+THEN additional historical bars appear automatically without a visible jump
+AND a brief "Loading..." indicator appears and disappears
+
+GIVEN a stock detail page is open
+WHEN all available historical data has been loaded
+THEN panning left further shows no more data loads
+AND the oldest available date is reached gracefully
+
+GIVEN a stock detail page is open
+WHEN I select "1H" or "4H" and intraday data has not been ingested
+THEN a message appears: "Intraday data not yet available — runs nightly"

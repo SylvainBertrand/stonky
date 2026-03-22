@@ -49,6 +49,21 @@ async def daily_ohlcv_refresh() -> None:
         results["failed"],
     )
 
+    # Also fetch 1H intraday for all watchlist symbols
+    from app.models.enums import TimeframeEnum
+
+    logger.info("daily_ohlcv_refresh: fetching 1H intraday for %d tickers", len(tickers))
+    async with AsyncSessionLocal() as session:
+        results_1h = await fetch_and_store(
+            session, tickers, timeframe=TimeframeEnum.H1, incremental=True
+        )
+        await session.commit()
+    logger.info(
+        "daily_ohlcv_refresh: 1H fetched=%d failed=%d",
+        results_1h["fetched"],
+        results_1h["failed"],
+    )
+
 
 def create_scheduler() -> AsyncIOScheduler:
     """Build and configure the APScheduler instance.

@@ -127,7 +127,7 @@ export interface ProfileInfo {
 // ─── OHLCV / Chart types ──────────────────────────────────────────────────────
 
 export interface OHLCVBar {
-  time: string
+  time: string | number  // string (YYYY-MM-DD) for daily+, number (Unix timestamp) for intraday
   open: number
   high: number
   low: number
@@ -136,12 +136,12 @@ export interface OHLCVBar {
 }
 
 export interface OverlayPoint {
-  time: string
+  time: string | number
   value: number
 }
 
 export interface SupertrendPoint {
-  time: string
+  time: string | number
   value: number
   direction: number // 1 = bullish, -1 = bearish
 }
@@ -149,6 +149,7 @@ export interface SupertrendPoint {
 export interface OHLCVResponse {
   symbol: string
   bars: OHLCVBar[]
+  has_more: boolean
   overlays: {
     ema_21: OverlayPoint[]
     ema_50: OverlayPoint[]
