@@ -9,6 +9,7 @@ import { ProfileFilterTabs } from '../components/scanner/ProfileFilterTabs'
 import { ResultsTable } from '../components/scanner/ResultsTable'
 import { LoadingSpinner } from '../components/shared/LoadingSpinner'
 import { WatchlistSwitcher } from '../components/watchlist/WatchlistSwitcher'
+import { MarketRegimeStrip } from '../components/market/MarketRegimeStrip'
 
 const SCAN_POLL_INTERVAL_MS = 5_000
 const SCAN_TIMEOUT_MS = 120_000
@@ -287,6 +288,20 @@ export function ScannerPage() {
               >
                 Watchlists
               </Link>
+              <span className="text-gray-700">|</span>
+              <Link
+                to="/backtest"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Backtest
+              </Link>
+              <span className="text-gray-700">|</span>
+              <Link
+                to="/market"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Market
+              </Link>
             </nav>
           </div>
           <WatchlistSwitcher />
@@ -340,6 +355,8 @@ export function ScannerPage() {
       </header>
 
       <main className="max-w-screen-xl mx-auto px-6 py-4 space-y-4">
+        <MarketRegimeStrip />
+
         {/* Scan error banner */}
         {scanError && (
           <div className="rounded-lg border border-red-800 bg-red-950/40 px-4 py-2 text-sm text-red-400">

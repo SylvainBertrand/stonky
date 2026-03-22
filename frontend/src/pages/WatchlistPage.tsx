@@ -48,6 +48,20 @@ export function WatchlistPage() {
               </Link>
               <span className="text-gray-700">|</span>
               <span className="text-white font-medium">Watchlists</span>
+              <span className="text-gray-700">|</span>
+              <Link
+                to="/backtest"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Backtest
+              </Link>
+              <span className="text-gray-700">|</span>
+              <Link
+                to="/market"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                Market
+              </Link>
             </nav>
           </div>
         </div>
