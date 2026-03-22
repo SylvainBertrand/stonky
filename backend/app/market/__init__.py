@@ -1,0 +1,1 @@
+"""Broad market analysis module."""
