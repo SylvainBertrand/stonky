@@ -7,6 +7,7 @@ Use pg_enum() to create SQLAlchemy Enum columns — it sets values_callable so
 enum .value strings ("1d", "B+", …) are stored rather than the Python member
 names ("D1", "B_PLUS", …).
 """
+
 import enum
 
 from sqlalchemy import Enum as SAEnum

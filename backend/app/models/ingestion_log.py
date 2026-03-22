@@ -9,9 +9,7 @@ from app.models.enums import TimeframeEnum, pg_enum
 
 class IngestionLog(Base):
     __tablename__ = "ingestion_log"
-    __table_args__ = (
-        Index("idx_ingestion_log_symbol", "symbol_id", "timeframe", "fetched_at"),
-    )
+    __table_args__ = (Index("idx_ingestion_log_symbol", "symbol_id", "timeframe", "fetched_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     symbol_id: Mapped[int] = mapped_column(ForeignKey("symbols.id", ondelete="CASCADE"))

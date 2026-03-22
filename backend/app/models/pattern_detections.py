@@ -31,9 +31,7 @@ class PatternDetection(Base):
         pg_enum(SignalDirection, "signal_direction"), nullable=False
     )
     confidence: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
-    geometry: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="'{}'"
-    )
+    geometry: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="'{}'")
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     invalidation: Mapped[float | None] = mapped_column(Numeric(20, 8))
     targets: Mapped[dict[str, Any] | None] = mapped_column(JSONB)

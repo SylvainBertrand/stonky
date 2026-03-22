@@ -36,17 +36,19 @@ _TIMEFRAME_MAP: dict[str, TimeframeEnum] = {
 
 
 def _rows_to_df(rows: list[Any]) -> pd.DataFrame:
-    return pd.DataFrame([
-        {
-            "time": row.time,
-            "open": float(row.open),
-            "high": float(row.high),
-            "low": float(row.low),
-            "close": float(row.close),
-            "volume": int(row.volume),
-        }
-        for row in rows
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "time": row.time,
+                "open": float(row.open),
+                "high": float(row.high),
+                "low": float(row.low),
+                "close": float(row.close),
+                "volume": int(row.volume),
+            }
+            for row in rows
+        ]
+    )
 
 
 @router.get("/{symbol}/ohlcv", response_model=dict[str, Any])
@@ -63,12 +65,12 @@ async def get_ohlcv(
     - ema_21, ema_50, ema_200  — line values
     - supertrend               — value + direction (1=bullish, -1=bearish)
     """
-    sym_result = await session.execute(
-        select(Symbol).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol).where(Symbol.ticker == symbol.upper()))
     sym = sym_result.scalar_one_or_none()
     if sym is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found"
+        )
 
     tf = _TIMEFRAME_MAP.get(timeframe, TimeframeEnum.D1)
 
@@ -101,7 +103,9 @@ async def get_ohlcv(
             df = df.tail(bars).reset_index(drop=True)
         log.info(
             "%s: aggregated %d daily → %d weekly bars for chart",
-            symbol, len(daily_rows), len(df),
+            symbol,
+            len(daily_rows),
+            len(df),
         )
     else:
         raise HTTPException(
@@ -147,8 +151,12 @@ async def get_ohlcv(
         st = ta.supertrend(df["high"], df["low"], df["close"], length=10, multiplier=3.0)
         if st is not None and not st.empty:
             val_col = next(
-                (c for c in st.columns if c.startswith("SUPERT_")
-                 and not any(c.startswith(p) for p in ("SUPERTd_", "SUPERTl_", "SUPERTu_"))),
+                (
+                    c
+                    for c in st.columns
+                    if c.startswith("SUPERT_")
+                    and not any(c.startswith(p) for p in ("SUPERTd_", "SUPERTl_", "SUPERTu_"))
+                ),
                 None,
             )
             dir_col = next((c for c in st.columns if c.startswith("SUPERTd_")), None)
@@ -157,11 +165,13 @@ async def get_ohlcv(
                     val = st[val_col].iloc[i]
                     direction = st[dir_col].iloc[i]
                     if pd.notna(val) and pd.notna(direction):
-                        supertrend_out.append({
-                            "time": date_strs[i],
-                            "value": round(float(val), 4),
-                            "direction": int(direction),
-                        })
+                        supertrend_out.append(
+                            {
+                                "time": date_strs[i],
+                                "value": round(float(val), 4),
+                                "direction": int(direction),
+                            }
+                        )
     except Exception as exc:
         log.warning("Supertrend computation failed for %s: %s", symbol, exc)
 

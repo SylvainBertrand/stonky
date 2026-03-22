@@ -9,9 +9,7 @@ from app.models.enums import ScanRunStatus, pg_enum
 
 class ScanRun(Base):
     __tablename__ = "scan_runs"
-    __table_args__ = (
-        Index("idx_scan_runs_profile", "profile_id", "created_at"),
-    )
+    __table_args__ = (Index("idx_scan_runs_profile", "profile_id", "created_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     profile_id: Mapped[int | None] = mapped_column(

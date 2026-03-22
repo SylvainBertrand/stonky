@@ -1,4 +1,5 @@
 """Pydantic schemas for the LLM synthesis API."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel

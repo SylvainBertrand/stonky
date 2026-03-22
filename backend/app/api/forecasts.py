@@ -5,6 +5,7 @@ Endpoints:
   GET  /api/forecasts/scan/status -> status of latest forecast scan run
   GET  /api/forecasts/{symbol}    -> latest forecast for a symbol
 """
+
 from __future__ import annotations
 
 import logging
@@ -129,9 +130,7 @@ async def get_forecast(
     timeframe: Annotated[str, Query(description="Timeframe: 1d")] = "1d",
 ) -> ForecastResponse | None:
     """Return the latest Chronos-2 forecast for a symbol."""
-    sym_result = await session.execute(
-        select(Symbol.id).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol.id).where(Symbol.ticker == symbol.upper()))
     symbol_id = sym_result.scalar_one_or_none()
     if symbol_id is None:
         raise HTTPException(

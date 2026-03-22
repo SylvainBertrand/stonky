@@ -27,13 +27,9 @@ class ScanResult(Base):
     category_scores: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="'{}'"
     )
-    profile_matches: Mapped[list[Any]] = mapped_column(
-        JSONB, nullable=False, server_default="'[]'"
-    )
+    profile_matches: Mapped[list[Any]] = mapped_column(JSONB, nullable=False, server_default="'[]'")
     risk_reward: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
-    categories_agreeing: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="0"
-    )
+    categories_agreeing: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     rank: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

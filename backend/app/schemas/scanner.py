@@ -31,6 +31,7 @@ class AnalysisMeta(BaseModel):
 
 class HarmonicInfo(BaseModel):
     """Harmonic pattern detail for the API response."""
+
     detected: bool
     pattern: str | None = None
     direction: str | None = None
@@ -45,15 +46,16 @@ class AnalysisResponse(BaseModel):
     symbol: str
     rank: int = 0
     scanned_at: str = ""  # ISO timestamp of when this analysis was cached
-    composite_score: float
-    category_scores: CategoryScores
-    profile_matches: list[str]
-    signals: dict[str, float]
-    meta: AnalysisMeta
+    composite_score: float = 0.0
+    category_scores: CategoryScores = CategoryScores()
+    profile_matches: list[str] = []
+    signals: dict[str, float] = {}
+    meta: AnalysisMeta | None = None
     harmonics: HarmonicInfo | None = None
     chart_patterns: list[PatternDetectionResponse] = []
     is_actionable: bool = False
     volume_contradiction: bool = False
+    needs_scan: bool = False  # True for watchlist symbols with no cached analysis
 
 
 class ScanRunResponse(BaseModel):

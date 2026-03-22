@@ -59,8 +59,8 @@ class EWDetectionResponse(BaseModel):
     """Elliott Wave detection result for a symbol."""
 
     symbol: str
-    wave_type: str | None = None         # "impulse" | "corrective" | None
-    direction: str | None = None         # "bullish" | "bearish" | None
+    wave_type: str | None = None  # "impulse" | "corrective" | None
+    direction: str | None = None  # "bullish" | "bearish" | None
     current_position: str | None = None  # "wave_3", "wave_C", etc.
     confidence: float = 0.0
     waves: list[EWWavePointResponse] = []

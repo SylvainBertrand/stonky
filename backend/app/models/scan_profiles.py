@@ -18,12 +18,8 @@ class ScanProfile(Base):
     category_weights: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="'{}'"
     )
-    filters: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="'{}'"
-    )
-    timeframes: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="'{}'"
-    )
+    filters: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="'{}'")
+    timeframes: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="'{}'")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

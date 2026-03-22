@@ -3,6 +3,7 @@
 Default: Ollama with llama3.1:8b for local inference.
 Claude provider is stubbed for future P2.1 activation.
 """
+
 from __future__ import annotations
 
 import logging
@@ -72,9 +73,7 @@ class ClaudeProvider:
         self.api_key = api_key
 
     async def complete(self, system: str, user: str, max_tokens: int = 1024) -> str:
-        raise NotImplementedError(
-            "Claude provider not yet active. Set LLM_PROVIDER=ollama."
-        )
+        raise NotImplementedError("Claude provider not yet active. Set LLM_PROVIDER=ollama.")
 
 
 def get_provider() -> LLMProvider:

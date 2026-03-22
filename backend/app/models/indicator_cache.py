@@ -17,7 +17,10 @@ class IndicatorCache(Base):
         UniqueConstraint("time", "symbol_id", "timeframe", "indicator_name", "params_hash"),
         Index(
             "idx_indicator_cache_lookup",
-            "symbol_id", "timeframe", "indicator_name", "time",
+            "symbol_id",
+            "timeframe",
+            "indicator_name",
+            "time",
         ),
     )
 

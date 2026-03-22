@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -59,6 +59,7 @@ _TF_MAP: dict[str, TimeframeEnum] = {
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _dict_to_harmonic_info(d: dict | None) -> HarmonicInfo | None:
     """Convert a cached harmonics dict to a HarmonicInfo schema object."""
@@ -137,7 +138,7 @@ def _result_to_response(
     meta = result.meta
     return AnalysisResponse(
         symbol=result.symbol,
-        scanned_at=scanned_at or datetime.now(timezone.utc).isoformat(),
+        scanned_at=scanned_at or datetime.now(UTC).isoformat(),
         composite_score=result.composite_score,
         category_scores=CategoryScores(**result.category_scores),
         profile_matches=result.profile_matches,
@@ -206,7 +207,7 @@ async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
                 log.error("Scanner background task: scan_run %d not found", run_id)
                 return
             scan_run.status = ScanRunStatus.RUNNING
-            scan_run.started_at = datetime.now(timezone.utc)
+            scan_run.started_at = datetime.now(UTC)
             await db.commit()
         except Exception as exc:
             log.error("Scanner run %d: failed to mark as running: %s", run_id, exc)
@@ -224,19 +225,21 @@ async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
             if not symbols:
                 log.info("Scanner run %d: no symbols found", run_id)
                 scan_run.status = ScanRunStatus.COMPLETED
-                scan_run.completed_at = datetime.now(timezone.utc)
+                scan_run.completed_at = datetime.now(UTC)
                 scan_run.symbols_scored = 0
                 await db.commit()
                 return
 
             results = await run_scanner(symbols)
             scan_run.status = ScanRunStatus.COMPLETED
-            scan_run.completed_at = datetime.now(timezone.utc)
+            scan_run.completed_at = datetime.now(UTC)
             scan_run.symbols_scored = len(results)
             await db.commit()
             log.info(
                 "Scanner run %d: completed %d symbols, scored %d, top=%s",
-                run_id, len(symbols), len(results),
+                run_id,
+                len(symbols),
+                len(results),
                 [
                     {
                         "symbol": r.symbol,
@@ -250,7 +253,7 @@ async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
             log.error("Scanner run %d failed: %s", run_id, exc)
             try:
                 scan_run.status = ScanRunStatus.FAILED
-                scan_run.completed_at = datetime.now(timezone.utc)
+                scan_run.completed_at = datetime.now(UTC)
                 scan_run.error_message = str(exc)[:2000]
                 await db.commit()
             except Exception as commit_exc:
@@ -261,11 +264,14 @@ async def _run_scanner_bg(run_id: int, watchlist_id: int | None = None) -> None:
 # Endpoints
 # ---------------------------------------------------------------------------
 
+
 @router.post("/run", response_model=ScanRunResponse, status_code=status.HTTP_202_ACCEPTED)
 async def trigger_scan(
     background_tasks: BackgroundTasks,
     session: SessionDep,
-    watchlist_id: Annotated[int | None, Query(description="Watchlist to scan; defaults to active watchlist")] = None,
+    watchlist_id: Annotated[
+        int | None, Query(description="Watchlist to scan; defaults to active watchlist")
+    ] = None,
 ) -> ScanRunResponse:
     """Trigger a full scan of watchlist symbols (background task).
 
@@ -288,7 +294,7 @@ async def trigger_scan(
         symbols_scored=0,
     )
     session.add(scan_run)
-    await session.flush()   # get the auto-assigned id
+    await session.flush()  # get the auto-assigned id
     run_id = scan_run.id
     await session.commit()
 
@@ -338,7 +344,9 @@ async def get_latest_results(
         Query(description="Filter by profile name (e.g. momentum_breakout or MomentumBreakout)"),
     ] = None,
     timeframe: Annotated[str, Query(description="Timeframe: 1d or 1w")] = "1d",
-    watchlist_id: Annotated[int | None, Query(description="Limit results to symbols in this watchlist")] = None,
+    watchlist_id: Annotated[
+        int | None, Query(description="Limit results to symbols in this watchlist")
+    ] = None,
 ) -> list[AnalysisResponse]:
     """Return latest cached analysis results sorted by composite_score descending.
 
@@ -430,8 +438,21 @@ async def get_latest_results(
         except Exception as exc:
             log.warning("Failed to parse cached result: %s", exc)
 
-    # Sort by composite score descending
-    responses.sort(key=lambda r: r.composite_score, reverse=True)
+    # Append placeholder rows for unscanned watchlist symbols
+    if watchlist_symbol_ids is not None:
+        scanned_symbols = {r.symbol for r in responses}
+        # Fetch tickers for unscanned symbol IDs
+        unscanned_ids = watchlist_symbol_ids - all_symbol_ids
+        if unscanned_ids:
+            sym_rows = await session.execute(
+                select(Symbol.ticker).where(Symbol.id.in_(unscanned_ids))
+            )
+            for (ticker,) in sym_rows.all():
+                if ticker not in scanned_symbols:
+                    responses.append(AnalysisResponse(symbol=ticker, needs_scan=True))
+
+    # Sort by composite score descending (needs_scan items sort last with score 0)
+    responses.sort(key=lambda r: (not r.needs_scan, r.composite_score), reverse=True)
 
     pre_profile_count = len(responses)
 
@@ -482,12 +503,12 @@ async def get_symbol_result(
     tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
 
     # Resolve symbol_id
-    sym_result = await session.execute(
-        select(Symbol.id).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol.id).where(Symbol.ticker == symbol.upper()))
     symbol_id = sym_result.scalar_one_or_none()
     if symbol_id is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found"
+        )
 
     cache_result = await session.execute(
         select(IndicatorCache)
@@ -566,12 +587,12 @@ async def run_symbol_analysis(
     """Run on-demand analysis for a single ticker (inline, returns immediately)."""
     tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
 
-    sym_result = await session.execute(
-        select(Symbol).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol).where(Symbol.ticker == symbol.upper()))
     sym = sym_result.scalar_one_or_none()
     if sym is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=f"Symbol {symbol} not found"
+        )
 
     result = await run_analysis_for_ticker(sym.id, sym.ticker, session, timeframe=tf_enum)
     if result is None:

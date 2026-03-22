@@ -20,9 +20,7 @@ class SynthesisResult(Base):
     symbol_id: Mapped[int] = mapped_column(
         ForeignKey("symbols.id", ondelete="CASCADE"), nullable=False
     )
-    generated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     setup_type: Mapped[str] = mapped_column(String(50), nullable=False)
     bias: Mapped[str] = mapped_column(String(10), nullable=False)
     confidence: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -34,9 +32,7 @@ class SynthesisResult(Base):
     target: Mapped[float | None] = mapped_column(Numeric(12, 4))
     risk_reward: Mapped[float | None] = mapped_column(Numeric(6, 2))
     key_risk: Mapped[str] = mapped_column(Text, nullable=False)
-    parse_error: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="false"
-    )
+    parse_error: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     raw_response: Mapped[str | None] = mapped_column(Text)
 
     symbol: Mapped["Symbol"] = relationship()  # type: ignore[name-defined]

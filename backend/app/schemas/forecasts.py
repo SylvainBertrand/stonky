@@ -1,4 +1,5 @@
 """Pydantic schemas for the Chronos-2 forecast API."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel

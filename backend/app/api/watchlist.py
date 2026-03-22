@@ -1,4 +1,5 @@
 """Watchlist CRUD API + SA ratings import endpoint."""
+
 from __future__ import annotations
 
 import tempfile
@@ -13,7 +14,6 @@ from sqlalchemy.orm import selectinload
 from app.db.session import AsyncSessionLocal, get_session
 from app.ingestion.fetcher import fetch_and_store
 from app.ingestion.sa_import import import_sa_ratings, parse_sa_spreadsheet
-from app.models.enums import TimeframeEnum
 from app.models.ingestion_log import IngestionLog
 from app.models.sa_ratings import SARating
 from app.models.symbols import Symbol
@@ -42,9 +42,7 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
 async def _get_watchlist_or_404(session: AsyncSession, watchlist_id: int) -> Watchlist:
-    result = await session.execute(
-        select(Watchlist).where(Watchlist.id == watchlist_id)
-    )
+    result = await session.execute(select(Watchlist).where(Watchlist.id == watchlist_id))
     wl = result.scalar_one_or_none()
     if wl is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Watchlist not found")
@@ -53,6 +51,7 @@ async def _get_watchlist_or_404(session: AsyncSession, watchlist_id: int) -> Wat
 
 def _item_count_subquery() -> Any:
     from sqlalchemy import func, select
+
     from app.models.watchlists import WatchlistItem
 
     return (
@@ -119,9 +118,7 @@ async def _watchlist_to_detail(session: AsyncSession, wl: Watchlist) -> Watchlis
 @router.get("/active", response_model=WatchlistRead)
 async def get_active_watchlist(session: SessionDep) -> WatchlistRead:
     """Return the active (default) watchlist, or 404 if none is set."""
-    result = await session.execute(
-        select(Watchlist).where(Watchlist.is_default.is_(True))
-    )
+    result = await session.execute(select(Watchlist).where(Watchlist.is_default.is_(True)))
     wl = result.scalar_one_or_none()
     if wl is None:
         raise HTTPException(
@@ -137,9 +134,7 @@ async def set_active_watchlist(body: SetActiveRequest, session: SessionDep) -> W
     wl = await _get_watchlist_or_404(session, body.watchlist_id)
 
     # Clear all existing defaults
-    existing = await session.execute(
-        select(Watchlist).where(Watchlist.is_default.is_(True))
-    )
+    existing = await session.execute(select(Watchlist).where(Watchlist.is_default.is_(True)))
     for existing_wl in existing.scalars().all():
         existing_wl.is_default = False
 
@@ -196,9 +191,7 @@ async def list_watchlists(session: SessionDep) -> list[WatchlistRead]:
 async def create_watchlist(body: WatchlistCreate, session: SessionDep) -> WatchlistDetail:
     # Enforce single default watchlist
     if body.is_default:
-        existing = await session.execute(
-            select(Watchlist).where(Watchlist.is_default.is_(True))
-        )
+        existing = await session.execute(select(Watchlist).where(Watchlist.is_default.is_(True)))
         for wl in existing.scalars().all():
             wl.is_default = False
 
@@ -241,9 +234,7 @@ async def delete_watchlist(watchlist_id: int, session: SessionDep) -> None:
     # If deleting the active watchlist, auto-activate another one
     if wl.is_default:
         other_result = await session.execute(
-            select(Watchlist)
-            .where(Watchlist.id != watchlist_id)
-            .limit(1)
+            select(Watchlist).where(Watchlist.id != watchlist_id).limit(1)
         )
         other = other_result.scalar_one_or_none()
         if other is not None:
@@ -282,8 +273,7 @@ async def get_watchlist_items(
         .outerjoin(latest_subq, latest_subq.c.symbol_id == Symbol.id)
         .outerjoin(
             SARating,
-            (SARating.symbol_id == Symbol.id)
-            & (SARating.snapshot_date == latest_subq.c.max_date),
+            (SARating.symbol_id == Symbol.id) & (SARating.snapshot_date == latest_subq.c.max_date),
         )
         .where(WatchlistItem.watchlist_id == watchlist_id)
         .order_by(WatchlistItem.added_at)
@@ -299,9 +289,15 @@ async def get_watchlist_items(
                 name=symbol.name,
                 notes=item.notes,
                 added_at=item.added_at,
-                quant_score=float(rating.quant_score) if rating and rating.quant_score is not None else None,
-                momentum_grade=rating.momentum_grade.value if rating and rating.momentum_grade else None,
-                valuation_grade=rating.valuation_grade.value if rating and rating.valuation_grade else None,
+                quant_score=float(rating.quant_score)
+                if rating and rating.quant_score is not None
+                else None,
+                momentum_grade=rating.momentum_grade.value
+                if rating and rating.momentum_grade
+                else None,
+                valuation_grade=rating.valuation_grade.value
+                if rating and rating.valuation_grade
+                else None,
                 growth_grade=rating.growth_grade.value if rating and rating.growth_grade else None,
             )
         )
@@ -322,9 +318,7 @@ async def add_item(
     await _get_watchlist_or_404(session, watchlist_id)
 
     # Resolve or auto-create symbol
-    sym_result = await session.execute(
-        select(Symbol).where(Symbol.ticker == body.ticker)
-    )
+    sym_result = await session.execute(select(Symbol).where(Symbol.ticker == body.ticker))
     symbol = sym_result.scalar_one_or_none()
     if symbol is None:
         symbol = Symbol(ticker=body.ticker, asset_type="stock")
@@ -376,9 +370,7 @@ async def remove_item(
     """Remove a symbol from a watchlist by ticker."""
     await _get_watchlist_or_404(session, watchlist_id)
 
-    sym_result = await session.execute(
-        select(Symbol.id).where(Symbol.ticker == ticker.upper())
-    )
+    sym_result = await session.execute(select(Symbol.id).where(Symbol.ticker == ticker.upper()))
     symbol_id = sym_result.scalar_one_or_none()
     if symbol_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Symbol not found")
@@ -450,9 +442,7 @@ async def import_sa_for_watchlist(
 
         for ticker in tickers:
             # Resolve or auto-create symbol
-            sym_result = await session.execute(
-                select(Symbol).where(Symbol.ticker == ticker)
-            )
+            sym_result = await session.execute(select(Symbol).where(Symbol.ticker == ticker))
             symbol = sym_result.scalar_one_or_none()
             if symbol is None:
                 symbol = Symbol(ticker=ticker, asset_type="stock")
@@ -517,9 +507,7 @@ async def add_symbol(
     await _get_watchlist_or_404(session, watchlist_id)
 
     # Resolve or auto-create symbol
-    sym_result = await session.execute(
-        select(Symbol).where(Symbol.ticker == body.ticker)
-    )
+    sym_result = await session.execute(select(Symbol).where(Symbol.ticker == body.ticker))
     symbol = sym_result.scalar_one_or_none()
     if symbol is None:
         symbol = Symbol(ticker=body.ticker, asset_type="stock")
@@ -570,9 +558,7 @@ async def remove_symbol(
 ) -> None:
     await _get_watchlist_or_404(session, watchlist_id)
 
-    sym_result = await session.execute(
-        select(Symbol.id).where(Symbol.ticker == ticker.upper())
-    )
+    sym_result = await session.execute(select(Symbol.id).where(Symbol.ticker == ticker.upper()))
     symbol_id = sym_result.scalar_one_or_none()
     if symbol_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Symbol not found")

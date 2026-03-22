@@ -61,9 +61,7 @@ async def get_elliott_wave(
     tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
 
     # Look up symbol
-    sym_result = await session.execute(
-        select(Symbol).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol).where(Symbol.ticker == symbol.upper()))
     sym = sym_result.scalar_one_or_none()
     if sym is None:
         raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
@@ -80,17 +78,19 @@ async def get_elliott_wave(
         return EWDetectionResponse(symbol=symbol.upper())
 
     rows = list(reversed(rows))
-    df = pd.DataFrame([
-        {
-            "time": r.time.strftime("%Y-%m-%d"),
-            "high": float(r.high),
-            "low": float(r.low),
-            "close": float(r.close),
-            "open": float(r.open),
-            "volume": float(r.volume),
-        }
-        for r in rows
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "time": r.time.strftime("%Y-%m-%d"),
+                "high": float(r.high),
+                "low": float(r.low),
+                "close": float(r.close),
+                "open": float(r.open),
+                "volume": float(r.volume),
+            }
+            for r in rows
+        ]
+    )
 
     # Run detection in thread pool (CPU-bound)
     def _run() -> EWResult:
@@ -135,9 +135,7 @@ async def get_symbol_patterns(
     tf_enum = _TF_MAP.get(timeframe, TimeframeEnum.D1)
 
     # Resolve symbol_id
-    sym_result = await session.execute(
-        select(Symbol.id).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol.id).where(Symbol.ticker == symbol.upper()))
     symbol_id = sym_result.scalar_one_or_none()
     if symbol_id is None:
         raise HTTPException(

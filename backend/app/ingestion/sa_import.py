@@ -6,6 +6,7 @@ Column names vary by export type — handled via a flexible mapping strategy.
 Grade columns store SALetterGrade enum values; numeric fields are nullable floats.
 Rows are upserted on (symbol_id, snapshot_date); symbols are auto-created if absent.
 """
+
 from __future__ import annotations
 
 import logging
@@ -207,8 +208,7 @@ def parse_sa_spreadsheet(path: str | Path) -> pd.DataFrame:
 
     if "ticker" not in rename.values():
         raise ValueError(
-            f"Could not find a ticker column in {p.name}. "
-            f"Columns found: {list(raw.columns)}"
+            f"Could not find a ticker column in {p.name}. Columns found: {list(raw.columns)}"
         )
 
     df = raw.rename(columns=rename)
@@ -280,18 +280,12 @@ async def import_sa_ratings(
 
         if "div_frequency" in row:
             raw_freq = row["div_frequency"]
-            if raw_freq is not None and not (
-                isinstance(raw_freq, float) and pd.isna(raw_freq)
-            ):
+            if raw_freq is not None and not (isinstance(raw_freq, float) and pd.isna(raw_freq)):
                 data["div_frequency"] = str(raw_freq).strip()[:20] or None
 
         try:
             # Exclude created_at from the update set — let server_default win on insert
-            update_set = {
-                k: v
-                for k, v in data.items()
-                if k not in ("symbol_id", "snapshot_date")
-            }
+            update_set = {k: v for k, v in data.items() if k not in ("symbol_id", "snapshot_date")}
             stmt = (
                 pg_insert(SARating.__table__)
                 .values(**data)

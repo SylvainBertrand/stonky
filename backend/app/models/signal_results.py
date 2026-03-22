@@ -27,9 +27,7 @@ class SignalResult(Base):
     direction: Mapped[SignalDirection] = mapped_column(
         pg_enum(SignalDirection, "signal_direction"), nullable=False
     )
-    raw_values: Mapped[dict[str, Any]] = mapped_column(
-        JSONB, nullable=False, server_default="'{}'"
-    )
+    raw_values: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="'{}'")
     signal_label: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

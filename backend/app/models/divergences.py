@@ -11,9 +11,7 @@ from app.models.enums import SignalDirection, TimeframeEnum, pg_enum
 
 class Divergence(Base):
     __tablename__ = "divergences"
-    __table_args__ = (
-        Index("idx_divergences_run_symbol", "scan_run_id", "symbol_id"),
-    )
+    __table_args__ = (Index("idx_divergences_run_symbol", "scan_run_id", "symbol_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     scan_run_id: Mapped[int] = mapped_column(ForeignKey("scan_runs.id", ondelete="CASCADE"))

@@ -7,12 +7,13 @@ Supports:
 - OHLCV upsert: ON CONFLICT DO NOTHING (idempotent)
 - Ingestion log: records each fetch attempt with status/error
 """
+
 from __future__ import annotations
 
 import asyncio
 import functools
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pandas as pd
@@ -139,7 +140,7 @@ async def store_ohlcv(
         if hasattr(t, "to_pydatetime"):
             t = t.to_pydatetime()
         if t.tzinfo is None:
-            t = t.replace(tzinfo=timezone.utc)
+            t = t.replace(tzinfo=UTC)
 
         rows.append(
             {
@@ -231,7 +232,7 @@ async def fetch_and_store(
                 # 1-day overlap to handle partial/delayed bars
                 start = (latest - timedelta(days=1)).strftime("%Y-%m-%d")
 
-        fetch_start = datetime.now(timezone.utc)
+        fetch_start = datetime.now(UTC)
         try:
             df = await fetch_ohlcv(
                 upper,
@@ -244,11 +245,9 @@ async def fetch_and_store(
             latest_bar: datetime | None = None
             if not df.empty:
                 ts = df["time"].max()
-                latest_bar = (
-                    ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
-                )
+                latest_bar = ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
                 if latest_bar.tzinfo is None:
-                    latest_bar = latest_bar.replace(tzinfo=timezone.utc)
+                    latest_bar = latest_bar.replace(tzinfo=UTC)
 
             session.add(
                 IngestionLog(

@@ -5,6 +5,7 @@ Endpoints:
   POST /api/synthesis/scan        -> trigger manual synthesis scan (background)
   GET  /api/synthesis/scan/status -> status of latest synthesis scan run
 """
+
 from __future__ import annotations
 
 import logging
@@ -131,9 +132,7 @@ async def get_synthesis(
     session: SessionDep,
 ) -> SynthesisResponse | None:
     """Return the latest LLM synthesis result for a symbol."""
-    sym_result = await session.execute(
-        select(Symbol.id).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol.id).where(Symbol.ticker == symbol.upper()))
     symbol_id = sym_result.scalar_one_or_none()
     if symbol_id is None:
         raise HTTPException(
