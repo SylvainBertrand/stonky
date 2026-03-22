@@ -1,12 +1,14 @@
-"""APScheduler daily OHLCV refresh job.
+"""APScheduler jobs: OHLCV refresh + unified nightly analysis pipeline.
 
 Runs at 4:30 PM Eastern Time every weekday to pick up the day's closing bars.
+Runs the unified analysis pipeline at 6:00 AM (replaces four staggered jobs).
 Only started when settings.scheduler_enabled is True (default).
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -65,6 +67,82 @@ async def daily_ohlcv_refresh() -> None:
     )
 
 
+async def run_nightly_pipeline() -> None:
+    """Run the unified analysis pipeline: YOLO + Chronos + Synthesis for all symbols."""
+    from app.db.session import AsyncSessionLocal
+    from app.models.enums import ScanRunStatus
+    from app.models.scan_runs import ScanRun
+    from app.scheduler.pipeline import (
+        PipelineConfig,
+        get_watchlist_symbols,
+        run_full_pipeline,
+    )
+
+    config = PipelineConfig(
+        yolo_concurrency=settings.pipeline_yolo_concurrency,
+        chronos_concurrency=settings.pipeline_chronos_concurrency,
+        synthesis_concurrency=settings.pipeline_synthesis_concurrency,
+    )
+
+    async with AsyncSessionLocal() as db:
+        symbols = await get_watchlist_symbols(db)
+
+    if not symbols:
+        logger.info("nightly_full_pipeline: no watchlist symbols, skipping")
+        return
+
+    # Create a ScanRun record for tracking
+    async with AsyncSessionLocal() as db:
+        scan_run = ScanRun(
+            profile_id=None,
+            watchlist_id=None,
+            status=ScanRunStatus.RUNNING,
+            started_at=datetime.now(UTC),
+            symbols_scanned=0,
+            symbols_scored=0,
+            error_message="full_pipeline",
+        )
+        db.add(scan_run)
+        await db.flush()
+        run_id = scan_run.id
+        await db.commit()
+
+    logger.info("nightly_full_pipeline: starting for %d symbols (run %d)", len(symbols), run_id)
+
+    try:
+        summary = await run_full_pipeline(symbols, config, AsyncSessionLocal, run_id)
+
+        async with AsyncSessionLocal() as db:
+            scan_run = await db.get(ScanRun, run_id)
+            if scan_run:
+                scan_run.status = ScanRunStatus.COMPLETED
+                scan_run.completed_at = datetime.now(UTC)
+                scan_run.symbols_scanned = summary["completed"] + summary["failed"]
+                scan_run.symbols_scored = summary["completed"]
+                scan_run.error_message = "full_pipeline"
+                await db.commit()
+
+        logger.info(
+            "nightly_full_pipeline: completed in %.1fs — %d ok, %d failed",
+            summary["duration_s"],
+            summary["completed"],
+            summary["failed"],
+        )
+
+    except Exception as exc:
+        logger.error("nightly_full_pipeline failed: %s", exc, exc_info=True)
+        try:
+            async with AsyncSessionLocal() as db:
+                scan_run = await db.get(ScanRun, run_id)
+                if scan_run:
+                    scan_run.status = ScanRunStatus.FAILED
+                    scan_run.completed_at = datetime.now(UTC)
+                    scan_run.error_message = f"full_pipeline: {str(exc)[:1900]}"
+                    await db.commit()
+        except Exception as commit_exc:
+            logger.error("nightly_full_pipeline: failed to record error: %s", commit_exc)
+
+
 def create_scheduler() -> AsyncIOScheduler:
     """Build and configure the APScheduler instance.
 
@@ -87,48 +165,17 @@ def create_scheduler() -> AsyncIOScheduler:
         )
         logger.info("Scheduled daily_ohlcv_refresh: weekdays at 16:30 America/New_York")
 
-        from app.analysis.yolo_scanner import run_yolo_scan_all
-
         scheduler.add_job(
-            run_yolo_scan_all,
+            run_nightly_pipeline,
             CronTrigger(
                 hour=6,
                 minute=0,
                 timezone="America/New_York",
             ),
-            id="yolo_nightly_scan",
+            id="nightly_full_pipeline",
             replace_existing=True,
         )
-        logger.info("Scheduled yolo_nightly_scan: daily at 06:00 America/New_York")
-
-        from app.analysis.forecast_scanner import run_forecast_scan_all
-
-        scheduler.add_job(
-            run_forecast_scan_all,
-            CronTrigger(
-                day_of_week="mon-fri",
-                hour=8,
-                minute=0,
-                timezone="America/New_York",
-            ),
-            id="chronos_nightly_forecast",
-            replace_existing=True,
-        )
-        logger.info("Scheduled chronos_nightly_forecast: weekdays at 08:00 America/New_York")
-
-        from app.analysis.synthesis_scanner import run_synthesis_scan_all
-
-        scheduler.add_job(
-            run_synthesis_scan_all,
-            CronTrigger(
-                hour=9,
-                minute=0,
-                timezone="America/New_York",
-            ),
-            id="synthesis_nightly",
-            replace_existing=True,
-        )
-        logger.info("Scheduled synthesis_nightly: daily at 09:00 America/New_York")
+        logger.info("Scheduled nightly_full_pipeline: daily at 06:00 America/New_York")
 
         from app.market.ingestion import run_market_data_refresh
 

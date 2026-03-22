@@ -169,7 +169,7 @@ describe('ScannerPage', () => {
   it('profile filter tabs are rendered', async () => {
     renderApp()
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /all/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /^all$/i })).toBeInTheDocument()
     })
     expect(screen.getByRole('button', { name: /momentum breakout/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /mean reversion/i })).toBeInTheDocument()

@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     anthropic_api_key: str | None = None
 
+    # Pipeline concurrency (tune based on hardware)
+    pipeline_yolo_concurrency: int = 4  # reduce to 2 if using GPU for YOLO
+    pipeline_chronos_concurrency: int = 4
+    pipeline_synthesis_concurrency: int = 1  # do not change — Ollama is single-threaded
+
     # Broad Market / FRED
     fred_api_key: str | None = None
 

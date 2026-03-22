@@ -69,6 +69,27 @@ export const forecastsApi = {
     apiFetch('/api/forecasts/scan/status'),
 }
 
+export interface PipelineStatus {
+  status: 'idle' | 'running' | 'completed' | 'failed'
+  started_at: string | null
+  completed_at: string | null
+  symbols_total: number
+  symbols_completed: number
+  symbols_failed: number
+  current_symbols: string[]
+  estimated_remaining_s: number | null
+}
+
+export const pipelineApi = {
+  run: (watchlistId?: number | null): Promise<{ run_id: number; status: string }> => {
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
+    return apiFetch(`/api/pipeline/run${qs}`, { method: 'POST' })
+  },
+
+  getStatus: (): Promise<PipelineStatus> =>
+    apiFetch<PipelineStatus>('/api/pipeline/status'),
+}
+
 export const synthesisApi = {
   getSynthesis: (symbol: string): Promise<SynthesisData | null> =>
     apiFetch<SynthesisData | null>(

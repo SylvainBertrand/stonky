@@ -10,6 +10,7 @@ from app.api.forecasts import router as forecasts_router
 from app.api.health import router as health_router
 from app.api.market import router as market_router
 from app.api.patterns import router as patterns_router
+from app.api.pipeline import router as pipeline_router
 from app.api.scanner import router as scanner_router
 from app.api.stocks import router as stocks_router
 from app.api.synthesis import router as synthesis_router
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(stocks_router, prefix="/api")
     app.include_router(forecasts_router, prefix="/api")
     app.include_router(synthesis_router, prefix="/api")
+    app.include_router(pipeline_router, prefix="/api")
 
     return app
 

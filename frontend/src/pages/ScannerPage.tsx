@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { scannerApi, patternsApi, forecastsApi, synthesisApi } from '../api/scanner'
+import { scannerApi, patternsApi, forecastsApi, synthesisApi, pipelineApi } from '../api/scanner'
+import type { PipelineStatus } from '../api/scanner'
 import { watchlistApi } from '../api/watchlists'
 import { useScannerStore } from '../stores/scannerStore'
 import type { ForecastData, SynthesisData } from '../types'
@@ -33,6 +34,8 @@ export function ScannerPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isForecastScanning, setIsForecastScanning] = useState(false)
   const [isSynthesisScanning, setIsSynthesisScanning] = useState(false)
+  const [isPipelineRunning, setIsPipelineRunning] = useState(false)
+  const [pipelineProgress, setPipelineProgress] = useState<PipelineStatus | null>(null)
   const [forecasts, setForecasts] = useState<Record<string, ForecastData>>({})
   const [syntheses, setSyntheses] = useState<Record<string, SynthesisData>>({})
 
@@ -272,6 +275,51 @@ export function ScannerPage() {
     }
   }, [activeWatchlistId, queryClient])
 
+  const handlePipelineRun = useCallback(async () => {
+    setIsPipelineRunning(true)
+    setScanError(null)
+    setPipelineProgress(null)
+    try {
+      const resp = await pipelineApi.run(activeWatchlistId)
+      if (resp.status === 'already_running') {
+        setScanError('Pipeline is already running.')
+        setIsPipelineRunning(false)
+        return
+      }
+    } catch (err) {
+      setIsPipelineRunning(false)
+      setScanError(err instanceof Error ? err.message : 'Pipeline failed to start')
+    }
+  }, [activeWatchlistId])
+
+  // Poll pipeline status while running
+  useEffect(() => {
+    if (!isPipelineRunning) return
+    let cancelled = false
+    const poll = async () => {
+      while (!cancelled) {
+        await new Promise((r) => setTimeout(r, 5000))
+        if (cancelled) break
+        try {
+          const status = await pipelineApi.getStatus()
+          setPipelineProgress(status)
+          if (status.status === 'completed' || status.status === 'failed') {
+            setIsPipelineRunning(false)
+            if (status.status === 'failed') {
+              setScanError('Pipeline failed — check backend logs.')
+            }
+            void queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] })
+            break
+          }
+        } catch {
+          // status endpoint may not be ready yet
+        }
+      }
+    }
+    void poll()
+    return () => { cancelled = true }
+  }, [isPipelineRunning, queryClient])
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -344,11 +392,20 @@ export function ScannerPage() {
             </button>
             <button
               onClick={() => { void handleSynthesisScan() }}
-              disabled={isSynthesisScanning || isScanning}
+              disabled={isSynthesisScanning || isScanning || isPipelineRunning}
               className="flex items-center gap-2 px-3 py-1.5 rounded bg-amber-700 hover:bg-amber-600 disabled:opacity-60 text-xs font-semibold text-white transition-colors"
             >
               {isSynthesisScanning && <LoadingSpinner size="sm" />}
               {isSynthesisScanning ? 'Analyzing…' : 'Run Analysis'}
+            </button>
+            <button
+              onClick={() => { void handlePipelineRun() }}
+              disabled={isPipelineRunning || isScanning}
+              className="flex items-center gap-2 px-3 py-1.5 rounded bg-green-700 hover:bg-green-600 disabled:opacity-60 text-xs font-semibold text-white transition-colors"
+              title="Run full pipeline: YOLO + Chronos + Synthesis for all symbols"
+            >
+              {isPipelineRunning && <LoadingSpinner size="sm" />}
+              {isPipelineRunning ? 'Running…' : 'Run All'}
             </button>
           </div>
         </div>
@@ -356,6 +413,27 @@ export function ScannerPage() {
 
       <main className="max-w-screen-xl mx-auto px-6 py-4 space-y-4">
         <MarketRegimeStrip />
+
+        {/* Pipeline progress banner */}
+        {isPipelineRunning && pipelineProgress && pipelineProgress.status === 'running' && (
+          <div className="rounded-lg border border-green-800 bg-green-950/30 px-4 py-2 text-sm text-green-400 flex items-center gap-3">
+            <LoadingSpinner size="sm" />
+            <span>
+              Running pipeline… {pipelineProgress.symbols_completed}/{pipelineProgress.symbols_total} symbols complete
+              {pipelineProgress.symbols_failed > 0 && ` (${pipelineProgress.symbols_failed} failed)`}
+            </span>
+            {pipelineProgress.current_symbols.length > 0 && (
+              <span className="text-green-600 text-xs">
+                Currently: {pipelineProgress.current_symbols.join(', ')}
+              </span>
+            )}
+            {pipelineProgress.estimated_remaining_s != null && (
+              <span className="text-green-600 text-xs ml-auto">
+                ~{Math.round(pipelineProgress.estimated_remaining_s)}s remaining
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Scan error banner */}
         {scanError && (
