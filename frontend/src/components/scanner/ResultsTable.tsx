@@ -20,9 +20,40 @@ interface Props {
   syntheses?: Record<string, SynthesisData>
 }
 
+type SortField = 'score' | 'price' | 'chg' | 'atr' | null
+type SortDir = 'asc' | 'desc'
+
 export function ResultsTable({ results, activeProfile, hasScanned, forecasts, syntheses }: Props) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [sortField, setSortField] = useState<SortField>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
+    } else {
+      setSortField(field)
+      setSortDir('desc')
+    }
+  }
+
+  const sortedResults = (() => {
+    if (!sortField) return results
+    const copy = [...results]
+    copy.sort((a, b) => {
+      let av = 0
+      let bv = 0
+      switch (sortField) {
+        case 'score': av = a.composite_score ?? 0; bv = b.composite_score ?? 0; break
+        case 'price': av = a.meta?.last_price ?? 0; bv = b.meta?.last_price ?? 0; break
+        case 'chg': av = a.meta?.price_change_pct ?? 0; bv = b.meta?.price_change_pct ?? 0; break
+        case 'atr': av = a.meta?.atr_pct ?? 0; bv = b.meta?.atr_pct ?? 0; break
+      }
+      return sortDir === 'desc' ? bv - av : av - bv
+    })
+    return copy
+  })()
 
   function toggleExpand(symbol: string) {
     setExpanded((prev) => {
@@ -59,10 +90,18 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
           <tr className="bg-gray-800/80 text-gray-400 text-xs uppercase tracking-wider">
             <th className="px-3 py-2 text-right w-12">#</th>
             <th className="px-3 py-2 text-left">Symbol</th>
-            <th className="px-3 py-2 text-right">Score</th>
-            <th className="px-3 py-2 text-right">Price</th>
-            <th className="px-3 py-2 text-right">Chg%</th>
-            <th className="px-3 py-2 text-right">ATR%</th>
+            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('score')}>
+              Score {sortField === 'score' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
+            </th>
+            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('price')}>
+              Price {sortField === 'price' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
+            </th>
+            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('chg')}>
+              Chg% {sortField === 'chg' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
+            </th>
+            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('atr')}>
+              ATR% {sortField === 'atr' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
+            </th>
             <th className="px-3 py-2 text-left">Profiles</th>
             <th className="px-3 py-2 text-left">Setup</th>
             <th className="px-3 py-2 text-left">Patterns</th>
@@ -72,7 +111,7 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
           </tr>
         </thead>
         <tbody>
-          {results.map((r) => {
+          {sortedResults.map((r) => {
             const isExpanded = expanded.has(r.symbol)
             const meta = r.meta
             const chgPct = meta?.price_change_pct ?? 0

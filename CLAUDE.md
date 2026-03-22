@@ -182,3 +182,13 @@ PostgreSQL 16 + TimescaleDB. Full DDL: `docs/V001__initial_schema.sql`.
 - Don't use Redux (Zustand) or Django (FastAPI) or InfluxDB (TimescaleDB)
 - Don't store SA rating data on `symbols` — it lives in `sa_ratings` with snapshot history
 - Don't hardcode indicator parameters — everything configurable via scan_profiles JSONB
+
+## Anti-Patterns (Never Do These)
+
+- Never swallow errors silently. Every `catch` must produce a user-visible message (toast, banner, or inline error text).
+- Never use `setTimeout` as a rendering or state synchronization fix — find the root cause.
+- Never use `any` to suppress TypeScript errors.
+- Always use Zustand selectors: `useStore(s => s.field)`, never `useStore()` without a selector (causes full re-renders).
+- If a button triggers an async action, the component must reflect loading/error state.
+- Never leave a component imported but unused. Never leave a feature "wired but with no data flowing through."
+- All fetch failures must be visible to the user — never log-only.
