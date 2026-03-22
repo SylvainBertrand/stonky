@@ -53,14 +53,14 @@ _DISPLAY_NAMES: dict[str, str] = {
 
 @dataclass
 class HarmonicMatch:
-    pattern_name: str          # e.g. "Gartley", "Bat"
-    direction: str             # "bullish" or "bearish"
-    completion_bar: int        # DataFrame bar index of point D
-    bars_since_completion: int # how many bars since D completed
-    prz_low: float             # Potential Reversal Zone lower bound
-    prz_high: float            # PRZ upper bound
-    ratio_quality: float       # 0.0–1.0, how tightly ratios match ideal values
-    x: float                   # XABCD price points
+    pattern_name: str  # e.g. "Gartley", "Bat"
+    direction: str  # "bullish" or "bearish"
+    completion_bar: int  # DataFrame bar index of point D
+    bars_since_completion: int  # how many bars since D completed
+    prz_low: float  # Potential Reversal Zone lower bound
+    prz_high: float  # PRZ upper bound
+    ratio_quality: float  # 0.0–1.0, how tightly ratios match ideal values
+    x: float  # XABCD price points
     a: float
     b: float
     c: float
@@ -78,6 +78,7 @@ def _compute_ratio_quality(pattern_name: str, retraces: dict[str, float]) -> flo
     """
     try:
         from pyharmonics import constants  # deferred to avoid import at module load
+
         xabcd_defs = constants.HARMONIC_PATTERNS.get("XABCD", {})
         ideal_def: dict[str, Any] = xabcd_defs.get(pattern_name, {})
     except Exception:

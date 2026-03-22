@@ -3,6 +3,7 @@
 Runs as a background job (nightly scheduled or manual trigger).
 Stores results in the synthesis_results table.
 """
+
 from __future__ import annotations
 
 import logging
@@ -198,9 +199,7 @@ async def run_synthesis_scan_all(
                 if scan_run:
                     scan_run.status = ScanRunStatus.FAILED
                     scan_run.completed_at = datetime.now(UTC)
-                    scan_run.error_message = (
-                        f"{SYNTHESIS_SCAN_MARKER}: {str(exc)[:1900]}"
-                    )
+                    scan_run.error_message = f"{SYNTHESIS_SCAN_MARKER}: {str(exc)[:1900]}"
                     await db.commit()
             except Exception as commit_exc:
                 log.error(

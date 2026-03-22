@@ -5,6 +5,7 @@ prices. This is a context layer — it does NOT feed the composite scoring engin
 
 The model is loaded as a module-level singleton on first use (~250MB download).
 """
+
 from __future__ import annotations
 
 import logging

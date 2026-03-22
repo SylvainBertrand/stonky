@@ -10,10 +10,10 @@ import pandas_ta as ta
 
 from app.analysis.swing_points import detect_swing_points
 
-
 # ---------------------------------------------------------------------------
 # OBV
 # ---------------------------------------------------------------------------
+
 
 def compute_obv(df: pd.DataFrame) -> pd.DataFrame:
     """Add obv column."""
@@ -58,6 +58,7 @@ def compute_obv_signals(df: pd.DataFrame) -> dict[str, float]:
 # Anchored VWAP
 # ---------------------------------------------------------------------------
 
+
 def _compute_anchored_vwap(df: pd.DataFrame, anchor_idx: int) -> pd.Series:
     """Compute cumulative TVWAP anchored to anchor_idx."""
     typical = (df["high"] + df["low"] + df["close"]) / 3.0
@@ -82,7 +83,8 @@ def compute_vwap(df: pd.DataFrame) -> pd.DataFrame:
         out = compute_atr_for_vwap(out)
         atr_series = out.get("atr_vwap", None)
         _, swing_lows = detect_swing_points(
-            out["close"], order=5,
+            out["close"],
+            order=5,
             atr_filter=0.5,
             atr_series=atr_series if isinstance(atr_series, pd.Series) else None,
         )
@@ -146,6 +148,7 @@ def compute_vwap_signals(df: pd.DataFrame) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # CMF
 # ---------------------------------------------------------------------------
+
 
 def compute_cmf(df: pd.DataFrame) -> pd.DataFrame:
     """Add cmf column."""

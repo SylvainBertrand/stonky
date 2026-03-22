@@ -12,33 +12,34 @@ from typing import Literal
 import numpy as np
 import pandas as pd  # noqa: F401  # used by detect_elliott_waves (added in next task)
 
-
 # ── Data types ────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class WavePoint:
     time: str
     price: float
-    label: str      # "0","1","2","3","4","5" or "0","A","B","C"
+    label: str  # "0","1","2","3","4","5" or "0","A","B","C"
     bar_index: int
 
 
 @dataclass
 class WaveSequence:
-    wave_type: Literal['impulse', 'corrective']
-    direction: Literal['bullish', 'bearish']
-    waves: list[WavePoint]   # 6 pts for impulse, 4 for corrective
-    confidence: float        # 0–1
+    wave_type: Literal["impulse", "corrective"]
+    direction: Literal["bullish", "bearish"]
+    waves: list[WavePoint]  # 6 pts for impulse, 4 for corrective
+    confidence: float  # 0–1
 
 
 @dataclass
 class EWResult:
     best_wave: WaveSequence | None = None
-    current_position: str | None = None   # "wave_3", "wave_5", "wave_A", etc.
+    current_position: str | None = None  # "wave_3", "wave_5", "wave_A", etc.
     confidence: float = 0.0
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _fib_score(actual_ratio: float, target: float, tolerance: float = 0.25) -> float:
     """Score how close actual_ratio is to a Fibonacci target. Returns 0–1."""
@@ -59,24 +60,24 @@ def _impulse_confidence(prices: list[float]) -> float:
     if amp1 == 0:
         return 0.0
     scores = [
-        _fib_score(amp2 / amp1, 0.618),   # W2 retraces 61.8% of W1
-        _fib_score(amp3 / amp1, 1.618),   # W3 = 161.8% of W1
+        _fib_score(amp2 / amp1, 0.618),  # W2 retraces 61.8% of W1
+        _fib_score(amp3 / amp1, 1.618),  # W3 = 161.8% of W1
         _fib_score(amp4 / amp3, 0.382) if amp3 > 0 else 0.0,  # W4 retraces 38.2% of W3
-        _fib_score(amp5 / amp1, 1.0),     # W5 = 100% of W1
+        _fib_score(amp5 / amp1, 1.0),  # W5 = 100% of W1
     ]
     return float(np.mean(scores))
 
 
-def _check_impulse_rules(prices: list[float], direction: Literal['bullish', 'bearish']) -> bool:
+def _check_impulse_rules(prices: list[float], direction: Literal["bullish", "bearish"]) -> bool:
     """Validate core Elliott Wave impulse rules."""
     p0, p1, p2, p3, p4, p5 = prices
 
-    if direction == 'bullish':
+    if direction == "bullish":
         if not (p1 > p0 and p2 < p1 and p3 > p2 and p4 < p3 and p5 > p4):
             return False
-        if p2 <= p0:            # W2 never below W0
+        if p2 <= p0:  # W2 never below W0
             return False
-        if p4 <= p1:            # W4 never below W1 (no overlap)
+        if p4 <= p1:  # W4 never below W1 (no overlap)
             return False
         amp1 = p1 - p0
         amp3 = p3 - p2
@@ -108,13 +109,14 @@ def _corrective_confidence(prices: list[float]) -> float:
     if amp_a == 0:
         return 0.0
     scores = [
-        _fib_score(amp_b / amp_a, 0.618),   # B retraces 61.8% of A
-        _fib_score(amp_c / amp_a, 1.0),     # C = A
+        _fib_score(amp_b / amp_a, 0.618),  # B retraces 61.8% of A
+        _fib_score(amp_c / amp_a, 1.0),  # C = A
     ]
     return float(np.mean(scores))
 
 
 # ── Main detection function ────────────────────────────────────────────────────
+
 
 def detect_elliott_waves(
     df: pd.DataFrame,
@@ -145,18 +147,18 @@ def detect_elliott_waves(
     last_bar = len(df) - 1
     start_bar = max(0, last_bar - lookback_bars)
 
-    times = df['time'].tolist() if 'time' in df.columns else [str(i) for i in range(len(df))]
-    highs_col = df['high'].to_numpy()
-    lows_col = df['low'].to_numpy()
+    times = df["time"].tolist() if "time" in df.columns else [str(i) for i in range(len(df))]
+    highs_col = df["high"].to_numpy()
+    lows_col = df["low"].to_numpy()
 
     # Build pivot list: (bar_index, price, time_str, kind)
     pivots: list[tuple[int, float, str, str]] = []
     for i in swing_high_idx:
         if int(i) >= start_bar:
-            pivots.append((int(i), float(highs_col[i]), str(times[i]), 'high'))
+            pivots.append((int(i), float(highs_col[i]), str(times[i]), "high"))
     for i in swing_low_idx:
         if int(i) >= start_bar:
-            pivots.append((int(i), float(lows_col[i]), str(times[i]), 'low'))
+            pivots.append((int(i), float(lows_col[i]), str(times[i]), "low"))
     pivots.sort(key=lambda x: x[0])
 
     if len(pivots) < 4:
@@ -167,15 +169,15 @@ def detect_elliott_waves(
     # Scan for 5-wave impulse (6 consecutive alternating pivots)
     if len(pivots) >= 6:
         for start in range(len(pivots) - 5):
-            window = pivots[start:start + 6]
+            window = pivots[start : start + 6]
             prices = [pt[1] for pt in window]
             kinds = [pt[3] for pt in window]
 
-            direction: Literal['bullish', 'bearish'] | None = None
-            if kinds == ['low', 'high', 'low', 'high', 'low', 'high']:
-                direction = 'bullish'
-            elif kinds == ['high', 'low', 'high', 'low', 'high', 'low']:
-                direction = 'bearish'
+            direction: Literal["bullish", "bearish"] | None = None
+            if kinds == ["low", "high", "low", "high", "low", "high"]:
+                direction = "bullish"
+            elif kinds == ["high", "low", "high", "low", "high", "low"]:
+                direction = "bearish"
 
             if direction and _check_impulse_rules(prices, direction):
                 conf = _impulse_confidence(prices)
@@ -189,26 +191,34 @@ def detect_elliott_waves(
                         )
                         for i in range(6)
                     ]
-                    best = WaveSequence('impulse', direction, wave_points, conf)
+                    best = WaveSequence("impulse", direction, wave_points, conf)
 
     # Scan for 3-wave corrective (4 consecutive alternating pivots)
     for start in range(len(pivots) - 3):
-        window = pivots[start:start + 4]
+        window = pivots[start : start + 4]
         prices = [pt[1] for pt in window]
         kinds = [pt[3] for pt in window]
 
-        corr_dir: Literal['bullish', 'bearish'] | None = None
-        if (kinds == ['high', 'low', 'high', 'low'] and
-                prices[1] < prices[0] and prices[2] > prices[1] and prices[3] < prices[2]):
-            corr_dir = 'bearish'
-        elif (kinds == ['low', 'high', 'low', 'high'] and
-                prices[1] > prices[0] and prices[2] < prices[1] and prices[3] > prices[2]):
-            corr_dir = 'bullish'
+        corr_dir: Literal["bullish", "bearish"] | None = None
+        if (
+            kinds == ["high", "low", "high", "low"]
+            and prices[1] < prices[0]
+            and prices[2] > prices[1]
+            and prices[3] < prices[2]
+        ):
+            corr_dir = "bearish"
+        elif (
+            kinds == ["low", "high", "low", "high"]
+            and prices[1] > prices[0]
+            and prices[2] < prices[1]
+            and prices[3] > prices[2]
+        ):
+            corr_dir = "bullish"
 
         if corr_dir is not None:
             conf = _corrective_confidence(prices) * 0.7  # discount vs impulse
             if best is None or conf > best.confidence:
-                labels = ['0', 'A', 'B', 'C']
+                labels = ["0", "A", "B", "C"]
                 wave_points = [
                     WavePoint(
                         time=window[i][2],
@@ -218,7 +228,7 @@ def detect_elliott_waves(
                     )
                     for i in range(4)
                 ]
-                best = WaveSequence('corrective', corr_dir, wave_points, conf)
+                best = WaveSequence("corrective", corr_dir, wave_points, conf)
 
     if best is None:
         return EWResult()
@@ -232,32 +242,33 @@ def _determine_current_position(wave: WaveSequence, last_bar: int) -> str | None
     waves = wave.waves
     for i in range(len(waves) - 1):
         if waves[i].bar_index <= last_bar <= waves[i + 1].bar_index:
-            if wave.wave_type == 'impulse':
-                return f'wave_{i + 1}'
+            if wave.wave_type == "impulse":
+                return f"wave_{i + 1}"
             else:
-                labels = ['A', 'B', 'C']
+                labels = ["A", "B", "C"]
                 if i < len(labels):
-                    return f'wave_{labels[i]}'
+                    return f"wave_{labels[i]}"
     if last_bar > waves[-1].bar_index:
-        return 'wave_5_complete' if wave.wave_type == 'impulse' else 'wave_C_complete'
+        return "wave_5_complete" if wave.wave_type == "impulse" else "wave_C_complete"
     return None
 
 
 # ── Signal computation ─────────────────────────────────────────────────────────
+
 
 def compute_ew_signals(result: EWResult) -> dict[str, float]:
     """Convert EWResult into normalized signals for the pipeline scoring.
 
     Returns signals in [-1, 1] range compatible with the scoring engine.
     """
-    signals: dict[str, float] = {'ew_ratio_quality': result.confidence}
+    signals: dict[str, float] = {"ew_ratio_quality": result.confidence}
     pos = result.current_position
     if pos is None or result.best_wave is None:
-        signals['ew_wave3_active'] = 0.0
-        signals['ew_wave5_active'] = 0.0
-        signals['ew_corrective_abc'] = 0.0
+        signals["ew_wave3_active"] = 0.0
+        signals["ew_wave5_active"] = 0.0
+        signals["ew_corrective_abc"] = 0.0
         return signals
-    signals['ew_wave3_active'] = 1.0 if pos == 'wave_3' else 0.0
-    signals['ew_wave5_active'] = 0.5 if pos == 'wave_5' else 0.0
-    signals['ew_corrective_abc'] = -0.3 if result.best_wave.wave_type == 'corrective' else 0.0
+    signals["ew_wave3_active"] = 1.0 if pos == "wave_3" else 0.0
+    signals["ew_wave5_active"] = 0.5 if pos == "wave_5" else 0.0
+    signals["ew_corrective_abc"] = -0.3 if result.best_wave.wave_type == "corrective" else 0.0
     return signals

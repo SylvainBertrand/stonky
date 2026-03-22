@@ -10,7 +10,7 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
@@ -32,8 +32,6 @@ from app.analysis.indicators.harmonics import (
     compute_harmonics_signals,
     detect_harmonics,
 )
-from app.analysis.swing_points import detect_swing_points
-from app.analysis.yolo_screener import YoloDetection, compute_yolo_signals
 from app.analysis.indicators.momentum import (
     compute_macd_signals,
     compute_rsi_signals,
@@ -61,6 +59,8 @@ from app.analysis.indicators.volume import (
 )
 from app.analysis.profiles import evaluate_profiles
 from app.analysis.scoring import build_composite
+from app.analysis.swing_points import detect_swing_points
+from app.analysis.yolo_screener import YoloDetection, compute_yolo_signals
 from app.db.session import AsyncSessionLocal
 from app.models.enums import TimeframeEnum
 from app.models.indicator_cache import IndicatorCache
@@ -83,9 +83,11 @@ def aggregate_daily_to_weekly(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["time"] = pd.to_datetime(df["time"], utc=True)
     df = df.set_index("time")
-    weekly = df.resample("W-FRI").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
-    ).dropna(subset=["open", "close"])
+    weekly = (
+        df.resample("W-FRI")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        .dropna(subset=["open", "close"])
+    )
     weekly = weekly.reset_index()
     return weekly
 
@@ -220,7 +222,9 @@ def run_analysis(
     for fn in (compute_rsi_divergence_signals, compute_macd_divergence_signals):
         all_signals.update(_safe_signals(fn, df, fn.__name__))
 
-    all_signals.update(_safe_signals(compute_candlestick_signals, df, "compute_candlestick_signals"))
+    all_signals.update(
+        _safe_signals(compute_candlestick_signals, df, "compute_candlestick_signals")
+    )
 
     # Harmonic detection — CPU-intensive; wrapped in try/except inside detect_harmonics
     harmonic_matches: list[HarmonicMatch] = []
@@ -256,10 +260,16 @@ def run_analysis(
     # Elliott Wave detection — greedy scan on swing points
     try:
         sh_bool, _ = detect_swing_points(
-            df["high"], order=5, atr_filter=0.5, atr_series=atr_series,
+            df["high"],
+            order=5,
+            atr_filter=0.5,
+            atr_series=atr_series,
         )
         _, sl_bool = detect_swing_points(
-            df["low"], order=5, atr_filter=0.5, atr_series=atr_series,
+            df["low"],
+            order=5,
+            atr_filter=0.5,
+            atr_series=atr_series,
         )
         sh_idx = np.where(sh_bool)[0]
         sl_idx = np.where(sl_bool)[0]
@@ -283,7 +293,7 @@ def run_analysis(
     is_actionable = _passes_confluence(category_scores, comp)
     vol_contradiction = _has_volume_contradiction(all_signals, comp)
 
-    timestamp = df["time"].iloc[-1] if "time" in df.columns else datetime.now(timezone.utc)
+    timestamp = df["time"].iloc[-1] if "time" in df.columns else datetime.now(UTC)
     if hasattr(timestamp, "to_pydatetime"):
         timestamp = timestamp.to_pydatetime()
 
@@ -299,7 +309,9 @@ def run_analysis(
             "last_price": round(last_price, 4),
             "volume_ratio": round(volume_ratio, 4),
             "price_change_pct": price_change_pct,
-            "timestamp": timestamp.isoformat() if hasattr(timestamp, "isoformat") else str(timestamp),
+            "timestamp": timestamp.isoformat()
+            if hasattr(timestamp, "isoformat")
+            else str(timestamp),
             "bars": len(df),
         },
         harmonics=harmonic_detail,
@@ -429,7 +441,7 @@ async def _fetch_yolo_detections(
     from app.models.enums import PatternType
     from app.models.pattern_detections import PatternDetection
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+    cutoff = datetime.now(UTC) - timedelta(days=7)
     result = await db.execute(
         select(PatternDetection)
         .where(
@@ -474,13 +486,11 @@ async def run_analysis_for_ticker(
 
     # Run sync analysis in thread pool to avoid blocking event loop
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None, run_analysis, df, ticker, yolo_detections
-    )
+    result = await loop.run_in_executor(None, run_analysis, df, ticker, yolo_detections)
 
     # Cache in indicator_cache
     try:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         params_hash = _params_hash(timeframe)
         cache_value: dict[str, Any] = {
             "symbol": result.symbol,
@@ -561,7 +571,11 @@ async def run_scanner(
                 result = await run_analysis_for_ticker(symbol_id, ticker, db, timeframe)
                 await db.commit()
                 if result is None:
-                    log.info("Scanner symbol skipped: %s (id=%d) - no analyzable OHLCV", ticker, symbol_id)
+                    log.info(
+                        "Scanner symbol skipped: %s (id=%d) - no analyzable OHLCV",
+                        ticker,
+                        symbol_id,
+                    )
                 else:
                     log.info(
                         "Scanner symbol done: %s (id=%d), score=%.4f, profiles=%s",

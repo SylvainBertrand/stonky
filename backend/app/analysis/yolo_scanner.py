@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,7 +100,7 @@ async def run_yolo_scan_symbol(
         return []
 
     # Upsert detections into pattern_detections
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     for det in detections:
@@ -174,7 +174,7 @@ async def run_yolo_scan_all(
                 log.error("YOLO scan: ScanRun %d not found", run_id)
                 return
             scan_run.status = ScanRunStatus.RUNNING
-            scan_run.started_at = datetime.now(timezone.utc)
+            scan_run.started_at = datetime.now(UTC)
             await db.commit()
         else:
             # Create scan run (scheduler invocation)
@@ -182,7 +182,7 @@ async def run_yolo_scan_all(
                 profile_id=None,
                 watchlist_id=watchlist_id,
                 status=ScanRunStatus.RUNNING,
-                started_at=datetime.now(timezone.utc),
+                started_at=datetime.now(UTC),
                 symbols_scanned=0,
                 symbols_scored=0,
                 error_message=YOLO_SCAN_MARKER,
@@ -202,7 +202,7 @@ async def run_yolo_scan_all(
                 scan_run = await db.get(ScanRun, run_id)
                 if scan_run:
                     scan_run.status = ScanRunStatus.COMPLETED
-                    scan_run.completed_at = datetime.now(timezone.utc)
+                    scan_run.completed_at = datetime.now(UTC)
                     scan_run.error_message = YOLO_SCAN_MARKER
                     await db.commit()
                 return
@@ -213,9 +213,7 @@ async def run_yolo_scan_all(
             # Process sequentially — YOLO inference is CPU-bound
             for symbol_id, ticker in symbols:
                 try:
-                    detections = await run_yolo_scan_symbol(
-                        symbol_id, ticker, run_id, db
-                    )
+                    detections = await run_yolo_scan_symbol(symbol_id, ticker, run_id, db)
                     total_detections += len(detections)
                     scanned += 1
                     await db.commit()
@@ -227,7 +225,7 @@ async def run_yolo_scan_all(
             scan_run = await db.get(ScanRun, run_id)
             if scan_run:
                 scan_run.status = ScanRunStatus.COMPLETED
-                scan_run.completed_at = datetime.now(timezone.utc)
+                scan_run.completed_at = datetime.now(UTC)
                 scan_run.symbols_scanned = len(symbols)
                 scan_run.symbols_scored = total_detections
                 scan_run.error_message = YOLO_SCAN_MARKER
@@ -246,7 +244,7 @@ async def run_yolo_scan_all(
                 scan_run = await db.get(ScanRun, run_id)
                 if scan_run:
                     scan_run.status = ScanRunStatus.FAILED
-                    scan_run.completed_at = datetime.now(timezone.utc)
+                    scan_run.completed_at = datetime.now(UTC)
                     scan_run.error_message = f"{YOLO_SCAN_MARKER}: {str(exc)[:1900]}"
                     await db.commit()
             except Exception as commit_exc:

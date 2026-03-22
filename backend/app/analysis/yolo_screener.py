@@ -77,7 +77,7 @@ class YoloDetection:
     direction: str
     bar_start: int
     bar_end: int
-    price_top: float | None = None     # upper price boundary of the pattern
+    price_top: float | None = None  # upper price boundary of the pattern
     price_bottom: float | None = None  # lower price boundary of the pattern
 
 

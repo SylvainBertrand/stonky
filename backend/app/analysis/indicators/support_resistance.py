@@ -40,6 +40,7 @@ def _get_atr(df: pd.DataFrame) -> float:
 # Fibonacci
 # ---------------------------------------------------------------------------
 
+
 def compute_fibonacci_signals(df: pd.DataFrame) -> dict[str, float]:
     """
     Find most recent swing high/low pair, compute fib levels,
@@ -52,9 +53,7 @@ def compute_fibonacci_signals(df: pd.DataFrame) -> dict[str, float]:
         if atr_val == 0.0:
             return {"fibonacci": 0.0}
 
-        swing_highs, swing_lows = detect_swing_points(
-            df["close"], order=5, atr_filter=0.0
-        )
+        swing_highs, swing_lows = detect_swing_points(df["close"], order=5, atr_filter=0.0)
         high_indices = swing_highs[swing_highs].index.tolist()
         low_indices = swing_lows[swing_lows].index.tolist()
 
@@ -105,6 +104,7 @@ def compute_fibonacci_signals(df: pd.DataFrame) -> dict[str, float]:
 # Pivot Points
 # ---------------------------------------------------------------------------
 
+
 def compute_pivot_signals(df: pd.DataFrame) -> dict[str, float]:
     """
     Pivot points from previous bar's H/L/C.
@@ -135,8 +135,12 @@ def compute_pivot_signals(df: pd.DataFrame) -> dict[str, float]:
 
         # (level, is_support, quality_weight)
         levels: list[tuple[float, bool, float]] = [
-            (r1, False, 0.7), (r2, False, 0.9), (r3, False, 1.0),
-            (s1, True, 0.7), (s2, True, 0.9), (s3, True, 1.0),
+            (r1, False, 0.7),
+            (r2, False, 0.9),
+            (r3, False, 1.0),
+            (s1, True, 0.7),
+            (s2, True, 0.9),
+            (s3, True, 1.0),
             (pp, close < pp, 0.5),  # PP acts as support below, resistance above
         ]
 

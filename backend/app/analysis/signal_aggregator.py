@@ -3,6 +3,7 @@
 This is a pure data-collection layer (no LLM). The resulting AggregatedSignals
 is serialized into the LLM prompt and also stored for debugging.
 """
+
 from __future__ import annotations
 
 import logging
@@ -74,9 +75,7 @@ async def aggregate_signals(
     Returns None if no P0 scan results exist (insufficient data).
     """
     # Resolve symbol_id
-    sym_result = await db.execute(
-        select(Symbol.id).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await db.execute(select(Symbol.id).where(Symbol.ticker == symbol.upper()))
     symbol_id = sym_result.scalar_one_or_none()
     if symbol_id is None:
         return None
@@ -132,9 +131,7 @@ async def aggregate_signals(
             if agg.stop_level and agg.entry_zone and agg.target_level:
                 risk = agg.entry_zone - agg.stop_level
                 if risk > 0:
-                    agg.risk_reward_ratio = round(
-                        (agg.target_level - agg.entry_zone) / risk, 2
-                    )
+                    agg.risk_reward_ratio = round((agg.target_level - agg.entry_zone) / risk, 2)
 
     # YOLOv8 chart patterns
     pattern_result = await db.execute(
@@ -144,11 +141,15 @@ async def aggregate_signals(
         .limit(5)
     )
     for p in pattern_result.scalars().all():
-        agg.chart_patterns.append({
-            "name": p.pattern_name,
-            "confidence": float(p.confidence),
-            "direction": p.direction.value if hasattr(p.direction, "value") else str(p.direction),
-        })
+        agg.chart_patterns.append(
+            {
+                "name": p.pattern_name,
+                "confidence": float(p.confidence),
+                "direction": p.direction.value
+                if hasattr(p.direction, "value")
+                else str(p.direction),
+            }
+        )
 
     # Elliott Wave from signals
     ew_quality = signals.get("ew_ratio_quality", 0.0)

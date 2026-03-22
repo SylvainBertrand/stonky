@@ -8,10 +8,10 @@ import numpy as np
 import pandas as pd
 import pandas_ta as ta
 
-
 # ---------------------------------------------------------------------------
 # Bollinger Bands
 # ---------------------------------------------------------------------------
+
 
 def compute_bbands(df: pd.DataFrame) -> pd.DataFrame:
     """Add bbl, bbm, bbu, bbp columns (Bollinger Bands, 20-period, 2 std)."""
@@ -72,6 +72,7 @@ def compute_bbands_signals(df: pd.DataFrame) -> dict[str, float]:
 # ATR
 # ---------------------------------------------------------------------------
 
+
 def compute_atr(df: pd.DataFrame) -> pd.DataFrame:
     """Add atr column."""
     out = df.copy()
@@ -90,6 +91,7 @@ def compute_atr_signals(df: pd.DataFrame) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # Keltner Channels
 # ---------------------------------------------------------------------------
+
 
 def compute_keltner(df: pd.DataFrame) -> pd.DataFrame:
     """Add kcl, kcu columns (Keltner Channels, 20-period, 1.5 ATR scalar)."""
@@ -112,6 +114,7 @@ def compute_keltner(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # TTM Squeeze
 # ---------------------------------------------------------------------------
+
 
 def compute_ttm_squeeze(df: pd.DataFrame) -> pd.DataFrame:
     """

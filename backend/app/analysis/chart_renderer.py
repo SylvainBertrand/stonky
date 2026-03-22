@@ -40,7 +40,11 @@ def _make_mpf_style() -> object:
     import mplfinance as mpf
 
     mc = mpf.make_marketcolors(
-        up="lime", down="red", edge="inherit", wick="inherit", volume="in",
+        up="lime",
+        down="red",
+        edge="inherit",
+        wick="inherit",
+        volume="in",
     )
     return mpf.make_mpf_style(
         marketcolors=mc,
@@ -66,6 +70,7 @@ def render_chart_image_with_price_range(
     to convert normalized YOLO bbox y-coordinates back to price space.
     """
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import mplfinance as mpf
@@ -97,7 +102,12 @@ def render_chart_image_with_price_range(
 
     log.info(
         "Rendered chart for %s (%s): %d bars, %d bytes, price_range=[%.4f, %.4f]",
-        symbol, timeframe, len(chart_df), len(image_bytes), price_min, price_max,
+        symbol,
+        timeframe,
+        len(chart_df),
+        len(image_bytes),
+        price_min,
+        price_max,
     )
     return image_bytes, price_min, price_max
 
@@ -132,6 +142,7 @@ def render_chart_image(
         Image data as PNG bytes, or the output file path if output_path was given.
     """
     import matplotlib
+
     matplotlib.use("Agg")
     import mplfinance as mpf
 
@@ -156,7 +167,10 @@ def render_chart_image(
 
     log.info(
         "Rendered chart for %s (%s): %d bars, %d bytes",
-        symbol, timeframe, len(chart_df), len(image_bytes),
+        symbol,
+        timeframe,
+        len(chart_df),
+        len(image_bytes),
     )
 
     if output_path is not None:

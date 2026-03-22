@@ -7,13 +7,18 @@ from __future__ import annotations
 import pandas as pd
 import pandas_ta as ta
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _zone_normalize(value: float, low_bullish: float, low_threshold: float,
-                    high_threshold: float, high_bearish: float) -> float:
+
+def _zone_normalize(
+    value: float,
+    low_bullish: float,
+    low_threshold: float,
+    high_threshold: float,
+    high_bearish: float,
+) -> float:
     """Zone-based normalization for oscillators (0-100 scale)."""
     if value <= low_bullish:
         return 1.0
@@ -56,6 +61,7 @@ def _crossover_decay(series_a: pd.Series, series_b: pd.Series, decay_bars: int =
 # RSI
 # ---------------------------------------------------------------------------
 
+
 def compute_rsi(df: pd.DataFrame) -> pd.DataFrame:
     """Add rsi_14 column."""
     out = df.copy()
@@ -88,6 +94,7 @@ def compute_rsi_signals(df: pd.DataFrame) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # MACD
 # ---------------------------------------------------------------------------
+
 
 def compute_macd(df: pd.DataFrame) -> pd.DataFrame:
     """Add macd, macdh, macds columns."""
@@ -165,6 +172,7 @@ def compute_macd_signals(df: pd.DataFrame) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # Stochastic
 # ---------------------------------------------------------------------------
+
 
 def compute_stoch(df: pd.DataFrame) -> pd.DataFrame:
     """Add stoch_k, stoch_d columns."""

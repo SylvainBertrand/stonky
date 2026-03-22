@@ -11,8 +11,8 @@ from app.analysis.swing_points import detect_swing_points
 
 _LOOKBACK = 50
 _DECAY_BARS = 20
-_PRICE_TOL_ATR = 1.0   # price pivots within 1 ATR are "similar"
-_OSC_TOL_PCT = 0.05    # oscillator pivots within 5% are "similar"
+_PRICE_TOL_ATR = 1.0  # price pivots within 1 ATR are "similar"
+_OSC_TOL_PCT = 0.05  # oscillator pivots within 5% are "similar"
 
 
 def _get_atr(df: pd.DataFrame) -> float:
@@ -121,6 +121,7 @@ def _detect_divergence(
 # RSI Divergence
 # ---------------------------------------------------------------------------
 
+
 def compute_rsi_divergence_signals(df: pd.DataFrame) -> dict[str, float]:
     """
     RSI divergence detection with 20-bar decay.
@@ -138,7 +139,7 @@ def compute_rsi_divergence_signals(df: pd.DataFrame) -> dict[str, float]:
             return {"rsi_divergence": 0.0}
 
         atr_val = _get_atr(df)
-        price_aligned = df["close"].iloc[-len(rsi_clean):]
+        price_aligned = df["close"].iloc[-len(rsi_clean) :]
         divergences = _detect_divergence(price_aligned, rsi_clean, atr_val)
 
         score = 0.0
@@ -166,6 +167,7 @@ def compute_rsi_divergence_signals(df: pd.DataFrame) -> dict[str, float]:
 # MACD Histogram Divergence
 # ---------------------------------------------------------------------------
 
+
 def compute_macd_divergence_signals(df: pd.DataFrame) -> dict[str, float]:
     """
     MACD histogram divergence detection with 20-bar decay.
@@ -179,9 +181,7 @@ def compute_macd_divergence_signals(df: pd.DataFrame) -> dict[str, float]:
             return {"macd_divergence": 0.0}
 
         # Get histogram column
-        hist_col = next(
-            (c for c in macd_df.columns if c.startswith("MACDh_")), None
-        )
+        hist_col = next((c for c in macd_df.columns if c.startswith("MACDh_")), None)
         if hist_col is None:
             return {"macd_divergence": 0.0}
 
@@ -190,7 +190,7 @@ def compute_macd_divergence_signals(df: pd.DataFrame) -> dict[str, float]:
             return {"macd_divergence": 0.0}
 
         atr_val = _get_atr(df)
-        price_aligned = df["close"].iloc[-len(hist):]
+        price_aligned = df["close"].iloc[-len(hist) :]
         divergences = _detect_divergence(price_aligned, hist, atr_val)
 
         score = 0.0

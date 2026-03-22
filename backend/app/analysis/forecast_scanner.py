@@ -3,6 +3,7 @@
 Runs as a background job (nightly scheduled or manual trigger).
 Stores results in the forecast_cache table.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -117,19 +118,13 @@ async def run_forecast_scan_all(
 
             for symbol_id, ticker in symbols:
                 try:
-                    df = await fetch_ohlcv_for_symbol(
-                        symbol_id, ticker, db, TimeframeEnum.D1
-                    )
+                    df = await fetch_ohlcv_for_symbol(symbol_id, ticker, db, TimeframeEnum.D1)
                     if df is None or len(df) < 50:
-                        log.info(
-                            "Forecast %s: insufficient OHLCV data, skipping", ticker
-                        )
+                        log.info("Forecast %s: insufficient OHLCV data, skipping", ticker)
                         scanned += 1
                         continue
 
-                    result = await asyncio.to_thread(
-                        run_forecast, df, ticker, "1d", 20, 50
-                    )
+                    result = await asyncio.to_thread(run_forecast, df, ticker, "1d", 20, 50)
 
                     if result is None:
                         scanned += 1

@@ -3,6 +3,7 @@
 Consumes AggregatedSignals, sends prompt to LLM provider, parses structured JSON response,
 returns SynthesisResult. Designed for nightly batch processing.
 """
+
 from __future__ import annotations
 
 import json
@@ -97,13 +98,10 @@ def build_user_prompt(signals: AggregatedSignals) -> str:
         )
         if signals.forecast_expected_move_pct is not None:
             sign = "+" if signals.forecast_expected_move_pct >= 0 else ""
-            forecast_section += (
-                f"\nExpected move: {sign}{signals.forecast_expected_move_pct:.1f}%"
-            )
+            forecast_section += f"\nExpected move: {sign}{signals.forecast_expected_move_pct:.1f}%"
         if signals.forecast_range_low is not None and signals.forecast_range_high is not None:
             forecast_section += (
-                f"  |  Range: ${signals.forecast_range_low:.2f}"
-                f"–${signals.forecast_range_high:.2f}"
+                f"  |  Range: ${signals.forecast_range_low:.2f}–${signals.forecast_range_high:.2f}"
             )
 
     # Format category scores
@@ -133,10 +131,10 @@ Analyze the following signals for {signals.symbol} and produce a trade setup sum
 {signals.composite_score:.2f} / 1.0  |  Active profiles: {profiles}
 
 ## Category Scores
-Trend: {cs.get('trend', 0):.2f}  |  Momentum: {cs.get('momentum', 0):.2f}  |  \
-Volume: {cs.get('volume', 0):.2f}
-Volatility: {cs.get('volatility', 0):.2f}  |  S/R: {cs.get('support_resistance', 0):.2f}  |  \
-Divergence: {cs.get('divergence', 0):.2f}
+Trend: {cs.get("trend", 0):.2f}  |  Momentum: {cs.get("momentum", 0):.2f}  |  \
+Volume: {cs.get("volume", 0):.2f}
+Volatility: {cs.get("volatility", 0):.2f}  |  S/R: {cs.get("support_resistance", 0):.2f}  |  \
+Divergence: {cs.get("divergence", 0):.2f}
 
 ## Key Indicators
 RSI signal: {rsi:+.2f}  |  MACD signal: {macd_hist:+.2f}  |  ADX signal: {adx:+.2f}  |  \
@@ -201,9 +199,7 @@ def parse_response(raw: str, signals: AggregatedSignals) -> SynthesisResult:
         generated_at=now,
         setup_type=str(data.get("setup_type", "Unknown")),
         bias=_validate_enum(data.get("bias", "neutral"), ["bullish", "bearish", "neutral"]),
-        confidence=_validate_enum(
-            data.get("confidence", "low"), ["high", "medium", "low"]
-        ),
+        confidence=_validate_enum(data.get("confidence", "low"), ["high", "medium", "low"]),
         summary=str(data.get("summary", "")),
         signal_confluence=str(data.get("signal_confluence", "")),
         signal_conflicts=str(data.get("signal_conflicts", "None")),

@@ -7,10 +7,10 @@ from __future__ import annotations
 import pandas as pd
 import pandas_ta as ta
 
-
 # ---------------------------------------------------------------------------
 # compute_ema
 # ---------------------------------------------------------------------------
+
 
 def compute_ema(df: pd.DataFrame) -> pd.DataFrame:
     """Add ema_21, ema_50, ema_200 columns."""
@@ -46,6 +46,7 @@ def compute_ema_signals(df: pd.DataFrame) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 # compute_adx
 # ---------------------------------------------------------------------------
+
 
 def compute_adx(df: pd.DataFrame) -> pd.DataFrame:
     """Add adx, dmp_14, dmn_14 columns (ADX-14)."""
@@ -96,6 +97,7 @@ def compute_adx_signals(df: pd.DataFrame) -> dict[str, float]:
 # compute_supertrend
 # ---------------------------------------------------------------------------
 
+
 def compute_supertrend(df: pd.DataFrame) -> pd.DataFrame:
     """Add supertrend_dir column: +1 = bullish, -1 = bearish."""
     out = df.copy()
@@ -103,9 +105,7 @@ def compute_supertrend(df: pd.DataFrame) -> pd.DataFrame:
         result = ta.supertrend(out["high"], out["low"], out["close"], length=10, multiplier=3.0)
         if result is not None and not result.empty:
             # Direction column: SUPERTd_10_3.0
-            dir_col = next(
-                (c for c in result.columns if c.startswith("SUPERTd_")), None
-            )
+            dir_col = next((c for c in result.columns if c.startswith("SUPERTd_")), None)
             if dir_col:
                 out["supertrend_dir"] = result[dir_col]
     except Exception:

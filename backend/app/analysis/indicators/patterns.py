@@ -52,6 +52,7 @@ def _is_bullish(o: float, c: float) -> bool:
 # Individual pattern detectors — return bars_since_signal or None
 # ---------------------------------------------------------------------------
 
+
 def _bullish_engulfing(df: pd.DataFrame, i: int) -> bool:
     """Current bar fully engulfs prior bearish bar."""
     if i < 1:
@@ -60,11 +61,7 @@ def _bullish_engulfing(df: pd.DataFrame, i: int) -> bool:
     prev_c = float(df["close"].iloc[i - 1])
     curr_o = float(df["open"].iloc[i])
     curr_c = float(df["close"].iloc[i])
-    return (
-        _is_bearish(prev_o, prev_c)
-        and curr_o <= prev_c
-        and curr_c > prev_o
-    )
+    return _is_bearish(prev_o, prev_c) and curr_o <= prev_c and curr_c > prev_o
 
 
 def _hammer(df: pd.DataFrame, i: int) -> bool:
@@ -79,11 +76,7 @@ def _hammer(df: pd.DataFrame, i: int) -> bool:
     body = _body_size(o, c)
     upper = _upper_shadow(o, h, c)
     lower = _lower_shadow(o, l, c)
-    return (
-        body <= 0.30 * rng
-        and lower >= 2.0 * body
-        and upper <= 0.5 * body
-    )
+    return body <= 0.30 * rng and lower >= 2.0 * body and upper <= 0.5 * body
 
 
 def _shooting_star(df: pd.DataFrame, i: int) -> bool:
@@ -98,11 +91,7 @@ def _shooting_star(df: pd.DataFrame, i: int) -> bool:
     body = _body_size(o, c)
     upper = _upper_shadow(o, h, c)
     lower = _lower_shadow(o, l, c)
-    return (
-        body <= 0.30 * rng
-        and upper >= 2.0 * body
-        and lower <= 0.5 * body
-    )
+    return body <= 0.30 * rng and upper >= 2.0 * body and lower <= 0.5 * body
 
 
 def _morning_star(df: pd.DataFrame, i: int) -> bool:
@@ -171,6 +160,7 @@ def _evening_star(df: pd.DataFrame, i: int) -> bool:
 # Context helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_context(df: pd.DataFrame) -> tuple[bool | None, float | None]:
     """
     Returns (supertrend_is_bullish, ema_50_value) for the last bar.
@@ -205,6 +195,7 @@ def _get_context(df: pd.DataFrame) -> tuple[bool | None, float | None]:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def compute_candlestick_signals(df: pd.DataFrame) -> dict[str, float]:
     """

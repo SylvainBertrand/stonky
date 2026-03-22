@@ -32,6 +32,7 @@ class ScannerProfile(Protocol):
 # MomentumBreakout
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MomentumBreakout:
     name: str = "MomentumBreakout"
@@ -40,12 +41,14 @@ class MomentumBreakout:
         "Requires strong trend + positive momentum + volume confirmation."
     )
     score_threshold: float = 0.2
-    required_conditions: list[str] = field(default_factory=lambda: [
-        "trend_bullish",
-        "momentum_positive",
-        "volume_positive",
-        "adx_trending",
-    ])
+    required_conditions: list[str] = field(
+        default_factory=lambda: [
+            "trend_bullish",
+            "momentum_positive",
+            "volume_positive",
+            "adx_trending",
+        ]
+    )
 
     def check(
         self,
@@ -69,6 +72,7 @@ class MomentumBreakout:
 # MeanReversion
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MeanReversion:
     name: str = "MeanReversion"
@@ -77,11 +81,13 @@ class MeanReversion:
         "Requires oversold oscillators + S/R support + bullish divergence."
     )
     score_threshold: float = 0.1
-    required_conditions: list[str] = field(default_factory=lambda: [
-        "oversold_or_divergence",
-        "stochastic_oversold",
-        "near_support",
-    ])
+    required_conditions: list[str] = field(
+        default_factory=lambda: [
+            "oversold_or_divergence",
+            "stochastic_oversold",
+            "near_support",
+        ]
+    )
 
     def check(
         self,
@@ -112,6 +118,7 @@ class MeanReversion:
 # TrendFollowing
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class TrendFollowing:
     name: str = "TrendFollowing"
@@ -120,13 +127,15 @@ class TrendFollowing:
         "Requires bullish EMA stack + ADX strength + Supertrend confirmation."
     )
     score_threshold: float = 0.25
-    required_conditions: list[str] = field(default_factory=lambda: [
-        "ema_stack_bullish",
-        "adx_trending",
-        "supertrend_bullish",
-        "rsi_in_range",
-        "obv_rising",
-    ])
+    required_conditions: list[str] = field(
+        default_factory=lambda: [
+            "ema_stack_bullish",
+            "adx_trending",
+            "supertrend_bullish",
+            "rsi_in_range",
+            "obv_rising",
+        ]
+    )
 
     def check(
         self,
@@ -151,6 +160,7 @@ class TrendFollowing:
 # HarmonicSetup — wired to real pyharmonics detection
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class HarmonicSetup:
     name: str = "HarmonicSetup"
@@ -159,11 +169,13 @@ class HarmonicSetup:
         "Requires a detected pattern (ratio_quality >= 0.75) plus RSI or MACD divergence."
     )
     score_threshold: float = 0.2
-    required_conditions: list[str] = field(default_factory=lambda: [
-        "harmonic_pattern_detected",
-        "harmonic_quality",
-        "rsi_or_macd_divergence",
-    ])
+    required_conditions: list[str] = field(
+        default_factory=lambda: [
+            "harmonic_pattern_detected",
+            "harmonic_quality",
+            "rsi_or_macd_divergence",
+        ]
+    )
 
     def check(
         self,
