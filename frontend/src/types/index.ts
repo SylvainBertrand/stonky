@@ -109,11 +109,12 @@ export interface ScannerResult {
   category_scores: CategoryScores
   profile_matches: string[]
   signals: Record<string, number>
-  meta: AnalysisMeta
+  meta: AnalysisMeta | null
   harmonics?: HarmonicInfo
   chart_patterns?: ChartPatternDetection[]
   is_actionable: boolean
   volume_contradiction: boolean
+  needs_scan?: boolean
 }
 
 export interface ProfileInfo {
@@ -203,4 +204,103 @@ export interface SAImportResult {
   skipped: number
   ratings_imported: number
   errors: number
+}
+
+// ─── Backtest types ───────────────────────────────────────────────────────
+
+export interface BacktestStats {
+  total_return_pct: number
+  cagr_pct: number
+  sharpe_ratio: number
+  sortino_ratio: number
+  max_drawdown_pct: number
+  max_drawdown_duration_days: number
+  win_rate_pct: number
+  profit_factor: number
+  total_trades: number
+  avg_trade_pct: number
+  avg_win_pct: number
+  avg_loss_pct: number
+}
+
+export interface BacktestTrade {
+  entry_date: string
+  exit_date: string
+  entry_price: number
+  exit_price: number
+  pnl_pct: number
+  pnl_abs: number
+  direction: string
+}
+
+export interface EquityCurvePoint {
+  date: string
+  value: number
+}
+
+export interface DrawdownPoint {
+  date: string
+  pct: number
+}
+
+export interface BacktestResponse {
+  id: number | null
+  stats: BacktestStats
+  equity_curve: EquityCurvePoint[]
+  drawdown_curve: DrawdownPoint[]
+  trades: BacktestTrade[]
+  benchmark_return_pct: number
+  benchmark_sharpe: number
+}
+
+export interface SweepResponse {
+  results: BacktestResponse[]
+  best_index: number
+  heatmap_data: Record<string, number>
+}
+
+export interface BacktestHistoryItem {
+  id: number
+  created_at: string
+  symbol: string
+  timeframe: string
+  strategy: string
+  total_return_pct: number
+  sharpe_ratio: number
+  total_trades: number
+}
+
+export type StrategyType =
+  | 'ema_crossover'
+  | 'rsi_threshold'
+  | 'macd_cross'
+  | 'supertrend'
+  | 'momentum_breakout'
+  | 'trend_following'
+  | 'mean_reversion'
+  | 'harmonic_setup'
+  | 'yolo_pattern'
+  | 'custom'
+
+// ─── Market module types ──────────────────────────────────────────────────
+
+export interface MarketRegimeData {
+  as_of_date: string | null
+  regime: string
+  breadth: string
+  momentum: string
+  sentiment: string
+  macro: string
+  summary: string
+  scanner_implication: string
+}
+
+export interface TimeSeriesItem {
+  name: string
+  data: (number | null)[]
+}
+
+export interface TimeSeriesData {
+  labels: string[]
+  series: TimeSeriesItem[]
 }
