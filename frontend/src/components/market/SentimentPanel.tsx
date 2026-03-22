@@ -24,31 +24,35 @@ export function SentimentPanel() {
       height: 300,
     })
 
-    const aaiiBullSeries = sentimentData.series.find((s) => s.name.includes('AAII') && s.name.includes('Bull'))
-    const aaiiBearSeries = sentimentData.series.find((s) => s.name.includes('AAII') && s.name.includes('Bear'))
+    const aaiiBullData = sentimentData.series.find((s) => s.name.includes('AAII') && s.name.includes('Bull'))
+    const aaiiBearData = sentimentData.series.find((s) => s.name.includes('AAII') && s.name.includes('Bear'))
+    const naaimData = sentimentData.series.find((s) => s.name.includes('NAAIM'))
 
-    if (aaiiBullSeries) {
-      const bullSeries = chart.addLineSeries({
-        color: '#4ade80',
-        lineWidth: 2,
-      })
-      const chartData = sentimentData.labels.map((label, idx) => ({
-        time: label,
-        value: aaiiBullSeries.data[idx] ?? 0,
-      }))
-      bullSeries.setData(chartData)
+    if (aaiiBullData) {
+      const bullSeries = chart.addLineSeries({ color: '#4ade80', lineWidth: 2 })
+      bullSeries.setData(
+        sentimentData.labels
+          .map((label, idx) => ({ time: label, value: aaiiBullData.data[idx] }))
+          .filter((d): d is { time: string; value: number } => d.value != null)
+      )
     }
 
-    if (aaiiBearSeries) {
-      const bearSeries = chart.addLineSeries({
-        color: '#ef4444',
-        lineWidth: 2,
-      })
-      const chartData = sentimentData.labels.map((label, idx) => ({
-        time: label,
-        value: aaiiBearSeries.data[idx] ?? 0,
-      }))
-      bearSeries.setData(chartData)
+    if (aaiiBearData) {
+      const bearSeries = chart.addLineSeries({ color: '#ef4444', lineWidth: 2 })
+      bearSeries.setData(
+        sentimentData.labels
+          .map((label, idx) => ({ time: label, value: aaiiBearData.data[idx] }))
+          .filter((d): d is { time: string; value: number } => d.value != null)
+      )
+    }
+
+    if (naaimData) {
+      const naaimSeries = chart.addLineSeries({ color: '#60a5fa', lineWidth: 2 })
+      naaimSeries.setData(
+        sentimentData.labels
+          .map((label, idx) => ({ time: label, value: naaimData.data[idx] }))
+          .filter((d): d is { time: string; value: number } => d.value != null)
+      )
     }
 
     chart.timeScale().fitContent()
@@ -73,19 +77,25 @@ export function SentimentPanel() {
     )
   }
 
-  if (!sentimentData || sentimentData.series.length === 0) {
+  if (!sentimentData || sentimentData.labels.length === 0) {
     return (
       <div className="text-center py-8 text-gray-400">
-        No sentiment data available
+        No sentiment data available. Import AAII/NAAIM CSV via the API, or wait for scraper to succeed.
       </div>
     )
   }
 
   const aaiiBullSeries = sentimentData.series.find((s) => s.name.includes('AAII') && s.name.includes('Bull'))
   const aaiiBearSeries = sentimentData.series.find((s) => s.name.includes('AAII') && s.name.includes('Bear'))
+  const naaimSeries = sentimentData.series.find((s) => s.name.includes('NAAIM'))
 
-  const bullLatest = aaiiBullSeries?.data[aaiiBullSeries.data.length - 1]
-  const bearLatest = aaiiBearSeries?.data[aaiiBearSeries.data.length - 1]
+  const bullFiltered = aaiiBullSeries?.data.filter((v): v is number => v != null) ?? []
+  const bearFiltered = aaiiBearSeries?.data.filter((v): v is number => v != null) ?? []
+  const naaimFiltered = naaimSeries?.data.filter((v): v is number => v != null) ?? []
+
+  const bullLatest = bullFiltered.length > 0 ? bullFiltered[bullFiltered.length - 1] : undefined
+  const bearLatest = bearFiltered.length > 0 ? bearFiltered[bearFiltered.length - 1] : undefined
+  const naaimLatest = naaimFiltered.length > 0 ? naaimFiltered[naaimFiltered.length - 1] : undefined
 
   return (
     <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
@@ -103,6 +113,12 @@ export function SentimentPanel() {
           <div>
             <p className="text-xs text-gray-500 mb-1">AAII Bear</p>
             <p className="text-2xl font-bold text-red-400">{bearLatest.toFixed(1)}%</p>
+          </div>
+        )}
+        {naaimLatest !== null && naaimLatest !== undefined && (
+          <div>
+            <p className="text-xs text-gray-500 mb-1">NAAIM Exposure</p>
+            <p className="text-2xl font-bold text-blue-400">{naaimLatest.toFixed(1)}%</p>
           </div>
         )}
       </div>

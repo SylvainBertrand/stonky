@@ -78,19 +78,27 @@ async def get_regime(session: SessionDep) -> MarketRegimeResponse:
 
 @router.get("/breadth", response_model=TimeSeriesResponse)
 async def get_breadth(session: SessionDep) -> TimeSeriesResponse:
-    """Return SPX and RSP close time series for breadth analysis."""
+    """Return SPX/RSP ratio time series for breadth analysis."""
     spx = await _get_ohlcv_close(session, "^GSPC")
     rsp = await _get_ohlcv_close(session, "RSP")
 
-    # Align dates from SPX
-    labels = [d["date"] for d in spx]
+    if not spx or not rsp:
+        return TimeSeriesResponse(labels=[], series=[])
+
+    # Align by date and compute ratio
+    spx_map = {d["date"]: d["close"] for d in spx}
     rsp_map = {d["date"]: d["close"] for d in rsp}
+    common_dates = sorted(set(spx_map) & set(rsp_map))
+
+    ratio = [
+        round(spx_map[d] / rsp_map[d], 4) if rsp_map[d] else None
+        for d in common_dates
+    ]
 
     return TimeSeriesResponse(
-        labels=labels,
+        labels=common_dates,
         series=[
-            TimeSeriesItem(name="SPX", data=[d["close"] for d in spx]),
-            TimeSeriesItem(name="RSP", data=[rsp_map.get(lbl) for lbl in labels]),
+            TimeSeriesItem(name="spx_rsp_ratio", data=ratio),
         ],
     )
 
@@ -160,7 +168,7 @@ async def get_macro(session: SessionDep) -> TimeSeriesResponse:
 
 @router.get("/sentiment", response_model=TimeSeriesResponse)
 async def get_sentiment(session: SessionDep) -> TimeSeriesResponse:
-    """Return AAII spread + NAAIM exposure time series."""
+    """Return AAII bull/bear/spread + NAAIM exposure time series."""
     aaii_result = await session.execute(
         select(SentimentData)
         .where(SentimentData.source == "aaii")
@@ -179,14 +187,45 @@ async def get_sentiment(session: SessionDep) -> TimeSeriesResponse:
     naaim_rows = list(naaim_result.scalars().all())
     naaim_rows.reverse()
 
-    labels = [r.week_ending.isoformat() for r in aaii_rows]
+    # Combine all dates
+    all_dates = sorted(
+        {r.week_ending.isoformat() for r in aaii_rows}
+        | {r.week_ending.isoformat() for r in naaim_rows}
+    )
+    if not all_dates:
+        return TimeSeriesResponse(labels=[], series=[])
+
+    # Build maps
+    aaii_map: dict[str, dict] = {}
+    for r in aaii_rows:
+        d = r.week_ending.isoformat()
+        extra = r.extra or {}
+        aaii_map[d] = {
+            "spread": float(r.value),
+            "bullish": extra.get("bullish_pct"),
+            "bearish": extra.get("bearish_pct"),
+        }
     naaim_map = {r.week_ending.isoformat(): float(r.value) for r in naaim_rows}
 
     return TimeSeriesResponse(
-        labels=labels,
+        labels=all_dates,
         series=[
-            TimeSeriesItem(name="AAII Spread", data=[float(r.value) for r in aaii_rows]),
-            TimeSeriesItem(name="NAAIM Exposure", data=[naaim_map.get(lbl) for lbl in labels]),
+            TimeSeriesItem(
+                name="AAII Bull",
+                data=[aaii_map.get(d, {}).get("bullish") for d in all_dates],
+            ),
+            TimeSeriesItem(
+                name="AAII Bear",
+                data=[aaii_map.get(d, {}).get("bearish") for d in all_dates],
+            ),
+            TimeSeriesItem(
+                name="AAII Spread",
+                data=[aaii_map.get(d, {}).get("spread") for d in all_dates],
+            ),
+            TimeSeriesItem(
+                name="NAAIM Exposure",
+                data=[naaim_map.get(d) for d in all_dates],
+            ),
         ],
     )
 
