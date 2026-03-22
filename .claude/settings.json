@@ -1,4 +1,21 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep -l \"forecast\\\\|predict\\\\|confidence\")",
+      "Read(//c/Users/sylva/.claude/plugins/cache/claude-plugins-official/superpowers/4.3.1/skills/subagent-driven-development/**)",
+      "Read(//c/Users/sylva/.claude/plugins/cache/claude-plugins-official/superperns/4.3.1/skills/subagent-driven-development/**)",
+      "Bash(npm install)",
+      "Bash(python -m pytest tests/unit/test_forecaster.py -v)",
+      "Bash(curl -s -X POST http://localhost:8000/api/backtests/run -H \"Content-Type: application/json\" -d '{\"\"\"\"symbol\"\"\"\":\"\"\"\"MSFT\"\"\"\",\"\"\"\"timeframe\"\"\"\":\"\"\"\"1d\"\"\"\",\"\"\"\"start_date\"\"\"\":\"\"\"\"2025-01-01\"\"\"\",\"\"\"\"end_date\"\"\"\":\"\"\"\"2026-01-01\"\"\"\",\"\"\"\"strategy_type\"\"\"\":\"\"\"\"ema_crossover\"\"\"\",\"\"\"\"parameters\"\"\"\":{\"\"\"\"fast\"\"\"\":12,\"\"\"\"slow\"\"\"\":26},\"\"\"\"initial_capital\"\"\"\":10000}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/backtests/run -H \"Content-Type: application/json\" -d '{\"\"\"\"symbol\"\"\"\":\"\"\"\"MSFT\"\"\"\",\"\"\"\"timeframe\"\"\"\":\"\"\"\"1d\"\"\"\",\"\"\"\"start_date\"\"\"\":\"\"\"\"2025-01-01\"\"\"\",\"\"\"\"end_date\"\"\"\":\"\"\"\"2025-06-01\"\"\"\",\"\"\"\"strategy_type\"\"\"\":\"\"\"\"ema_crossover\"\"\"\",\"\"\"\"parameters\"\"\"\":{\"\"\"\"fast\"\"\"\":21,\"\"\"\"slow\"\"\"\":50},\"\"\"\"initial_capital\"\"\"\":10000}')",
+      "Bash(grep -r VITE_API_URL c:/Users/sylva/my-software-projects/stonky/frontend/ --include=*.env* --include=*.ts --include=*.tsx)",
+      "Read(//c/Users/sylva/.claude/plugins/cache/claude-plugins-official/superpowers/5.0.4/skills/subagent-driven-development/**)",
+      "Bash(uv add:*)",
+      "Read(//c/Users/sylva/AppData/Local/Temp/claude/c--Users-sylva-my-software-projects-stonky/7ad5549e-b2fe-44e2-ba43-a740e21bab0f/tasks/**)",
+      "Bash(tsc -b)",
+      "Bash(npx tsc:*)"
+    ]
+  },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true
