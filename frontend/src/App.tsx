@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { ScannerPage } from './pages/ScannerPage'
 import { StockDetailPage } from './pages/StockDetailPage'
 import { WatchlistPage } from './pages/WatchlistPage'
+import { BacktestPage } from './pages/BacktestPage'
+import { MarketPage } from './pages/MarketPage'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,6 +23,8 @@ export default function App() {
           <Route path="/" element={<ScannerPage />} />
           <Route path="/watchlists" element={<WatchlistPage />} />
           <Route path="/stock/:symbol" element={<StockDetailPage />} />
+          <Route path="/backtest" element={<BacktestPage />} />
+          <Route path="/market" element={<MarketPage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
