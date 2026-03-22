@@ -79,6 +79,7 @@ export function StockDetailPage() {
     )
   }
 
+  if (!detail.meta) return null
   const chgPct = detail.meta.price_change_pct
   const chgColor = chgPct > 0 ? 'text-green-400' : chgPct < 0 ? 'text-red-400' : 'text-gray-400'
 

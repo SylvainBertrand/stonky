@@ -55,7 +55,7 @@ describe('ResultsTable', () => {
 
   it('shows last_price in the row', () => {
     const results = [
-      makeScannerResult({ symbol: 'AAPL', meta: { ...makeScannerResult().meta, last_price: 185.5 } }),
+      makeScannerResult({ symbol: 'AAPL', meta: { ...makeScannerResult().meta!, last_price: 185.5 } }),
     ]
     renderTable(results)
     expect(screen.getByText(/185/)).toBeInTheDocument()

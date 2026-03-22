@@ -74,36 +74,42 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
         <tbody>
           {results.map((r) => {
             const isExpanded = expanded.has(r.symbol)
-            const chgPct = r.meta.price_change_pct
+            const meta = r.meta
+            const chgPct = meta?.price_change_pct ?? 0
             const chgColor = chgPct > 0 ? 'text-green-400' : chgPct < 0 ? 'text-red-400' : 'text-gray-400'
 
             return (
               <>
                 <tr
                   key={r.symbol}
-                  className="border-t border-gray-700/40 hover:bg-gray-800/40 cursor-pointer transition-colors"
+                  className={`border-t border-gray-700/40 hover:bg-gray-800/40 cursor-pointer transition-colors ${r.needs_scan ? 'opacity-50' : ''}`}
                   onClick={() => navigate(`/stock/${r.symbol}`)}
                 >
-                  <td className="px-3 py-2.5 text-right text-gray-500 font-mono text-xs">{r.rank}</td>
+                  <td className="px-3 py-2.5 text-right text-gray-500 font-mono text-xs">
+                    {r.needs_scan ? '—' : r.rank}
+                  </td>
                   <td className="px-3 py-2.5">
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold text-white font-mono">{r.symbol}</span>
-                      {r.is_actionable && (
+                      {r.needs_scan && (
+                        <span className="text-xs text-yellow-500 border border-yellow-700 rounded px-1 py-0.5" title="Not yet scanned — run a scan to get analysis">needs scan</span>
+                      )}
+                      {!r.needs_scan && r.is_actionable && (
                         <span className="text-xs text-blue-400" title="Actionable: ≥3 categories agree">●</span>
                       )}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                    <ScoreDisplay score={r.composite_score} showBar />
+                    {r.needs_scan ? <span className="text-gray-600 text-xs">—</span> : <ScoreDisplay score={r.composite_score} showBar />}
                   </td>
                   <td className="px-3 py-2.5 text-right font-mono text-gray-200">
-                    ${r.meta.last_price.toFixed(2)}
+                    {meta ? `$${meta.last_price.toFixed(2)}` : '—'}
                   </td>
                   <td className={`px-3 py-2.5 text-right font-mono ${chgColor}`}>
-                    {chgPct >= 0 ? '+' : ''}{chgPct.toFixed(2)}%
+                    {meta ? `${chgPct >= 0 ? '+' : ''}${chgPct.toFixed(2)}%` : '—'}
                   </td>
                   <td className="px-3 py-2.5 text-right font-mono text-gray-400">
-                    {r.meta.atr_pct.toFixed(2)}%
+                    {meta ? `${meta.atr_pct.toFixed(2)}%` : '—'}
                   </td>
                   <td className="px-3 py-2.5">
                     <div className="flex flex-wrap gap-1">
