@@ -30,5 +30,8 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     anthropic_api_key: str | None = None
 
+    # Broad Market / FRED
+    fred_api_key: str | None = None
+
 
 settings = Settings()
