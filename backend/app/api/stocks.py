@@ -3,6 +3,8 @@ Stocks API — per-symbol OHLCV data with chart overlays.
 
 Endpoints:
   GET /api/stocks/{symbol}/ohlcv  → candlestick bars + EMA/Supertrend overlays
+                                    (1min/5min/15min/30min via yfinance,
+                                     1h/4h/1d/1w/1mo from the DB hypertable)
   GET /api/stocks/{symbol}/price  → real-time last price + day change
 """
 
@@ -30,6 +32,11 @@ from app.models.ohlcv import OHLCV
 from app.models.symbols import Symbol
 from app.schemas.stocks import StockPriceResponse
 from app.services import price_service
+from app.services.intraday_fetcher import (
+    IntradayUnavailableError,
+    fetch_intraday_ohlcv,
+    is_intraday_timeframe,
+)
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +45,10 @@ router = APIRouter(prefix="/stocks", tags=["stocks"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 _TIMEFRAME_MAP: dict[str, TimeframeEnum] = {
+    "1min": TimeframeEnum.M1,
+    "5min": TimeframeEnum.M5,
+    "15min": TimeframeEnum.M15,
+    "30min": TimeframeEnum.M30,
     "1h": TimeframeEnum.H1,
     "4h": TimeframeEnum.H4,
     "1d": TimeframeEnum.D1,
@@ -63,7 +74,14 @@ def _rows_to_df(rows: list[Any]) -> pd.DataFrame:
 
 
 def _is_intraday(tf: TimeframeEnum) -> bool:
-    return tf in (TimeframeEnum.H1, TimeframeEnum.H4)
+    return tf in (
+        TimeframeEnum.M1,
+        TimeframeEnum.M5,
+        TimeframeEnum.M15,
+        TimeframeEnum.M30,
+        TimeframeEnum.H1,
+        TimeframeEnum.H4,
+    )
 
 
 def _format_time(t: Any, intraday: bool) -> int | str:
@@ -78,11 +96,24 @@ async def get_ohlcv(
     symbol: str,
     session: SessionDep,
     timeframe: Annotated[
-        str, Query(description="Timeframe: 1h, 4h, 1d, 1w, or 1mo")
+        str,
+        Query(
+            description=(
+                "Timeframe: 1min, 5min, 15min, 30min (yfinance on-demand), "
+                "1h, 4h, 1d, 1w, or 1mo (DB-backed)"
+            )
+        ),
     ] = "1d",
     bars: Annotated[int, Query(ge=20, le=500)] = 200,
     before: Annotated[
-        str | None, Query(description="ISO date — return bars before this date")
+        str | None,
+        Query(
+            description=(
+                "ISO date — return bars before this date. "
+                "Ignored for intraday timeframes (yfinance returns the most "
+                "recent rolling window only)."
+            )
+        ),
     ] = None,
 ) -> dict[str, Any]:
     """
@@ -102,8 +133,31 @@ async def get_ohlcv(
     tf = _TIMEFRAME_MAP.get(timeframe, TimeframeEnum.D1)
     has_more = False
 
+    # ── Intraday (1/5/15/30 min) — fetch from yfinance on demand ────────
+    # Sub-daily bars are not persisted to the OHLCV hypertable yet (a
+    # scheduled intraday fetcher is a follow-on task), so STONKY-003
+    # serves these timeframes via direct yfinance lookup. The `before`
+    # cursor is ignored: yfinance returns the most recent rolling window
+    # only, and there is no historical depth to page back through.
+    if is_intraday_timeframe(timeframe):
+        try:
+            df = await fetch_intraday_ohlcv(symbol, timeframe, bars)
+        except IntradayUnavailableError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            ) from exc
+        if df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No intraday OHLCV data for {symbol} at {timeframe}",
+            )
+        log.info(
+            "%s: fetched %d %s bars from yfinance", symbol, len(df), timeframe
+        )
+
     # ── Timeframes that need aggregation from a base timeframe ──────────
-    if tf == TimeframeEnum.MO1:
+    elif tf == TimeframeEnum.MO1:
         # Aggregate daily → monthly
         daily_query = select(OHLCV).where(
             OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.D1
