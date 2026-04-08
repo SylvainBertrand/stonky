@@ -2,14 +2,16 @@
 Stocks API — per-symbol OHLCV data with chart overlays.
 
 Endpoints:
-  GET /api/stocks/{symbol}/ohlcv  → candlestick bars + EMA/Supertrend overlays
-                                    (1min/5min/15min/30min via yfinance,
-                                     1h/4h/1d/1w/1mo from the DB hypertable)
-  GET /api/stocks/{symbol}/price  → real-time last price + day change
+  GET /api/stocks/{symbol}/ohlcv       → candlestick bars + EMA/Supertrend overlays
+                                         (1min/5min/15min/30min via yfinance,
+                                          1h/4h/1d/1w/1mo from the DB hypertable)
+  GET /api/stocks/{symbol}/price       → real-time last price + day change
+  GET /api/stocks/{symbol}/indicators  → latest-bar raw indicator values
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Annotated, Any
@@ -30,8 +32,13 @@ from app.db.session import get_session
 from app.models.enums import TimeframeEnum
 from app.models.ohlcv import OHLCV
 from app.models.symbols import Symbol
+from app.schemas.indicators import IndicatorValuesResponse
 from app.schemas.stocks import StockPriceResponse
 from app.services import price_service
+from app.services.indicators_service import (
+    MIN_BARS_FOR_EMA200,
+    compute_latest_indicators,
+)
 from app.services.intraday_fetcher import (
     IntradayUnavailableError,
     fetch_intraday_ohlcv,
@@ -394,4 +401,73 @@ async def get_current_price(symbol: str) -> StockPriceResponse:
         change_abs=quote.change_abs,
         change_pct=quote.change_pct,
         timestamp=quote.timestamp,
+    )
+
+
+@router.get("/{symbol}/indicators", response_model=IndicatorValuesResponse)
+async def get_indicators(
+    symbol: str,
+    session: SessionDep,
+    timeframe: Annotated[
+        str, Query(description="Timeframe: 1h, 4h, 1d, 1w, or 1mo")
+    ] = "1d",
+) -> IndicatorValuesResponse:
+    """
+    Return the latest-bar raw indicator values for a symbol/timeframe.
+
+    Re-uses the existing computation pipeline in `app.analysis.indicators.*`
+    and pulls the most recent value from each output column. Computation
+    runs in a thread pool so the FastAPI event loop is never blocked.
+
+    Returns 422 for unsupported timeframes and 404 if the symbol does not
+    exist or has no OHLCV data at the requested timeframe.
+    """
+    if timeframe not in _TIMEFRAME_MAP:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Unsupported timeframe '{timeframe}'. "
+                f"Use one of: {sorted(_TIMEFRAME_MAP)}"
+            ),
+        )
+
+    sym_result = await session.execute(
+        select(Symbol).where(Symbol.ticker == symbol.upper())
+    )
+    sym = sym_result.scalar_one_or_none()
+    if sym is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Symbol {symbol} not found",
+        )
+
+    tf = _TIMEFRAME_MAP[timeframe]
+    # Fetch enough bars to populate EMA-200 (oldest indicator window).
+    fetch_limit = max(MIN_BARS_FOR_EMA200 + 50, 250)
+    result = await session.execute(
+        select(OHLCV)
+        .where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf)
+        .order_by(desc(OHLCV.time))
+        .limit(fetch_limit)
+    )
+    rows = list(reversed(result.scalars().all()))
+    if not rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No OHLCV data for {symbol} at {timeframe}",
+        )
+
+    df = _rows_to_df(rows)
+
+    # Run the (sync, CPU-bound) indicator pipeline off the event loop.
+    loop = asyncio.get_running_loop()
+    indicators = await loop.run_in_executor(None, compute_latest_indicators, df)
+
+    latest_time = pd.Timestamp(rows[-1].time).isoformat()
+
+    return IndicatorValuesResponse(
+        symbol=symbol.upper(),
+        timeframe=timeframe,
+        timestamp=latest_time,
+        indicators=indicators,
     )
