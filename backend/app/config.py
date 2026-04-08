@@ -38,5 +38,8 @@ class Settings(BaseSettings):
     # Broad Market / FRED
     fred_api_key: str | None = None
 
+    # Real-time price service
+    price_cache_ttl_seconds: int = 60
+
 
 settings = Settings()
