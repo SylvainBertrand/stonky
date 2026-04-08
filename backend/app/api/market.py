@@ -11,6 +11,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_session
+from app.market.calendar_service import get_market_status
 from app.market.ingestion import run_market_data_refresh
 from app.market.sentiment import parse_aaii_csv, parse_naaim_csv
 from app.models import MacroSeries, MarketRegimeModel, SentimentData, Symbol
@@ -18,6 +19,7 @@ from app.models.enums import TimeframeEnum
 from app.models.ohlcv import OHLCV
 from app.schemas.market import (
     MarketRegimeResponse,
+    MarketStatusResponse,
     RefreshStatusResponse,
     SentimentImportResponse,
     TimeSeriesItem,
@@ -284,3 +286,27 @@ async def trigger_refresh() -> RefreshStatusResponse:
     """Trigger a full market data refresh as a background task."""
     asyncio.create_task(run_market_data_refresh())
     return RefreshStatusResponse(status="started")
+
+
+@router.get("/status", response_model=MarketStatusResponse)
+async def get_status() -> MarketStatusResponse:
+    """
+    Return the current NYSE market session status.
+
+    Pure computation — no DB, no external API calls. Backed by
+    `pandas_market_calendars` for accurate NYSE holiday handling.
+
+    Sessions (NYSE local time, ET):
+        pre-market   04:00 – 09:29
+        regular      09:30 – 15:59
+        after-hours  16:00 – 19:59
+        closed       20:00 – 03:59 + weekends + NYSE holidays
+    """
+    snapshot = get_market_status()
+    return MarketStatusResponse(
+        is_open=snapshot.is_open,
+        session=snapshot.session,
+        next_open=snapshot.next_open.isoformat(),
+        next_close=snapshot.next_close.isoformat(),
+        timezone=snapshot.timezone,
+    )

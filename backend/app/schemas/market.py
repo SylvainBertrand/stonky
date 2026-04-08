@@ -34,3 +34,13 @@ class SentimentImportResponse(BaseModel):
 class RefreshStatusResponse(BaseModel):
     status: str
     last_refreshed: str | None = None
+
+
+class MarketStatusResponse(BaseModel):
+    """Current NYSE market session status."""
+
+    is_open: bool
+    session: str  # "pre-market" | "regular" | "after-hours" | "closed"
+    next_open: str  # ISO 8601 datetime, UTC
+    next_close: str  # ISO 8601 datetime, UTC
+    timezone: str  # IANA tz name, e.g. "America/New_York"
