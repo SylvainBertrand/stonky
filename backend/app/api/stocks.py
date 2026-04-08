@@ -3,6 +3,7 @@ Stocks API — per-symbol OHLCV data with chart overlays.
 
 Endpoints:
   GET /api/stocks/{symbol}/ohlcv  → candlestick bars + EMA/Supertrend overlays
+  GET /api/stocks/{symbol}/price  → real-time last price + day change
 """
 
 from __future__ import annotations
@@ -27,6 +28,8 @@ from app.db.session import get_session
 from app.models.enums import TimeframeEnum
 from app.models.ohlcv import OHLCV
 from app.models.symbols import Symbol
+from app.schemas.stocks import StockPriceResponse
+from app.services import price_service
 
 log = logging.getLogger(__name__)
 
@@ -313,3 +316,28 @@ async def get_ohlcv(
             "supertrend": supertrend_out,
         },
     }
+
+
+@router.get("/{symbol}/price", response_model=StockPriceResponse)
+async def get_current_price(symbol: str) -> StockPriceResponse:
+    """
+    Return the real-time last price and day-change for a symbol.
+
+    Backed by `yfinance.Ticker.fast_info` with a process-local TTL cache
+    (configurable via `settings.price_cache_ttl_seconds`, default 60s).
+    Returns 404 if yfinance has no quote data for the symbol.
+    """
+    try:
+        quote = await price_service.get_current_price(symbol)
+    except price_service.TickerNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
+
+    return StockPriceResponse(
+        symbol=quote.symbol,
+        price=quote.price,
+        change_abs=quote.change_abs,
+        change_pct=quote.change_pct,
+        timestamp=quote.timestamp,
+    )
