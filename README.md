@@ -186,3 +186,4 @@ The synthesis scan runs nightly at 9 AM ET (after YOLO, EW, and Chronos jobs). I
 See [CLAUDE.md](./CLAUDE.md) for full architecture decisions, tech stack, and coding conventions.
 
 <!-- n8n-swe-workflow-test: dummy change applied by SWE Agent 2026-04-08 -->
+<!-- n8n-swe-workflow-test: re-run by SWE Agent 2026-04-09 -->
