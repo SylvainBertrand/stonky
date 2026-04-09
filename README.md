@@ -187,3 +187,4 @@ See [CLAUDE.md](./CLAUDE.md) for full architecture decisions, tech stack, and co
 
 <!-- n8n-swe-workflow-test: dummy change applied by SWE Agent 2026-04-08 -->
 <!-- n8n-swe-workflow-test: re-run by SWE Agent 2026-04-09 -->
+<!-- n8n-swe-workflow-test: re-run by SWE Agent 2026-04-09T23:28Z (run 3) -->
