@@ -51,3 +51,11 @@ secrets/
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
+
+# Claude Code
+.claude/settings.local.json
+
+# Temp directories
+Python/
+backend/Python/
