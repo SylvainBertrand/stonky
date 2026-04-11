@@ -283,20 +283,26 @@ if ($currentSddl -match [regex]::Escape($UserSid)) {
     $NewAce = "(A;;RPWPDTLORC;;;$UserSid)"
 
     # Insert ACE into the DACL section.
-    # Common formats:
-    #   D:...                       → pure DACL, no SACL
-    #   D:...(S:...)                → DACL followed by optional SACL
-    # Strategy: split on /(S:[^)]*(\([^)]*\))*)/ boundary and insert before SACL (or append).
-    if ($currentSddl -match '^(D:[^S]*)(S:.+)?$') {
-        $DaclPart  = $Matches[1]
-        $SaclPart  = if ($Matches[2]) { $Matches[2] } else { "" }
-        $newSddl   = "$DaclPart$NewAce$SaclPart"
-    } else {
-        # Unexpected format — log and abort rather than guessing.
+    # SDDL format: D:<dacl_aces>[S:<sacl_aces>]
+    # The SACL section (if present) starts with 'S:' at the top level, immediately after
+    # the closing ')' of the last DACL ACE.  We cannot use a [^S]* character class because
+    # DACL ACEs legitimately contain the letter 'S' (e.g. ';;;SY', ';;;SU').
+    # Instead, locate the ')S:' boundary directly.
+    if (-not $currentSddl.StartsWith('D:')) {
         Write-Fail "Cannot parse SDDL into DACL/SACL sections. Raw value: $currentSddl"
         Write-Fail "Expected format starting with 'D:'. Please review manually:"
         Write-Fail "  sc.exe sdshow $ServiceName"
         exit 1
+    }
+    $saclBoundary = $currentSddl.IndexOf(')S:')
+    if ($saclBoundary -ge 0) {
+        # DACL + SACL present: insert new ACE at the end of the DACL, before the SACL.
+        $DaclPart = $currentSddl.Substring(0, $saclBoundary + 1)   # up to and including ')'
+        $SaclPart = $currentSddl.Substring($saclBoundary + 1)       # 'S:...'
+        $newSddl  = "$DaclPart$NewAce$SaclPart"
+    } else {
+        # Pure DACL, no SACL — append the new ACE directly.
+        $newSddl = "$currentSddl$NewAce"
     }
 
     Write-Step "Applying new SDDL: $newSddl"
@@ -315,12 +321,21 @@ if ($currentSddl -match [regex]::Escape($UserSid)) {
 Write-Step "Starting service '$ServiceName'..."
 & $NssmExe start $ServiceName
 if ($LASTEXITCODE -ne 0) {
-    Write-Fail "NSSM reported an error starting the service (exit code $LASTEXITCODE)."
-    Write-Fail "Check event log: Get-EventLog -LogName Application -Source nssm -Newest 10"
-    Write-Fail "Check stderr log: $StderrLog"
-    exit 1
+    # NSSM returns exit code 1 for SERVICE_START_PENDING, which is normal —
+    # the service is initialising, not failed.  Verify actual status before aborting.
+    Start-Sleep -Seconds 3
+    $svcCheck = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+    $pendingOk = $svcCheck -and ($svcCheck.Status -eq 'Running' -or $svcCheck.Status -eq 'StartPending')
+    if (-not $pendingOk) {
+        Write-Fail "NSSM reported an error starting the service (exit code $LASTEXITCODE)."
+        Write-Fail "Check event log: Get-EventLog -LogName Application -Source nssm -Newest 10"
+        Write-Fail "Check stderr log: $StderrLog"
+        exit 1
+    }
+    Write-Ok "Start command issued (service is initialising)."
+} else {
+    Write-Ok "Start command issued."
 }
-Write-Ok "Start command issued."
 
 # ---------------------------------------------------------------------------
 # 10. Health check
