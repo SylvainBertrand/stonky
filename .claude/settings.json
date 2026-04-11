@@ -13,7 +13,11 @@
       "Bash(uv add:*)",
       "Read(//c/Users/sylva/AppData/Local/Temp/claude/c--Users-sylva-my-software-projects-stonky/7ad5549e-b2fe-44e2-ba43-a740e21bab0f/tasks/**)",
       "Bash(tsc -b)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(claude mcp:*)",
+      "Bash(grep -E \"\\\\.py$\")"
     ]
   },
   "enabledPlugins": {
