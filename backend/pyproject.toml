@@ -58,7 +58,13 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["N805"]
+ignore = [
+    "N805",
+    "E501",   # line too long — handled case-by-case
+    "E741",   # ambiguous variable `l` — intentional in OHLCV code (o/h/l/c convention)
+    "F821",   # undefined name — SQLAlchemy forward references, resolved at runtime
+    "UP042",  # StrEnum — style choice, keeping (str, enum.Enum)
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
