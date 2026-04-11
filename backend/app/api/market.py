@@ -92,10 +92,7 @@ async def get_breadth(session: SessionDep) -> TimeSeriesResponse:
     rsp_map = {d["date"]: d["close"] for d in rsp}
     common_dates = sorted(set(spx_map) & set(rsp_map))
 
-    ratio = [
-        round(spx_map[d] / rsp_map[d], 4) if rsp_map[d] else None
-        for d in common_dates
-    ]
+    ratio = [round(spx_map[d] / rsp_map[d], 4) if rsp_map[d] else None for d in common_dates]
 
     return TimeSeriesResponse(
         labels=common_dates,

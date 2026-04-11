@@ -1,5 +1,6 @@
 # backend/app/market/indicators.py
 """Broad market indicator computation — breadth, momentum, macro, sentiment."""
+
 from __future__ import annotations
 
 import logging
@@ -24,9 +25,7 @@ def _rsi(series: pd.Series, period: int = 14) -> float:
     return float(val) if np.isfinite(val) else 50.0
 
 
-def compute_breadth(
-    spx_close: pd.Series, rsp_close: pd.Series
-) -> dict[str, Any]:
+def compute_breadth(spx_close: pd.Series, rsp_close: pd.Series) -> dict[str, Any]:
     """Compute SPX/RSP breadth ratio and signal."""
     ratio = spx_close / rsp_close
     ratio_ma20 = ratio.rolling(20).mean()
@@ -147,9 +146,7 @@ def compute_macro(
     }
 
 
-def compute_sentiment(
-    aaii_readings: list[dict], naaim_readings: list[dict]
-) -> dict[str, Any]:
+def compute_sentiment(aaii_readings: list[dict], naaim_readings: list[dict]) -> dict[str, Any]:
     """Compute AAII bull-bear spread stats and NAAIM exposure."""
     aaii_latest: float | None = None
     aaii_4wk_ma: float | None = None

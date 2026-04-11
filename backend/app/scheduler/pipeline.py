@@ -16,8 +16,6 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.models.enums import ScanRunStatus
-from app.models.scan_runs import ScanRun
 from app.models.symbols import Symbol
 from app.models.watchlists import Watchlist, WatchlistItem
 from app.scheduler.progress import (
@@ -117,9 +115,7 @@ async def _run_chronos_for_symbol(
             timeframe=result.timeframe,
             generated_at=datetime.now(UTC),
             horizon_bars=result.forecast_horizon,
-            last_bar_date=datetime.strptime(
-                result.last_bar_date[:10], "%Y-%m-%d"
-            ).date(),
+            last_bar_date=datetime.strptime(result.last_bar_date[:10], "%Y-%m-%d").date(),
             last_close=result.last_close,
             median=result.median,
             quantile_10=result.quantile_10,
@@ -161,7 +157,6 @@ async def _run_synthesis_for_symbol(
     from sqlalchemy import and_, delete
 
     from app.analysis.signal_aggregator import aggregate_signals
-    from app.analysis.synthesis_agent import SynthesisResult as SynthesisDataclass
     from app.analysis.synthesis_agent import synthesize
     from app.llm.provider import get_provider
     from app.models.synthesis_result import SynthesisResult
@@ -241,18 +236,14 @@ async def _run_symbol_pipeline(
 
                 # Step 2: Chronos forecast
                 try:
-                    await _run_chronos_for_symbol(
-                        symbol_id, ticker, db, chronos_semaphore
-                    )
+                    await _run_chronos_for_symbol(symbol_id, ticker, db, chronos_semaphore)
                 except Exception as exc:
                     log.error("Pipeline Chronos %s failed: %s", ticker, exc)
                     await db.rollback()
 
                 # Step 3: LLM synthesis (signal aggregation + Ollama)
                 try:
-                    await _run_synthesis_for_symbol(
-                        symbol_id, ticker, db, ollama_semaphore
-                    )
+                    await _run_synthesis_for_symbol(symbol_id, ticker, db, ollama_semaphore)
                 except Exception as exc:
                     log.error("Pipeline synthesis %s failed: %s", ticker, exc)
                     await db.rollback()

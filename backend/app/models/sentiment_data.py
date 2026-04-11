@@ -1,4 +1,5 @@
 """SentimentData model — AAII and NAAIM weekly sentiment readings."""
+
 from __future__ import annotations
 
 from datetime import date as date_type

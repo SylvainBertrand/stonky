@@ -70,9 +70,7 @@ class PriceCache:
 
     def set(self, quote: PriceQuote) -> None:
         with self._lock:
-            self._store[quote.symbol] = _CacheEntry(
-                quote, time.time() + self._ttl
-            )
+            self._store[quote.symbol] = _CacheEntry(quote, time.time() + self._ttl)
 
     def clear(self) -> None:
         with self._lock:

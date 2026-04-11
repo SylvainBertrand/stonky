@@ -159,9 +159,7 @@ async def get_ohlcv(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No intraday OHLCV data for {symbol} at {timeframe}",
             )
-        log.info(
-            "%s: fetched %d %s bars from yfinance", symbol, len(df), timeframe
-        )
+        log.info("%s: fetched %d %s bars from yfinance", symbol, len(df), timeframe)
 
     # ── Timeframes that need aggregation from a base timeframe ──────────
     elif tf == TimeframeEnum.MO1:
@@ -189,15 +187,11 @@ async def get_ohlcv(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No OHLCV data for {symbol}. Trigger a data refresh first.",
             )
-        log.info(
-            "%s: aggregated daily → %d monthly bars for chart", symbol, len(df)
-        )
+        log.info("%s: aggregated daily → %d monthly bars for chart", symbol, len(df))
 
     elif tf == TimeframeEnum.H4:
         # Try native 4H first, fallback to aggregate 1H → 4H
-        query = select(OHLCV).where(
-            OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.H4
-        )
+        query = select(OHLCV).where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == TimeframeEnum.H4)
         if before:
             before_dt = datetime.fromisoformat(before)
             query = query.where(OHLCV.time < before_dt)
@@ -230,15 +224,11 @@ async def get_ohlcv(
             if len(df) > bars:
                 has_more = True
                 df = df.tail(bars).reset_index(drop=True)
-            log.info(
-                "%s: aggregated 1H → %d 4H bars for chart", symbol, len(df)
-            )
+            log.info("%s: aggregated 1H → %d 4H bars for chart", symbol, len(df))
 
     elif tf == TimeframeEnum.W1:
         # Try native weekly first, fallback to aggregate daily → weekly
-        query = select(OHLCV).where(
-            OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf
-        )
+        query = select(OHLCV).where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf)
         if before:
             before_dt = datetime.fromisoformat(before)
             query = query.where(OHLCV.time < before_dt)
@@ -281,9 +271,7 @@ async def get_ohlcv(
 
     else:
         # Direct DB query (1d, 1h)
-        query = select(OHLCV).where(
-            OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf
-        )
+        query = select(OHLCV).where(OHLCV.symbol_id == sym.id, OHLCV.timeframe == tf)
         if before:
             before_dt = datetime.fromisoformat(before)
             query = query.where(OHLCV.time < before_dt)
@@ -391,9 +379,7 @@ async def get_current_price(symbol: str) -> StockPriceResponse:
     try:
         quote = await price_service.get_current_price(symbol)
     except price_service.TickerNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
-        ) from exc
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     return StockPriceResponse(
         symbol=quote.symbol,
@@ -408,9 +394,7 @@ async def get_current_price(symbol: str) -> StockPriceResponse:
 async def get_indicators(
     symbol: str,
     session: SessionDep,
-    timeframe: Annotated[
-        str, Query(description="Timeframe: 1h, 4h, 1d, 1w, or 1mo")
-    ] = "1d",
+    timeframe: Annotated[str, Query(description="Timeframe: 1h, 4h, 1d, 1w, or 1mo")] = "1d",
 ) -> IndicatorValuesResponse:
     """
     Return the latest-bar raw indicator values for a symbol/timeframe.
@@ -425,15 +409,10 @@ async def get_indicators(
     if timeframe not in _TIMEFRAME_MAP:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Unsupported timeframe '{timeframe}'. "
-                f"Use one of: {sorted(_TIMEFRAME_MAP)}"
-            ),
+            detail=(f"Unsupported timeframe '{timeframe}'. Use one of: {sorted(_TIMEFRAME_MAP)}"),
         )
 
-    sym_result = await session.execute(
-        select(Symbol).where(Symbol.ticker == symbol.upper())
-    )
+    sym_result = await session.execute(select(Symbol).where(Symbol.ticker == symbol.upper()))
     sym = sym_result.scalar_one_or_none()
     if sym is None:
         raise HTTPException(

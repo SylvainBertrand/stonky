@@ -12,6 +12,4 @@ class StockPriceResponse(BaseModel):
     price: float = Field(..., description="Last traded price")
     change_abs: float = Field(..., description="Absolute change vs previous close")
     change_pct: float = Field(..., description="Percent change vs previous close")
-    timestamp: float = Field(
-        ..., description="Unix epoch seconds (UTC) when the quote was fetched"
-    )
+    timestamp: float = Field(..., description="Unix epoch seconds (UTC) when the quote was fetched")

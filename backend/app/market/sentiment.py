@@ -1,4 +1,5 @@
 """AAII and NAAIM sentiment data: scraping + CSV import."""
+
 from __future__ import annotations
 
 import csv

@@ -83,15 +83,11 @@ def _fetch_sync(symbol: str, timeframe: str, bars: int) -> pd.DataFrame:
         ticker = yf.Ticker(symbol.upper())
         history = ticker.history(period=period, interval=interval, auto_adjust=False)
     except Exception as exc:  # noqa: BLE001 — yfinance raises a variety of types
-        logger.warning(
-            "yfinance intraday fetch failed for %s/%s: %s", symbol, interval, exc
-        )
+        logger.warning("yfinance intraday fetch failed for %s/%s: %s", symbol, interval, exc)
         raise
 
     if history is None or history.empty:
-        return pd.DataFrame(
-            columns=["time", "open", "high", "low", "close", "volume"]
-        )
+        return pd.DataFrame(columns=["time", "open", "high", "low", "close", "volume"])
 
     history = history.tail(bars)
 
@@ -114,9 +110,7 @@ def _fetch_sync(symbol: str, timeframe: str, bars: int) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
-async def fetch_intraday_ohlcv(
-    symbol: str, timeframe: str, bars: int
-) -> pd.DataFrame:
+async def fetch_intraday_ohlcv(symbol: str, timeframe: str, bars: int) -> pd.DataFrame:
     """
     Fetch on-demand intraday OHLCV bars for `symbol` at `timeframe`.
 

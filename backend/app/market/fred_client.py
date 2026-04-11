@@ -1,4 +1,5 @@
 """Async FRED API client for fetching economic data series."""
+
 from __future__ import annotations
 
 import logging

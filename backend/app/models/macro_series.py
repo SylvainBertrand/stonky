@@ -1,4 +1,5 @@
 """MacroSeries model — FRED economic data time series."""
+
 from __future__ import annotations
 
 from datetime import date as date_type
