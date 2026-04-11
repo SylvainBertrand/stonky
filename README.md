@@ -107,8 +107,11 @@ cd C:\Users\sylva\my-software-projects\stonky
 The script will:
 1. Download and install NSSM 2.24 to `C:\Program Files\nssm\` if not present.
 2. Register `stonky-backend` as a Windows service (autostart, restart-on-crash).
-3. Start the service.
-4. Wait 15 seconds, then verify `GET /api/health` returns 200.
+3. Grant the current user (the account that ran the install) service-control rights via SDDL,
+   so that future `Stop-Service` / `Start-Service` calls work from a non-elevated shell with
+   no UAC prompt.
+4. Start the service.
+5. Wait 15 seconds, then verify `GET /api/health` returns 200.
 
 ### Management
 
@@ -125,6 +128,10 @@ sc query  stonky-backend
 # Remove the service completely (logs preserved)
 .\scripts\uninstall-stonky-service.ps1
 ```
+
+> **After the initial elevated install**, all Management commands above work from any
+> shell (PowerShell, cmd, Git Bash) owned by the same user — no elevation or UAC prompt
+> required.  Uninstall is the one exception: removing a service always requires admin.
 
 ### Log locations
 
@@ -156,6 +163,14 @@ net start stonky-backend    # then start Stonky
 **Port 8000 already in use:**
 Stop any manually started uvicorn (`start-backend.sh`) before the service starts,
 or kill the process via Task Manager / `Get-Process -Name python | Stop-Process`.
+
+**`Access is denied` on `Stop-Service` / `Start-Service`:**
+The service was installed before the SDDL grant (TC-002c) was added, or the install
+was run as a different user than the one calling restart.  Re-run the install script
+from an elevated PowerShell to re-register the service with the correct ACL:
+```powershell
+.\scripts\install-stonky-service.ps1
+```
 
 ### Dev mode vs service mode
 

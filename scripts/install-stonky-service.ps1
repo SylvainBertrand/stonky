@@ -229,7 +229,88 @@ Write-Step "Registering service '$ServiceName'..."
 Write-Ok "Service registered."
 
 # ---------------------------------------------------------------------------
-# 8. Start the service
+# 8. Grant non-admin service-control rights via SDDL (TC-002c)
+#
+#    Windows defaults give only Administrators/SYSTEM start+stop rights.
+#    We add an Access-Allowed ACE for the current interactive user so that
+#    unattended agents (e.g. TC-002b Release Manager) running as that user
+#    can restart the service from a non-elevated shell with zero UAC prompts.
+#
+#    Permissions granted: RP=Start  WP=Stop  DT=Pause/Continue
+#                         LO=Interrogate  RC=ReadControl
+# ---------------------------------------------------------------------------
+Write-Step "Granting service-control rights to the current user via SDDL..."
+
+# --- Resolve the interactive user's SID.
+#     $env:USERNAME is preserved across UAC elevation (right-click Run as Admin),
+#     so this resolves the *original* user, not SYSTEM/Administrator.
+$UserAccount = "$env:USERDOMAIN\$env:USERNAME"
+try {
+    $NtAccount = [System.Security.Principal.NTAccount]$UserAccount
+    $UserSid   = $NtAccount.Translate([System.Security.Principal.SecurityIdentifier]).Value
+} catch {
+    Write-Fail "Failed to resolve SID for '$UserAccount': $_"
+    Write-Fail "Cannot grant service-control rights. Aborting install."
+    exit 1
+}
+Write-Step "Resolved user: $UserAccount  →  SID: $UserSid"
+
+# Guard: refuse to grant if the SID resolves to a built-in system account that
+# already has full control — this would mean $env:USERNAME is wrong in context.
+$SystemSids = @("S-1-5-18", "S-1-5-19", "S-1-5-20")   # SYSTEM, LOCAL SERVICE, NETWORK SERVICE
+if ($SystemSids -contains $UserSid) {
+    Write-Fail "Resolved SID '$UserSid' is a built-in system account."
+    Write-Fail "This means the interactive user identity could not be determined."
+    Write-Fail "Run the install from a regular elevated session (right-click -> Run as Admin)."
+    exit 1
+}
+
+# --- Fetch the current service SDDL.
+$rawSddl = & sc.exe sdshow $ServiceName 2>&1
+if ($LASTEXITCODE -ne 0) {
+    Write-Fail "sc.exe sdshow returned exit code $LASTEXITCODE. Raw output: $rawSddl"
+    Write-Fail "Cannot read service SDDL. Aborting install."
+    exit 1
+}
+$currentSddl = ($rawSddl | Out-String).Trim()
+Write-Step "Current SDDL: $currentSddl"
+
+# --- Idempotency check: skip if user's SID already present in DACL.
+if ($currentSddl -match [regex]::Escape($UserSid)) {
+    Write-Ok "SID '$UserSid' already present in service SDDL — skipping ACE grant (idempotent)."
+} else {
+    # Build the new ACE: Access-Allowed, RP=Start WP=Stop DT=Pause LO=Interrogate RC=ReadControl
+    $NewAce = "(A;;RPWPDTLORC;;;$UserSid)"
+
+    # Insert ACE into the DACL section.
+    # Common formats:
+    #   D:...                       → pure DACL, no SACL
+    #   D:...(S:...)                → DACL followed by optional SACL
+    # Strategy: split on /(S:[^)]*(\([^)]*\))*)/ boundary and insert before SACL (or append).
+    if ($currentSddl -match '^(D:[^S]*)(S:.+)?$') {
+        $DaclPart  = $Matches[1]
+        $SaclPart  = if ($Matches[2]) { $Matches[2] } else { "" }
+        $newSddl   = "$DaclPart$NewAce$SaclPart"
+    } else {
+        # Unexpected format — log and abort rather than guessing.
+        Write-Fail "Cannot parse SDDL into DACL/SACL sections. Raw value: $currentSddl"
+        Write-Fail "Expected format starting with 'D:'. Please review manually:"
+        Write-Fail "  sc.exe sdshow $ServiceName"
+        exit 1
+    }
+
+    Write-Step "Applying new SDDL: $newSddl"
+    & sc.exe sdset $ServiceName $newSddl | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "sc.exe sdset returned exit code $LASTEXITCODE. SDDL was: $newSddl"
+        Write-Fail "Service DACL was NOT updated. Aborting install."
+        exit 1
+    }
+    Write-Ok "Granted start/stop/query rights to $UserAccount ($UserSid)."
+}
+
+# ---------------------------------------------------------------------------
+# 9. Start the service
 # ---------------------------------------------------------------------------
 Write-Step "Starting service '$ServiceName'..."
 & $NssmExe start $ServiceName
@@ -242,7 +323,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Ok "Start command issued."
 
 # ---------------------------------------------------------------------------
-# 9. Health check
+# 10. Health check
 # ---------------------------------------------------------------------------
 Write-Step "Waiting $HealthWaitSecs seconds for Stonky to initialise..."
 Start-Sleep -Seconds $HealthWaitSecs
