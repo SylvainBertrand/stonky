@@ -34,13 +34,35 @@ if (-not $svc) {
 
 # Stop
 Write-Step "Stopping $ServiceName (current: $($svc.Status))..."
-Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+try {
+    Stop-Service -Name $ServiceName -Force -ErrorAction Stop
+} catch {
+    if ($_.Exception.Message -match "Access is denied|Cannot open.*service") {
+        Write-Fail "Access denied calling Stop-Service."
+        Write-Fail "The current user does not have service-control rights on $ServiceName."
+        Write-Fail "Run:  .\scripts\install-stonky-service.ps1  (from elevated PowerShell)"
+        Write-Fail "to re-register the service and grant non-admin restart rights."
+        exit 1
+    }
+    throw
+}
 $svc.WaitForStatus("Stopped", (New-TimeSpan -Seconds 30))
 Write-Ok "Service stopped."
 
 # Start
 Write-Step "Starting $ServiceName..."
-Start-Service -Name $ServiceName -ErrorAction Stop
+try {
+    Start-Service -Name $ServiceName -ErrorAction Stop
+} catch {
+    if ($_.Exception.Message -match "Access is denied|Cannot open.*service") {
+        Write-Fail "Access denied calling Start-Service."
+        Write-Fail "The current user does not have service-control rights on $ServiceName."
+        Write-Fail "Run:  .\scripts\install-stonky-service.ps1  (from elevated PowerShell)"
+        Write-Fail "to re-register the service and grant non-admin restart rights."
+        exit 1
+    }
+    throw
+}
 Write-Ok "Start command issued."
 
 # Health check
