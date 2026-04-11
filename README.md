@@ -79,6 +79,101 @@ Go to `http://localhost:8000/docs` and use the interactive API docs to perform t
 
 After the scan finishes, refresh `http://localhost:5173` to see ranked results.
 
+## Service Mode (Production)
+
+Use the NSSM-managed Windows service when you want Stonky to run **unattended** —
+surviving reboots, auto-restarting on crash, and controlled by the Trading Company
+Release Manager (TC-002b).  For daily development with hot-reload, keep using
+`start-backend.sh` — both modes are fully supported and non-exclusive.
+
+### Prerequisites
+
+- Windows 10/11
+- PowerShell 5.1+ (ships with Windows)
+- Admin access (required for first install only)
+- `uv` on PATH
+- Docker running with Postgres up (`docker compose up -d`)
+- `.env` present at the repo root (`cp .env.example .env`)
+
+### Installation (first-time or reinstall)
+
+Open an **elevated** PowerShell prompt (right-click → Run as Administrator):
+
+```powershell
+cd C:\Users\sylva\my-software-projects\stonky
+.\scripts\install-stonky-service.ps1
+```
+
+The script will:
+1. Download and install NSSM 2.24 to `C:\Program Files\nssm\` if not present.
+2. Register `stonky-backend` as a Windows service (autostart, restart-on-crash).
+3. Start the service.
+4. Wait 15 seconds, then verify `GET /api/health` returns 200.
+
+### Management
+
+```powershell
+# Start / stop / check status (PowerShell or cmd)
+net start stonky-backend
+net stop  stonky-backend
+sc query  stonky-backend
+
+# Restart with health verification (used by Release Manager)
+.\scripts\restart-stonky-service.ps1      # PowerShell
+./scripts/restart-stonky-service.sh       # Git Bash
+
+# Remove the service completely (logs preserved)
+.\scripts\uninstall-stonky-service.ps1
+```
+
+### Log locations
+
+| Stream | Path |
+|--------|------|
+| Stdout | `C:\Users\sylva\my-software-projects\stonky\logs\stonky-backend.out.log` |
+| Stderr | `C:\Users\sylva\my-software-projects\stonky\logs\stonky-backend.err.log` |
+
+Logs rotate on service restart; the 10 most recent rotations are kept.
+
+### Troubleshooting
+
+**Service won't start:**
+```powershell
+# View Windows event log entries from NSSM
+Get-EventLog -LogName Application -Source nssm -Newest 10
+
+# Check stderr for Python/uvicorn errors
+Get-Content "C:\Users\sylva\my-software-projects\stonky\logs\stonky-backend.err.log" -Tail 50
+```
+
+**Health check fails after install:**
+Postgres must be running before Stonky starts.
+```bash
+docker compose up -d        # start Postgres
+net start stonky-backend    # then start Stonky
+```
+
+**Port 8000 already in use:**
+Stop any manually started uvicorn (`start-backend.sh`) before the service starts,
+or kill the process via Task Manager / `Get-Process -Name python | Stop-Process`.
+
+### Dev mode vs service mode
+
+| | Dev mode | Service mode |
+|---|---|---|
+| How to start | `./start-backend.sh` | `net start stonky-backend` |
+| Hot reload | Yes (`--reload`) | No |
+| Survives reboot | No | Yes (autostart) |
+| Auto-restarts on crash | No | Yes |
+| Runs alembic migrations | Yes | No — run separately |
+| Runs ruff format/check | Yes | No |
+| Used by Release Manager | No | Yes |
+
+> **Note:** `start-backend.sh` runs `alembic upgrade head` and ruff on every start —
+> useful in dev, but the service skips these to keep restarts fast and predictable.
+> Run migrations explicitly with `cd backend && uv run alembic upgrade head` before
+> deploying new code.
+
 ## Project Structure
 
 ```
