@@ -101,7 +101,6 @@ async def run_yolo_scan_symbol(
 
     # Upsert detections into pattern_detections
     now = datetime.now(UTC)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     for det in detections:
         direction = _DIRECTION_MAP.get(det.direction, SignalDirection.NEUTRAL)
