@@ -15,28 +15,57 @@ Personal investment analysis web app. Scanner-first architecture: run configurab
 - **Data sources:** yfinance, openpyxl (SA import)
 - **TA/ML:** pandas-ta, pyharmonics, scipy, ultralytics (YOLOv8), mplfinance, huggingface_hub
 
+## Dev Loop
+
+### Start dev servers (separate terminals)
+
+```bash
+./start-backend.sh   # FastAPI + uvicorn --reload on :8000
+./start-frontend.sh  # Vite dev server on :5173
+```
+
+**Prerequisite:** Postgres must be running before the backend starts:
+```bash
+docker compose up -d
+```
+
+### Service mode (Windows, non-dev)
+
+The backend also runs as NSSM service `stonky-backend` (installed by TC-002a).
+From any non-elevated shell owned by `.\\sylva`:
+```bash
+./scripts/restart-stonky-service.sh   # Git Bash
+.\scripts\restart-stonky-service.ps1  # PowerShell
+```
+Install/uninstall via `scripts/install-stonky-service.ps1` (requires admin once).
+
 ## Common Commands
 
 ```bash
-# Backend
-cd backend && uvicorn app.main:app --reload
-cd backend && alembic upgrade head
-cd backend && ruff check app/          # lint
-cd backend && ruff format app/         # format
-cd backend && mypy app/                # type check
+# Backend (always prefix with uv run)
+cd backend && uv run uvicorn app.main:app --reload
+cd backend && uv run alembic upgrade head
+cd backend && uv run ruff check .          # lint
+cd backend && uv run ruff format .         # format
+cd backend && uv run mypy app              # type check
 
 # Backend tests
-cd backend && pytest                                        # all tests
-cd backend && pytest -m unit                               # fast, no containers
-cd backend && pytest -m integration                        # needs Docker
-cd backend && pytest -m ta_validation                      # golden file comparison
-cd backend && pytest tests/unit/test_elliott_wave.py       # single file
-cd backend && pytest tests/ta_validation/ --update-golden  # regenerate golden files
+cd backend && uv run pytest                                        # all tests
+cd backend && uv run pytest -m unit                               # fast, no containers
+cd backend && uv run pytest -m integration                        # needs Docker
+cd backend && uv run pytest -m ta_validation                      # golden file comparison
+cd backend && uv run pytest tests/unit/test_elliott_wave.py       # single file
+cd backend && uv run pytest tests/ta_validation/ --update-golden  # regenerate golden files
 
 # Frontend
 cd frontend && npm run dev
 cd frontend && npm run build
-cd frontend && npm test                # vitest
+cd frontend && npm run lint              # eslint
+cd frontend && npm run lint:fix          # eslint --fix
+cd frontend && npm run format            # prettier --write src
+cd frontend && npm run format:check      # prettier --check src
+cd frontend && npm run typecheck         # tsc --noEmit
+cd frontend && npm test                  # vitest
 cd frontend && npm run test:coverage
 
 # Docker (Postgres + TimescaleDB)
@@ -44,12 +73,25 @@ docker compose up -d
 docker compose down -v
 ```
 
+## Known Gotchas
+
+- **Postgres must be up** before the backend starts; `config.py` reads `.env` from the repo root via absolute path — no relative-path issues, but the DB connection will fail if Docker isn't running.
+- **uv run prefix** — all Python commands must be prefixed with `uv run` (not `python -m`). The venv is managed by uv; activating it manually works but is fragile.
+- **Frontend port proxy** — Vite proxies `/api` to `:8000` (see `vite.config.ts`). The backend must be on `:8000` for the proxy to work in dev.
+- **Integration tests** need Docker + TimescaleDB running. Unit tests (`-m unit`) are fully isolated.
+
 ## Repo Structure
 
 ```
 stonky/
 ├── CLAUDE.md
+├── README.md
 ├── docker-compose.yml
+├── .env.example
+├── start-backend.sh         # Dev-mode FastAPI launcher (runs alembic + ruff + uvicorn --reload)
+├── start-frontend.sh        # Dev-mode Vite launcher
+├── scripts/                 # NSSM service helpers (install/restart/uninstall)
+├── docs/                    # Design specs, schema SQL
 ├── .claude/agents/          # Sub-agents: frontend-sub-agent (haiku), test-writer (sonnet)
 ├── backend/
 │   ├── pyproject.toml       # hatchling build; ta-lib in optional [ta] group (needs system install)
