@@ -243,14 +243,94 @@ stonky/
 
 Full interactive docs at `http://localhost:8000/docs`.
 
+## Development
+
+### Install
+
+```bash
+# Backend (Python 3.12+, uv required)
+cd backend && uv sync --extra dev
+
+# Frontend (Node 20+)
+cd frontend && npm install
+```
+
+### Run (dev mode)
+
+```bash
+# Prerequisite — start Postgres first
+docker compose up -d
+
+# Then in two separate terminals:
+./start-backend.sh   # FastAPI + uvicorn --reload on :8000
+./start-frontend.sh  # Vite dev server on :5173
+```
+
+Open `http://localhost:5173`.
+
+### Test
+
+```bash
+# Backend — unit tests (fast, no Docker)
+cd backend && uv run pytest -m unit -q
+
+# Backend — integration tests (requires Docker + TimescaleDB)
+cd backend && uv run pytest -m integration
+
+# Frontend
+cd frontend && npm test -- --run
+```
+
+### Lint & format
+
+```bash
+# Backend
+cd backend && uv run ruff check .          # lint
+cd backend && uv run ruff format .         # format
+
+# Frontend
+cd frontend && npm run lint                # eslint
+cd frontend && npm run lint:fix            # eslint --fix
+cd frontend && npm run format              # prettier --write src
+cd frontend && npm run format:check        # prettier --check src
+```
+
+### Typecheck
+
+```bash
+cd backend && uv run mypy app
+cd frontend && npm run typecheck           # tsc --noEmit
+```
+
+### CI
+
+Every PR to `main` runs the full CI suite via `.github/workflows/ci.yml`:
+- Backend: ruff lint, ruff format check, mypy, pytest (unit + ta_validation)
+- Frontend: eslint, prettier check, tsc --noEmit, vitest, vite build
+
+Integration tests (require TimescaleDB Docker container) run locally only.
+
+### Contributing
+
+Pre-commit hooks are optional but encouraged:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+The `.pre-commit-config.yaml` at the repo root runs ruff (backend), prettier (frontend),
+and standard file hygiene checks (trailing whitespace, merge-conflict markers, large files)
+on every commit.
+
 ## Common Commands
 
 ```bash
 # Backend
-cd backend && uvicorn app.main:app --reload
-cd backend && alembic upgrade head
-cd backend && uv run --extra dev python -m pytest -m unit
-cd backend && uv run --extra dev python -m pytest -m integration   # needs Docker
+cd backend && uv run uvicorn app.main:app --reload
+cd backend && uv run alembic upgrade head
+cd backend && uv run pytest -m unit
+cd backend && uv run pytest -m integration   # needs Docker
 
 # Frontend
 cd frontend && npm run dev
