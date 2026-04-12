@@ -127,6 +127,7 @@ class TestBuildComposite:
 
     def test_consistent_with_services_scoring(self) -> None:
         from app.services.scoring import composite_score
+
         signals = {"ema_stack": 0.8, "rsi": 0.6, "obv": 0.4}
         cats, comp = build_composite(signals)
         # Recompute manually via services.scoring

@@ -7,10 +7,10 @@ from __future__ import annotations
 import pytest
 
 from app.analysis.profiles import (
+    PROFILES,
     HarmonicSetup,
     MeanReversion,
     MomentumBreakout,
-    PROFILES,
     TrendFollowing,
     evaluate_profiles,
 )
@@ -116,8 +116,8 @@ class TestMeanReversionProfile:
     def _mr_signals(self) -> tuple[dict[str, float], dict[str, float]]:
         """Minimal signals satisfying MR conditions."""
         signals = {
-            "rsi": 0.8,          # oversold (RSI < ~35)
-            "stochastic": 0.5,   # %K < 25 oversold zone
+            "rsi": 0.8,  # oversold (RSI < ~35)
+            "stochastic": 0.5,  # %K < 25 oversold zone
             "rsi_divergence": 0.0,
             "bb_pct_b": 0.0,
         }
@@ -140,7 +140,7 @@ class TestMeanReversionProfile:
 
     def test_fails_when_not_oversold_and_no_divergence(self) -> None:
         signals, cats = self._mr_signals()
-        signals["rsi"] = -0.5         # overbought, not oversold
+        signals["rsi"] = -0.5  # overbought, not oversold
         signals["rsi_divergence"] = 0.0  # no divergence either
         signals["macd_divergence"] = 0.0  # no MACD divergence either
         p = MeanReversion()
@@ -150,7 +150,7 @@ class TestMeanReversionProfile:
 
     def test_passes_via_divergence_when_rsi_not_oversold(self) -> None:
         signals, cats = self._mr_signals()
-        signals["rsi"] = -0.2          # mild overbought, not oversold zone
+        signals["rsi"] = -0.2  # mild overbought, not oversold zone
         signals["rsi_divergence"] = 0.5  # but bullish RSI divergence present
         p = MeanReversion()
         result = p.check(signals, cats, 0.15)
@@ -179,11 +179,11 @@ class TestTrendFollowingProfile:
     def _tf_signals(self) -> tuple[dict[str, float], dict[str, float]]:
         """Signals for a healthy uptrend satisfying all TF conditions."""
         signals = {
-            "ema_stack": 1.0,    # above all 3 EMAs
-            "adx_dmi": 0.5,      # ADX > 25, DI+ > DI-
-            "supertrend": 1.0,   # bullish
-            "rsi": -0.1,         # RSI ~55 (in 40-65 healthy range)
-            "obv": 0.4,          # OBV trending up
+            "ema_stack": 1.0,  # above all 3 EMAs
+            "adx_dmi": 0.5,  # ADX > 25, DI+ > DI-
+            "supertrend": 1.0,  # bullish
+            "rsi": -0.1,  # RSI ~55 (in 40-65 healthy range)
+            "obv": 0.4,  # OBV trending up
         }
         cats = {
             "trend": 0.8,
@@ -253,8 +253,8 @@ class TestHarmonicSetupProfile:
     def test_matches_with_full_harmonic_signals(self) -> None:
         signals, cats, _ = _all_bullish()
         signals["harmonic_pattern_detected"] = 1.0  # detected
-        signals["harmonic_ratio_quality"] = 0.85    # quality >= 0.75
-        signals["rsi_divergence"] = 0.6             # divergence present
+        signals["harmonic_ratio_quality"] = 0.85  # quality >= 0.75
+        signals["rsi_divergence"] = 0.6  # divergence present
         p = HarmonicSetup()
         result = p.check(signals, cats, 0.3)
         assert result.matches is True
@@ -265,7 +265,7 @@ class TestHarmonicSetupProfile:
     def test_fails_when_quality_below_threshold(self) -> None:
         signals, cats, _ = _all_bullish()
         signals["harmonic_pattern_detected"] = 1.0
-        signals["harmonic_ratio_quality"] = 0.6   # < 0.75
+        signals["harmonic_ratio_quality"] = 0.6  # < 0.75
         signals["rsi_divergence"] = 0.6
         p = HarmonicSetup()
         result = p.check(signals, cats, 0.3)

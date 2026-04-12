@@ -75,7 +75,9 @@ async def test_real_data_scan_structure(
 
     # All 7 categories present and in range
     cats = data["category_scores"]
-    assert set(cats.keys()) == _SEVEN_CATEGORIES, f"Missing categories: {_SEVEN_CATEGORIES - set(cats.keys())}"
+    assert set(cats.keys()) == _SEVEN_CATEGORIES, (
+        f"Missing categories: {_SEVEN_CATEGORIES - set(cats.keys())}"
+    )
     for cat, cat_score in cats.items():
         assert -1.0 <= cat_score <= 1.0, f"category {cat}={cat_score} out of range"
 

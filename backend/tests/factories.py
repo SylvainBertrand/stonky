@@ -15,7 +15,7 @@ Usage:
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pandas as pd
@@ -146,9 +146,9 @@ async def create_ohlcv_bars(
     for _, row in bars_df.iterrows():
         bar_time = row["time"]
         if isinstance(bar_time, str):
-            bar_time = datetime.fromisoformat(bar_time).replace(tzinfo=timezone.utc)
+            bar_time = datetime.fromisoformat(bar_time).replace(tzinfo=UTC)
         elif hasattr(bar_time, "to_pydatetime"):
-            bar_time = bar_time.to_pydatetime().replace(tzinfo=timezone.utc)
+            bar_time = bar_time.to_pydatetime().replace(tzinfo=UTC)
 
         rows.append(
             OHLCV(
@@ -240,7 +240,7 @@ async def create_indicator_cache(
     cache_value["symbol"] = symbol.ticker  # always match
 
     row = IndicatorCache(
-        time=time or datetime.now(timezone.utc),
+        time=time or datetime.now(UTC),
         symbol_id=symbol.id,
         timeframe=tf_enum,
         indicator_name=indicator_name,

@@ -13,6 +13,7 @@ from tests.generators import gen_consolidation, gen_downtrend, gen_uptrend
 class TestEMAIndicator:
     def test_ema_columns_present(self) -> None:
         from app.analysis.indicators.trend import compute_ema
+
         df = gen_uptrend(bars=250, seed=42)
         result = compute_ema(df)
         for col in ("ema_21", "ema_50", "ema_200"):
@@ -20,14 +21,17 @@ class TestEMAIndicator:
 
     def test_ema_not_nan_after_warmup(self) -> None:
         from app.analysis.indicators.trend import compute_ema
+
         df = gen_uptrend(bars=250, seed=42)
         result = compute_ema(df)
         assert result["ema_200"].iloc[-1] is not None
         import pandas as pd
+
         assert not pd.isna(result["ema_200"].iloc[-1])
 
     def test_ema_score_plus_one_in_uptrend(self) -> None:
         from app.analysis.indicators.trend import compute_ema_signals
+
         df = gen_uptrend(bars=250, seed=42)
         signals = compute_ema_signals(df)
         assert "ema_stack" in signals
@@ -37,6 +41,7 @@ class TestEMAIndicator:
 
     def test_ema_score_minus_one_in_downtrend(self) -> None:
         from app.analysis.indicators.trend import compute_ema_signals
+
         df = gen_downtrend(bars=250, seed=42)
         signals = compute_ema_signals(df)
         assert "ema_stack" in signals
@@ -46,6 +51,7 @@ class TestEMAIndicator:
 
     def test_ema_score_bounded(self) -> None:
         from app.analysis.indicators.trend import compute_ema_signals
+
         for gen in (gen_uptrend, gen_downtrend, gen_consolidation):
             df = gen(bars=250, seed=42)
             signals = compute_ema_signals(df)
@@ -54,6 +60,7 @@ class TestEMAIndicator:
 
     def test_ema_short_series_returns_empty(self) -> None:
         from app.analysis.indicators.trend import compute_ema_signals
+
         df = gen_uptrend(bars=10, seed=42)
         signals = compute_ema_signals(df)
         assert signals == {}
@@ -63,6 +70,7 @@ class TestEMAIndicator:
 class TestADXIndicator:
     def test_adx_columns_present(self) -> None:
         from app.analysis.indicators.trend import compute_adx
+
         df = gen_uptrend(bars=100, seed=42)
         result = compute_adx(df)
         for col in ("adx", "dmp_14", "dmn_14"):
@@ -70,6 +78,7 @@ class TestADXIndicator:
 
     def test_adx_score_near_zero_for_consolidation(self) -> None:
         from app.analysis.indicators.trend import compute_adx_signals
+
         df = gen_consolidation(bars=100, seed=42)
         signals = compute_adx_signals(df)
         if "adx_dmi" in signals:
@@ -79,6 +88,7 @@ class TestADXIndicator:
 
     def test_adx_score_bullish_for_uptrend(self) -> None:
         from app.analysis.indicators.trend import compute_adx_signals
+
         df = gen_uptrend(bars=200, seed=42)
         signals = compute_adx_signals(df)
         if "adx_dmi" in signals:
@@ -88,6 +98,7 @@ class TestADXIndicator:
 
     def test_adx_score_bounded(self) -> None:
         from app.analysis.indicators.trend import compute_adx_signals
+
         df = gen_uptrend(bars=200, seed=42)
         signals = compute_adx_signals(df)
         if "adx_dmi" in signals:
@@ -98,12 +109,14 @@ class TestADXIndicator:
 class TestSupertrendIndicator:
     def test_supertrend_column_present(self) -> None:
         from app.analysis.indicators.trend import compute_supertrend
+
         df = gen_uptrend(bars=100, seed=42)
         result = compute_supertrend(df)
         assert "supertrend_dir" in result.columns
 
     def test_supertrend_binary_signal(self) -> None:
         from app.analysis.indicators.trend import compute_supertrend_signals
+
         for gen, expected_sign in [(gen_uptrend, 1.0), (gen_downtrend, -1.0)]:
             df = gen(bars=200, seed=42)
             signals = compute_supertrend_signals(df)
@@ -114,6 +127,7 @@ class TestSupertrendIndicator:
 
     def test_supertrend_bullish_for_uptrend(self) -> None:
         from app.analysis.indicators.trend import compute_supertrend_signals
+
         df = gen_uptrend(bars=200, seed=42)
         signals = compute_supertrend_signals(df)
         if "supertrend" in signals:

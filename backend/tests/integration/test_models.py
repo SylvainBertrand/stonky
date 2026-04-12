@@ -11,7 +11,7 @@ Covers:
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 import pytest
 from sqlalchemy import select, text
@@ -27,12 +27,10 @@ from app.models import (
     SARating,
     ScanProfile,
     ScanResult,
-    ScanRun,
     SignalResult,
     SwingPoint,
     Symbol,
     Watchlist,
-    WatchlistItem,
 )
 from app.models.enums import (
     PatternType,
@@ -163,8 +161,8 @@ async def test_ohlcv_insert_and_time_range_query(db_session: AsyncSession) -> No
     assert count == 30
 
     # Query with time range
-    start = datetime(2024, 1, 2, tzinfo=timezone.utc)
-    end = datetime(2024, 1, 12, tzinfo=timezone.utc)
+    start = datetime(2024, 1, 2, tzinfo=UTC)
+    end = datetime(2024, 1, 12, tzinfo=UTC)
     stmt = (
         select(OHLCV)
         .where(OHLCV.symbol_id == symbol.id)
@@ -197,7 +195,7 @@ async def test_ohlcv_hypertable_exists(db_session: AsyncSession) -> None:
 
 async def test_indicator_cache_crud(db_session: AsyncSession) -> None:
     symbol = await create_symbol(db_session)
-    ts = datetime(2024, 3, 1, tzinfo=timezone.utc)
+    ts = datetime(2024, 3, 1, tzinfo=UTC)
     cache = IndicatorCache(
         time=ts,
         symbol_id=symbol.id,
@@ -292,7 +290,7 @@ async def test_pattern_detection_crud(db_session: AsyncSession) -> None:
     watchlist = await create_watchlist(db_session)
     run = await create_scan_run(db_session, profile=profile, watchlist=watchlist)
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     pattern = PatternDetection(
         scan_run_id=run.id,
         symbol_id=symbol.id,
@@ -315,7 +313,7 @@ async def test_divergence_crud(db_session: AsyncSession) -> None:
     watchlist = await create_watchlist(db_session)
     run = await create_scan_run(db_session, profile=profile, watchlist=watchlist)
 
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     div = Divergence(
         scan_run_id=run.id,
         symbol_id=symbol.id,
@@ -334,7 +332,7 @@ async def test_divergence_crud(db_session: AsyncSession) -> None:
 
 async def test_swing_point_crud(db_session: AsyncSession) -> None:
     symbol = await create_symbol(db_session)
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
 
     sp = SwingPoint(
         symbol_id=symbol.id,

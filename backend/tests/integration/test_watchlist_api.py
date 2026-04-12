@@ -1,10 +1,9 @@
 """Integration tests for the watchlist CRUD API."""
+
 from __future__ import annotations
 
-import io
-import pytest
 import httpx
-
+import pytest
 
 # ---------------------------------------------------------------------------
 # Watchlist CRUD
@@ -120,17 +119,13 @@ async def test_add_symbol_duplicate_returns_409(async_client: httpx.AsyncClient)
     wl_id = create_resp.json()["id"]
 
     await async_client.post(f"/api/watchlists/{wl_id}/symbols", json={"ticker": "NVDA"})
-    dup_resp = await async_client.post(
-        f"/api/watchlists/{wl_id}/symbols", json={"ticker": "NVDA"}
-    )
+    dup_resp = await async_client.post(f"/api/watchlists/{wl_id}/symbols", json={"ticker": "NVDA"})
     assert dup_resp.status_code == 409
 
 
 @pytest.mark.integration
 async def test_add_symbol_to_nonexistent_watchlist(async_client: httpx.AsyncClient) -> None:
-    response = await async_client.post(
-        "/api/watchlists/999999/symbols", json={"ticker": "GOOG"}
-    )
+    response = await async_client.post("/api/watchlists/999999/symbols", json={"ticker": "GOOG"})
     assert response.status_code == 404
 
 
@@ -186,9 +181,7 @@ async def test_only_one_default_watchlist(async_client: httpx.AsyncClient) -> No
 
 @pytest.mark.integration
 async def test_refresh_watchlist_queues_job(async_client: httpx.AsyncClient) -> None:
-    create_resp = await async_client.post(
-        "/api/watchlists", json={"name": "Refresh WL"}
-    )
+    create_resp = await async_client.post("/api/watchlists", json={"name": "Refresh WL"})
     wl_id = create_resp.json()["id"]
 
     response = await async_client.post(f"/api/watchlists/{wl_id}/refresh")
@@ -211,9 +204,7 @@ async def test_refresh_nonexistent_watchlist(async_client: httpx.AsyncClient) ->
 
 @pytest.mark.integration
 async def test_status_empty_when_no_logs(async_client: httpx.AsyncClient) -> None:
-    create_resp = await async_client.post(
-        "/api/watchlists", json={"name": "Status WL"}
-    )
+    create_resp = await async_client.post("/api/watchlists", json={"name": "Status WL"})
     wl_id = create_resp.json()["id"]
 
     response = await async_client.get(f"/api/watchlists/{wl_id}/status")
@@ -229,9 +220,7 @@ async def test_status_empty_when_no_logs(async_client: httpx.AsyncClient) -> Non
 @pytest.mark.integration
 async def test_import_sa_ratings_csv(async_client: httpx.AsyncClient) -> None:
     csv_content = (
-        "Ticker,Quant Rating,Momentum,Valuation,Growth\n"
-        "AAPL,4.5,A,B+,A-\n"
-        "MSFT,4.2,B+,A,B\n"
+        "Ticker,Quant Rating,Momentum,Valuation,Growth\nAAPL,4.5,A,B+,A-\nMSFT,4.2,B+,A,B\n"
     )
     response = await async_client.post(
         "/api/watchlists/sa-ratings/import",
@@ -318,9 +307,7 @@ async def test_rename_watchlist(async_client: httpx.AsyncClient) -> None:
     create_resp = await async_client.post("/api/watchlists", json={"name": "Original Name"})
     wl_id = create_resp.json()["id"]
 
-    rename_resp = await async_client.put(
-        f"/api/watchlists/{wl_id}", json={"name": "Renamed WL"}
-    )
+    rename_resp = await async_client.put(f"/api/watchlists/{wl_id}", json={"name": "Renamed WL"})
     assert rename_resp.status_code == 200
     assert rename_resp.json()["name"] == "Renamed WL"
 
@@ -356,9 +343,7 @@ async def test_import_sa_scoped(async_client: httpx.AsyncClient) -> None:
     wl_id = create_resp.json()["id"]
 
     csv_content = (
-        "Ticker,Quant Rating,Momentum,Valuation,Growth\n"
-        "AAPL,4.5,A,B+,A-\n"
-        "MSFT,4.2,B+,A,B\n"
+        "Ticker,Quant Rating,Momentum,Valuation,Growth\nAAPL,4.5,A,B+,A-\nMSFT,4.2,B+,A,B\n"
     )
     import_resp = await async_client.post(
         f"/api/watchlists/{wl_id}/import-sa",

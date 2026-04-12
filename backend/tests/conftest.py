@@ -57,9 +57,7 @@ def _run_migrations(asyncpg_url: str) -> None:
         text=True,
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f"Alembic migration failed:\n{result.stdout}\n{result.stderr}"
-        )
+        raise RuntimeError(f"Alembic migration failed:\n{result.stdout}\n{result.stderr}")
 
 
 @pytest.fixture(scope="session")

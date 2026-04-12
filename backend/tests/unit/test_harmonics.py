@@ -22,10 +22,10 @@ from app.analysis.indicators.harmonics import (
 )
 from app.analysis.profiles import HarmonicSetup
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _make_df(
     closes: list[float],
@@ -60,15 +60,15 @@ def _make_gartley_df(bars_per_leg: int = 30, history_bars: int = 200) -> pd.Data
     rng = np.random.default_rng(42)
 
     x_price = 100.0
-    a_price = 120.0          # XA leg up +20
-    xa = a_price - x_price   # 20
+    a_price = 120.0  # XA leg up +20
+    xa = a_price - x_price  # 20
 
-    b_price = a_price - xa * 0.618   # B: 61.8% retrace of XA = 107.64
-    ab = a_price - b_price           # ~12.36
+    b_price = a_price - xa * 0.618  # B: 61.8% retrace of XA = 107.64
+    ab = a_price - b_price  # ~12.36
 
-    c_price = b_price + ab * 0.786   # C: 78.6% of AB (valid range)
-    cd = ab * 1.272                  # CD: 1.272 extension of AB
-    d_price = c_price - cd           # D: should be near 78.6% retrace of XA
+    c_price = b_price + ab * 0.786  # C: 78.6% of AB (valid range)
+    cd = ab * 1.272  # CD: 1.272 extension of AB
+    d_price = c_price - cd  # D: should be near 78.6% retrace of XA
 
     # History: flat near x_price
     history = np.linspace(x_price, x_price, history_bars) + rng.normal(0, 0.1, history_bars)
@@ -89,6 +89,7 @@ def _make_gartley_df(bars_per_leg: int = 30, history_bars: int = 200) -> pd.Data
 # ---------------------------------------------------------------------------
 # detect_harmonics
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 class TestDetectHarmonics:
@@ -183,6 +184,7 @@ class TestDetectHarmonics:
 # compute_harmonics_signals
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestComputeHarmonicsSignals:
     def _simple_df(self, close: float = 105.0, n: int = 50) -> pd.DataFrame:
@@ -207,7 +209,11 @@ class TestComputeHarmonicsSignals:
             prz_low=100.0,
             prz_high=110.0,
             ratio_quality=0.9,
-            x=80.0, a=100.0, b=88.0, c=96.0, d=105.0,
+            x=80.0,
+            a=100.0,
+            b=88.0,
+            c=96.0,
+            d=105.0,
         )
         signals = compute_harmonics_signals(df, [match])
         assert signals["harmonic_score"] > 0.0
@@ -225,7 +231,11 @@ class TestComputeHarmonicsSignals:
             prz_low=100.0,
             prz_high=110.0,
             ratio_quality=0.85,
-            x=120.0, a=100.0, b=112.0, c=104.0, d=105.0,
+            x=120.0,
+            a=100.0,
+            b=112.0,
+            c=104.0,
+            d=105.0,
         )
         signals = compute_harmonics_signals(df, [match])
         assert signals["harmonic_score"] < 0.0
@@ -241,7 +251,11 @@ class TestComputeHarmonicsSignals:
             prz_low=90.0,
             prz_high=100.0,
             ratio_quality=0.9,
-            x=70.0, a=90.0, b=79.0, c=87.0, d=95.0,
+            x=70.0,
+            a=90.0,
+            b=79.0,
+            c=87.0,
+            d=95.0,
         )
         stale = HarmonicMatch(
             pattern_name="Gartley",
@@ -251,7 +265,11 @@ class TestComputeHarmonicsSignals:
             prz_low=90.0,
             prz_high=100.0,
             ratio_quality=0.9,
-            x=70.0, a=90.0, b=79.0, c=87.0, d=95.0,
+            x=70.0,
+            a=90.0,
+            b=79.0,
+            c=87.0,
+            d=95.0,
         )
         sig_fresh = compute_harmonics_signals(df, [fresh])
         sig_stale = compute_harmonics_signals(df, [stale])
@@ -269,7 +287,11 @@ class TestComputeHarmonicsSignals:
             prz_low=100.0,
             prz_high=110.0,
             ratio_quality=0.85,
-            x=80.0, a=100.0, b=88.0, c=96.0, d=105.0,
+            x=80.0,
+            a=100.0,
+            b=88.0,
+            c=96.0,
+            d=105.0,
         )
         sig_in = compute_harmonics_signals(df_in, [match_template])
         sig_out = compute_harmonics_signals(df_out, [match_template])
@@ -289,7 +311,11 @@ class TestComputeHarmonicsSignals:
             prz_low=100.0,
             prz_high=110.0,
             ratio_quality=1.0,  # perfect quality
-            x=80.0, a=100.0, b=88.0, c=96.0, d=105.0,
+            x=80.0,
+            a=100.0,
+            b=88.0,
+            c=96.0,
+            d=105.0,
         )
         signals = compute_harmonics_signals(df, [match])
         assert -1.0 <= signals["harmonic_score"] <= 1.0
@@ -305,7 +331,11 @@ class TestComputeHarmonicsSignals:
             prz_low=100.0,
             prz_high=110.0,
             ratio_quality=0.95,
-            x=80.0, a=100.0, b=88.0, c=96.0, d=105.0,
+            x=80.0,
+            a=100.0,
+            b=88.0,
+            c=96.0,
+            d=105.0,
         )
         second = HarmonicMatch(
             pattern_name="Bat",
@@ -315,7 +345,11 @@ class TestComputeHarmonicsSignals:
             prz_low=90.0,
             prz_high=95.0,
             ratio_quality=0.72,
-            x=120.0, a=100.0, b=112.0, c=104.0, d=103.0,
+            x=120.0,
+            a=100.0,
+            b=112.0,
+            c=104.0,
+            d=103.0,
         )
         # Matches already sorted best-first (as detect_harmonics would return)
         signals = compute_harmonics_signals(df, [best, second])
@@ -336,7 +370,11 @@ class TestComputeHarmonicsSignals:
                 prz_low=100.0,
                 prz_high=110.0,
                 ratio_quality=0.9,
-                x=80.0, a=100.0, b=88.0, c=96.0, d=105.0,
+                x=80.0,
+                a=100.0,
+                b=88.0,
+                c=96.0,
+                d=105.0,
             )
 
         sig_gartley = compute_harmonics_signals(df, [_match("Gartley")])
@@ -348,13 +386,18 @@ class TestComputeHarmonicsSignals:
 # Profile 4 — HarmonicSetup
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 class TestHarmonicSetupProfile:
     def _cats(self) -> dict[str, float]:
         return {
-            "trend": 0.5, "momentum": 0.3, "volume": 0.2,
-            "volatility": 0.1, "support_resistance": 0.1,
-            "divergence": 0.3, "pattern": 0.5,
+            "trend": 0.5,
+            "momentum": 0.3,
+            "volume": 0.2,
+            "volatility": 0.1,
+            "support_resistance": 0.1,
+            "divergence": 0.3,
+            "pattern": 0.5,
         }
 
     def test_matches_when_all_conditions_met(self) -> None:

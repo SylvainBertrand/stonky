@@ -1,4 +1,5 @@
 """Tests for broad market indicator computation."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -13,7 +14,7 @@ from app.market.indicators import (
     compute_momentum,
     compute_sentiment,
 )
-from app.market.regime import classify_regime, MarketRegime
+from app.market.regime import classify_regime
 
 
 def _make_close_series(n: int, start: float, drift: float, seed: int = 42) -> pd.Series:
@@ -117,36 +118,61 @@ class TestComputeSentiment:
 class TestClassifyRegime:
     def test_bull_trending(self):
         regime = classify_regime(
-            spx_above_200ema=True, spx_rsi=60.0, breadth="broad",
-            vix=16.0, yield_inverted_months=0, aaii_spread=5.0, naaim_exposure=65.0,
+            spx_above_200ema=True,
+            spx_rsi=60.0,
+            breadth="broad",
+            vix=16.0,
+            yield_inverted_months=0,
+            aaii_spread=5.0,
+            naaim_exposure=65.0,
         )
         assert regime.regime == "bull_trending"
 
     def test_bear(self):
         regime = classify_regime(
-            spx_above_200ema=False, spx_rsi=35.0, breadth="narrow",
-            vix=30.0, yield_inverted_months=6, aaii_spread=-15.0, naaim_exposure=40.0,
+            spx_above_200ema=False,
+            spx_rsi=35.0,
+            breadth="narrow",
+            vix=30.0,
+            yield_inverted_months=6,
+            aaii_spread=-15.0,
+            naaim_exposure=40.0,
         )
         assert regime.regime == "bear"
 
     def test_choppy(self):
         regime = classify_regime(
-            spx_above_200ema=True, spx_rsi=55.0, breadth="neutral",
-            vix=22.0, yield_inverted_months=0, aaii_spread=0.0, naaim_exposure=60.0,
+            spx_above_200ema=True,
+            spx_rsi=55.0,
+            breadth="neutral",
+            vix=22.0,
+            yield_inverted_months=0,
+            aaii_spread=0.0,
+            naaim_exposure=60.0,
         )
         assert regime.regime == "choppy"
 
     def test_regime_has_summary(self):
         regime = classify_regime(
-            spx_above_200ema=True, spx_rsi=60.0, breadth="broad",
-            vix=16.0, yield_inverted_months=0, aaii_spread=5.0, naaim_exposure=65.0,
+            spx_above_200ema=True,
+            spx_rsi=60.0,
+            breadth="broad",
+            vix=16.0,
+            yield_inverted_months=0,
+            aaii_spread=5.0,
+            naaim_exposure=65.0,
         )
         assert len(regime.summary) > 0
         assert len(regime.scanner_implication) > 0
 
     def test_regime_with_missing_data(self):
         regime = classify_regime(
-            spx_above_200ema=True, spx_rsi=60.0, breadth="broad",
-            vix=16.0, yield_inverted_months=None, aaii_spread=None, naaim_exposure=None,
+            spx_above_200ema=True,
+            spx_rsi=60.0,
+            breadth="broad",
+            vix=16.0,
+            yield_inverted_months=None,
+            aaii_spread=None,
+            naaim_exposure=None,
         )
         assert regime.regime in ("bull_trending", "bull_extended", "choppy", "bear_warning", "bear")

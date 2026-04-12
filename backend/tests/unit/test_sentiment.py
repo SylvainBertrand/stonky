@@ -1,4 +1,5 @@
 """Tests for AAII/NAAIM sentiment parsing."""
+
 from __future__ import annotations
 
 from datetime import date
@@ -6,7 +7,6 @@ from datetime import date
 import pytest
 
 from app.market.sentiment import (
-    AAIISentiment,
     parse_aaii_csv,
     parse_naaim_csv,
 )
@@ -15,7 +15,9 @@ from app.market.sentiment import (
 @pytest.mark.unit
 class TestParseAAIICsv:
     def test_valid_csv(self):
-        csv_text = "date,bullish,neutral,bearish\n2025-01-09,35.2,30.1,34.7\n2025-01-16,40.0,25.0,35.0\n"
+        csv_text = (
+            "date,bullish,neutral,bearish\n2025-01-09,35.2,30.1,34.7\n2025-01-16,40.0,25.0,35.0\n"
+        )
         results = parse_aaii_csv(csv_text)
         assert len(results) == 2
         assert results[0].week_ending == date(2025, 1, 9)

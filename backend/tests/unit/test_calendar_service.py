@@ -184,8 +184,6 @@ def test_default_now_returns_status() -> None:
 
 def test_accepts_utc_input_and_converts_to_et() -> None:
     # 14:00 UTC Tuesday 2026-04-07 == 10:00 ET (DST in effect)
-    status = get_market_status(
-        datetime(2026, 4, 7, 14, 0, tzinfo=UTC)
-    )
+    status = get_market_status(datetime(2026, 4, 7, 14, 0, tzinfo=UTC))
     assert status.session == "regular"
     assert status.is_open is True

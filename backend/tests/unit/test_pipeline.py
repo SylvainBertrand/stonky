@@ -23,7 +23,6 @@ from tests.generators import (
     gen_v_recovery,
 )
 
-
 # ---------------------------------------------------------------------------
 # run_analysis: structure and invariants
 # ---------------------------------------------------------------------------
@@ -48,7 +47,15 @@ class TestRunAnalysisStructure:
     def test_all_seven_categories_present(self) -> None:
         df = gen_uptrend(bars=250)
         result = run_analysis(df, "TEST")
-        expected = {"trend", "momentum", "volume", "volatility", "support_resistance", "divergence", "pattern"}
+        expected = {
+            "trend",
+            "momentum",
+            "volume",
+            "volatility",
+            "support_resistance",
+            "divergence",
+            "pattern",
+        }
         assert set(result.category_scores.keys()) == expected
 
     def test_category_scores_in_range(self) -> None:
@@ -60,7 +67,15 @@ class TestRunAnalysisStructure:
     def test_meta_fields_present(self) -> None:
         df = gen_uptrend(bars=250)
         result = run_analysis(df, "TEST")
-        for field in ("atr", "atr_pct", "last_price", "volume_ratio", "price_change_pct", "timestamp", "bars"):
+        for field in (
+            "atr",
+            "atr_pct",
+            "last_price",
+            "volume_ratio",
+            "price_change_pct",
+            "timestamp",
+            "bars",
+        ):
             assert field in result.meta, f"Missing meta field: {field}"
 
     def test_meta_bars_matches_input(self) -> None:
@@ -176,11 +191,6 @@ class TestRunAnalysisDirectionality:
         """V-bottom recovery should produce some positive momentum or divergence."""
         df = gen_v_recovery(bars=250, seed=42)
         result = run_analysis(df, "VRECOV")
-        # The recovery phase should push momentum or divergence into positive territory
-        positive_cats = sum(
-            1 for cat in ("momentum", "divergence")
-            if result.category_scores.get(cat, 0) > 0
-        )
         # Be lenient — generators don't guarantee perfect setups, just directional bias
         assert result.meta["bars"] == 250
 
@@ -193,34 +203,79 @@ class TestRunAnalysisDirectionality:
 @pytest.mark.unit
 class TestPassesConfluence:
     def test_near_zero_composite_not_actionable(self) -> None:
-        cats = {"trend": 0.3, "momentum": 0.3, "volume": 0.3, "volatility": 0.3,
-                "support_resistance": 0.3, "divergence": 0.3, "pattern": 0.3}
+        cats = {
+            "trend": 0.3,
+            "momentum": 0.3,
+            "volume": 0.3,
+            "volatility": 0.3,
+            "support_resistance": 0.3,
+            "divergence": 0.3,
+            "pattern": 0.3,
+        }
         assert not _passes_confluence(cats, 0.03)
 
     def test_three_agreeing_bullish_is_actionable(self) -> None:
-        cats = {"trend": 0.5, "momentum": 0.5, "volume": 0.5, "volatility": -0.1,
-                "support_resistance": -0.1, "divergence": -0.1, "pattern": -0.1}
+        cats = {
+            "trend": 0.5,
+            "momentum": 0.5,
+            "volume": 0.5,
+            "volatility": -0.1,
+            "support_resistance": -0.1,
+            "divergence": -0.1,
+            "pattern": -0.1,
+        }
         assert _passes_confluence(cats, 0.4)
 
     def test_two_agreeing_bullish_not_actionable(self) -> None:
-        cats = {"trend": 0.5, "momentum": 0.5, "volume": -0.2, "volatility": -0.2,
-                "support_resistance": -0.2, "divergence": -0.2, "pattern": -0.2}
+        cats = {
+            "trend": 0.5,
+            "momentum": 0.5,
+            "volume": -0.2,
+            "volatility": -0.2,
+            "support_resistance": -0.2,
+            "divergence": -0.2,
+            "pattern": -0.2,
+        }
         assert not _passes_confluence(cats, 0.3)
 
     def test_three_agreeing_bearish_is_actionable(self) -> None:
-        cats = {"trend": -0.5, "momentum": -0.5, "volume": -0.5, "volatility": 0.1,
-                "support_resistance": 0.1, "divergence": 0.1, "pattern": 0.1}
+        cats = {
+            "trend": -0.5,
+            "momentum": -0.5,
+            "volume": -0.5,
+            "volatility": 0.1,
+            "support_resistance": 0.1,
+            "divergence": 0.1,
+            "pattern": 0.1,
+        }
         assert _passes_confluence(cats, -0.4)
 
     def test_all_zero_categories_not_actionable(self) -> None:
-        cats = {k: 0.0 for k in ("trend", "momentum", "volume", "volatility",
-                                   "support_resistance", "divergence", "pattern")}
+        cats = {
+            k: 0.0
+            for k in (
+                "trend",
+                "momentum",
+                "volume",
+                "volatility",
+                "support_resistance",
+                "divergence",
+                "pattern",
+            )
+        }
         assert not _passes_confluence(cats, 0.0)
 
     def test_borderline_threshold_below_0_1_not_counted(self) -> None:
         """Categories with |score| ≤ 0.1 don't count toward confluence."""
-        cats = {"trend": 0.09, "momentum": 0.09, "volume": 0.09, "volatility": 0.09,
-                "support_resistance": 0.09, "divergence": 0.09, "pattern": 0.09}
+        cats = {
+            "trend": 0.09,
+            "momentum": 0.09,
+            "volume": 0.09,
+            "volatility": 0.09,
+            "support_resistance": 0.09,
+            "divergence": 0.09,
+            "pattern": 0.09,
+        }
         assert not _passes_confluence(cats, 0.2)
 
 

@@ -12,7 +12,7 @@ Coverage:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -26,7 +26,6 @@ from tests.factories import (
     create_watchlist_item,
 )
 from tests.generators import gen_uptrend
-
 
 # ---------------------------------------------------------------------------
 # POST /api/scanner/run
@@ -166,15 +165,17 @@ async def test_get_results_returns_cached_analysis(
 
     # high scorer
     await create_indicator_cache(
-        db_session, sym_a,
+        db_session,
+        sym_a,
         value={"composite_score": 0.80},
-        time=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        time=datetime(2026, 1, 2, tzinfo=UTC),
     )
     # low scorer
     await create_indicator_cache(
-        db_session, sym_b,
+        db_session,
+        sym_b,
         value={"composite_score": 0.10},
-        time=datetime(2026, 1, 2, tzinfo=timezone.utc),
+        time=datetime(2026, 1, 2, tzinfo=UTC),
     )
     await db_session.commit()
 
@@ -239,8 +240,8 @@ async def test_get_results_deduplicates_per_symbol(
 ) -> None:
     """Multiple cache entries for same symbol → only the latest is returned."""
     sym = await create_symbol(db_session, ticker="DEDUPTEST")
-    old_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    new_time = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    old_time = datetime(2026, 1, 1, tzinfo=UTC)
+    new_time = datetime(2026, 1, 2, tzinfo=UTC)
 
     await create_indicator_cache(db_session, sym, value={"composite_score": 0.1}, time=old_time)
     await create_indicator_cache(db_session, sym, value={"composite_score": 0.9}, time=new_time)
@@ -265,11 +266,13 @@ async def test_get_results_with_profile_filter(
     sym_other = await create_symbol(db_session, ticker="NOPROFILE")
 
     await create_indicator_cache(
-        db_session, sym_matches,
+        db_session,
+        sym_matches,
         value={"composite_score": 0.7, "profile_matches": ["MomentumBreakout"]},
     )
     await create_indicator_cache(
-        db_session, sym_other,
+        db_session,
+        sym_other,
         value={"composite_score": 0.5, "profile_matches": []},
     )
     await db_session.commit()
@@ -290,7 +293,8 @@ async def test_get_results_profile_filter_snake_case(
     """?profile=momentum_breakout (snake_case) normalizes to CamelCase correctly."""
     sym = await create_symbol(db_session, ticker="SNAKEPRO")
     await create_indicator_cache(
-        db_session, sym,
+        db_session,
+        sym,
         value={"composite_score": 0.6, "profile_matches": ["MomentumBreakout"]},
     )
     await db_session.commit()
@@ -342,7 +346,7 @@ async def test_get_symbol_result_404_no_cache(
     db_session: AsyncSession,
 ) -> None:
     """GET /scanner/results/{symbol} with known symbol but no cache entry → 404."""
-    sym = await create_symbol(db_session, ticker="NOCACHE")
+    await create_symbol(db_session, ticker="NOCACHE")
     await db_session.commit()
 
     response = await async_client.get("/api/scanner/results/NOCACHE")
@@ -358,7 +362,8 @@ async def test_get_symbol_result_returns_detail(
     """GET /scanner/results/{symbol} with pre-populated cache → full AnalysisResponse."""
     sym = await create_symbol(db_session, ticker="DETAIL")
     await create_indicator_cache(
-        db_session, sym,
+        db_session,
+        sym,
         value={"composite_score": 0.55, "is_actionable": True},
     )
     await db_session.commit()
@@ -430,7 +435,7 @@ async def test_run_symbol_no_ohlcv_returns_422(
     db_session: AsyncSession,
 ) -> None:
     """POST /scanner/run/{symbol} with no OHLCV data → 422."""
-    sym = await create_symbol(db_session, ticker="NOOHLCV")
+    await create_symbol(db_session, ticker="NOOHLCV")
     await db_session.commit()
 
     response = await async_client.post("/api/scanner/run/NOOHLCV")
@@ -456,7 +461,15 @@ async def test_run_symbol_with_ohlcv_returns_analysis(
     assert isinstance(data["composite_score"], float)
     assert -1.0 <= data["composite_score"] <= 1.0
     assert "category_scores" in data
-    for cat in ("trend", "momentum", "volume", "volatility", "support_resistance", "divergence", "pattern"):
+    for cat in (
+        "trend",
+        "momentum",
+        "volume",
+        "volatility",
+        "support_resistance",
+        "divergence",
+        "pattern",
+    ):
         assert cat in data["category_scores"]
     assert isinstance(data["meta"]["bars"], int)
     assert data["meta"]["bars"] == 250

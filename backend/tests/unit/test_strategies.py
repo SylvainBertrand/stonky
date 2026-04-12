@@ -19,8 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tests.generators import gen_uptrend, gen_consolidation, gen_v_recovery, gen_breakout
-
+from tests.generators import gen_breakout, gen_consolidation, gen_uptrend, gen_v_recovery
 
 # ---------------------------------------------------------------------------
 # Shared enrichment helper — adds all indicator columns expected by strategies
@@ -36,10 +35,10 @@ def _enrich(df: pd.DataFrame) -> pd.DataFrame:
     plain column with a RangeIndex; it must be promoted to the DatetimeIndex first to
     satisfy compute_vwap() and match what app/analysis/pipeline.py does at line 85.
     """
-    from app.analysis.indicators.trend import compute_ema, compute_adx, compute_supertrend
-    from app.analysis.indicators.momentum import compute_rsi, compute_macd, compute_stoch
-    from app.analysis.indicators.volatility import compute_bbands, compute_atr, compute_ttm_squeeze
-    from app.analysis.indicators.volume import compute_obv, compute_vwap, compute_cmf
+    from app.analysis.indicators.momentum import compute_macd, compute_rsi, compute_stoch
+    from app.analysis.indicators.trend import compute_adx, compute_ema, compute_supertrend
+    from app.analysis.indicators.volatility import compute_atr, compute_bbands, compute_ttm_squeeze
+    from app.analysis.indicators.volume import compute_cmf, compute_obv, compute_vwap
 
     if "time" in df.columns:
         df = df.set_index("time")
@@ -309,9 +308,7 @@ class TestMomentumBreakoutStrategy:
                 "relax parameters further if this becomes a persistent failure"
             )
 
-        assert result.stop_prices is not None, (
-            "stop_prices must not be None when entries fired"
-        )
+        assert result.stop_prices is not None, "stop_prices must not be None when entries fired"
         entry_bars = np.where(result.entries)[0]
         for bar in entry_bars:
             assert np.isfinite(result.stop_prices[bar]), (
@@ -382,9 +379,7 @@ class TestYOLOPatternStrategy:
         df.iloc[detection_bar, df.columns.get_loc("yolo_pattern")] = "bull_flag"
         df.iloc[detection_bar, df.columns.get_loc("yolo_confidence")] = 0.85
 
-        strategy = YOLOPatternStrategy(
-            pattern_names=["bull_flag"], min_confidence=0.7
-        )
+        strategy = YOLOPatternStrategy(pattern_names=["bull_flag"], min_confidence=0.7)
         result = strategy.generate_signals(df)
 
         assert result.entries[detection_bar + 1], (

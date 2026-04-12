@@ -6,6 +6,7 @@ Tests cover:
 - run_forecast() edge cases (insufficient data)
 - Direction confidence calculation
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -14,8 +15,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _make_ohlcv_df(
     n_bars: int = 200,
@@ -31,14 +32,16 @@ def _make_ohlcv_df(
     lows = np.minimum(opens, closes) * (1 - rng.uniform(0, 0.01, n_bars))
     volumes = rng.uniform(1e6, 5e6, n_bars)
     dates = pd.bdate_range(end="2026-03-04", periods=n_bars)
-    return pd.DataFrame({
-        "time": [d.strftime("%Y-%m-%d") for d in dates],
-        "open": opens,
-        "high": highs,
-        "low": lows,
-        "close": closes,
-        "volume": volumes,
-    })
+    return pd.DataFrame(
+        {
+            "time": [d.strftime("%Y-%m-%d") for d in dates],
+            "open": opens,
+            "high": highs,
+            "low": lows,
+            "close": closes,
+            "volume": volumes,
+        }
+    )
 
 
 def _mock_pipeline_predict(closes: np.ndarray, horizon: int, num_samples: int):
@@ -46,6 +49,7 @@ def _mock_pipeline_predict(closes: np.ndarray, horizon: int, num_samples: int):
     Simulates a bullish forecast: slight upward drift from last close.
     """
     import torch
+
     last = closes[-1]
     drift = np.linspace(0, 0.05, horizon)
     noise = np.random.default_rng(42).normal(0, 0.01, (num_samples, horizon))
@@ -54,6 +58,7 @@ def _mock_pipeline_predict(closes: np.ndarray, horizon: int, num_samples: int):
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestRunForecast:
@@ -68,11 +73,8 @@ class TestRunForecast:
         last_close = df["close"].iloc[-1]
 
         mock_pipeline = MagicMock()
-        mock_pipeline.predict.side_effect = (
-            lambda context, prediction_length, num_samples, **kw:
-                _mock_pipeline_predict(
-                    df["close"].values, prediction_length, num_samples
-                )
+        mock_pipeline.predict.side_effect = lambda context, prediction_length, num_samples, **kw: (
+            _mock_pipeline_predict(df["close"].values, prediction_length, num_samples)
         )
         mock_get_pipeline.return_value = mock_pipeline
 
@@ -92,12 +94,14 @@ class TestRunForecast:
     def test_bearish_forecast(self, mock_get_pipeline: MagicMock) -> None:
         """Downward-drifting samples → bearish direction."""
         import torch
+
         from app.analysis.forecaster import run_forecast
 
         df = _make_ohlcv_df(n_bars=200)
         last_close = df["close"].iloc[-1]
 
         mock_pipeline = MagicMock()
+
         def predict_bearish(context, prediction_length, num_samples, **kw):
             drift = np.linspace(0, -0.05, prediction_length)
             noise = np.random.default_rng(42).normal(0, 0.005, (num_samples, prediction_length))
@@ -117,12 +121,14 @@ class TestRunForecast:
     def test_neutral_forecast(self, mock_get_pipeline: MagicMock) -> None:
         """Flat samples (within ±2%) → neutral direction."""
         import torch
+
         from app.analysis.forecaster import run_forecast
 
         df = _make_ohlcv_df(n_bars=200)
         last_close = df["close"].iloc[-1]
 
         mock_pipeline = MagicMock()
+
         def predict_flat(context, prediction_length, num_samples, **kw):
             noise = np.random.default_rng(42).normal(0, 0.002, (num_samples, prediction_length))
             samples = last_close * (1 + noise)
@@ -140,6 +146,7 @@ class TestRunForecast:
     def test_insufficient_data_returns_none(self) -> None:
         """Less than 50 bars → None."""
         from app.analysis.forecaster import run_forecast
+
         df = _make_ohlcv_df(n_bars=30)
         result = run_forecast(df, "TEST")
         assert result is None
@@ -151,11 +158,8 @@ class TestRunForecast:
 
         df = _make_ohlcv_df(n_bars=200)
         mock_pipeline = MagicMock()
-        mock_pipeline.predict.side_effect = (
-            lambda context, prediction_length, num_samples, **kw:
-                _mock_pipeline_predict(
-                    df["close"].values, prediction_length, num_samples
-                )
+        mock_pipeline.predict.side_effect = lambda context, prediction_length, num_samples, **kw: (
+            _mock_pipeline_predict(df["close"].values, prediction_length, num_samples)
         )
         mock_get_pipeline.return_value = mock_pipeline
 
@@ -175,11 +179,8 @@ class TestRunForecast:
 
         df = _make_ohlcv_df(n_bars=200)
         mock_pipeline = MagicMock()
-        mock_pipeline.predict.side_effect = (
-            lambda context, prediction_length, num_samples, **kw:
-                _mock_pipeline_predict(
-                    df["close"].values, prediction_length, num_samples
-                )
+        mock_pipeline.predict.side_effect = lambda context, prediction_length, num_samples, **kw: (
+            _mock_pipeline_predict(df["close"].values, prediction_length, num_samples)
         )
         mock_get_pipeline.return_value = mock_pipeline
 
