@@ -186,6 +186,23 @@ def create_scheduler() -> AsyncIOScheduler:
             replace_existing=True,
         )
         logger.info("Scheduled market_data_nightly: daily at 17:00 America/New_York")
+
+        from app.paper_trader.scheduler import run_paper_trader
+
+        scheduler.add_job(
+            run_paper_trader,
+            CronTrigger(
+                minute="*/15",
+                hour="9-16",
+                day_of_week="mon-fri",
+                timezone="America/New_York",
+            ),
+            id="paper_trader_15min",
+            replace_existing=True,
+        )
+        logger.info(
+            "Scheduled paper_trader_15min: every 15 min Mon-Fri 09:00-16:00 America/New_York"
+        )
     else:
         logger.info("Scheduler disabled (settings.scheduler_enabled=False)")
 

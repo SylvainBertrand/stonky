@@ -41,5 +41,16 @@ class Settings(BaseSettings):
     # Real-time price service
     price_cache_ttl_seconds: int = 60
 
+    # Notion integration (paper trader + execution log)
+    notion_api_key: str | None = None
+
+    # Discord (Trading Company webhook)
+    discord_webhook_url: str | None = None
+
+    # Paper Trader parameters
+    paper_trader_portfolio_value: float = 30_000.0
+    paper_trader_risk_pct: float = 0.01
+    paper_trader_min_rr: float = 1.5
+
 
 settings = Settings()

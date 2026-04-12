@@ -30,7 +30,14 @@
       "Bash(pre-commit run:*)",
       "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" add .pre-commit-config.yaml)",
       "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" add .claude/settings.json)",
-      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" status --short)"
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" status --short)",
+      "Read(//c/Users/sylva/my-software-projects/agentic_workforce/trading_company/briefs/**)",
+      "mcp__notion-local__API-post-page",
+      "mcp__claude_ai_Notion__notion-create-pages",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-update-page",
+      "Bash(grep -ri discord ~/my-software-projects/stonky/.env* ~/my-software-projects/stonky/backend/.env*)",
+      "Read(//c/Users/sylva/my-software-projects/agentic_workforce/trading_company/**)"
     ]
   },
   "enabledPlugins": {
