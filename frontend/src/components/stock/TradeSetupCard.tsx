@@ -1,21 +1,24 @@
-import type { SynthesisData } from '../../types'
-import { LoadingSpinner } from '../shared/LoadingSpinner'
+import type { SynthesisData } from '../../types';
+import { LoadingSpinner } from '../shared/LoadingSpinner';
 
 interface TradeSetupCardProps {
-  synthesis: SynthesisData | null | undefined
-  isLoading?: boolean
+  synthesis: SynthesisData | null | undefined;
+  isLoading?: boolean;
 }
 
 function formatTimeAgo(isoString: string): string {
-  const secs = Math.round((Date.now() - new Date(isoString).getTime()) / 1000)
-  if (secs < 60) return `${secs}s ago`
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
-  return `${Math.floor(secs / 86400)}d ago`
+  const secs = Math.round((Date.now() - new Date(isoString).getTime()) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
 }
 
 function getDirectionStyles(bias: 'bullish' | 'bearish' | 'neutral') {
-  const styles: Record<string, { border: string; bg: string; text: string; header: string; dot: string }> = {
+  const styles: Record<
+    string,
+    { border: string; bg: string; text: string; header: string; dot: string }
+  > = {
     bullish: {
       border: 'border-green-700/50',
       bg: 'bg-green-950/30',
@@ -37,8 +40,8 @@ function getDirectionStyles(bias: 'bullish' | 'bearish' | 'neutral') {
       header: 'bg-gray-800/40',
       dot: 'text-gray-500',
     },
-  }
-  return styles[bias]
+  };
+  return styles[bias];
 }
 
 function getConfidenceBadgeClass(confidence: 'high' | 'medium' | 'low') {
@@ -46,8 +49,8 @@ function getConfidenceBadgeClass(confidence: 'high' | 'medium' | 'low') {
     high: { base: 'bg-green-900/50 border-green-700/40', text: 'text-green-300', label: 'H' },
     medium: { base: 'bg-yellow-900/50 border-yellow-700/40', text: 'text-yellow-300', label: 'M' },
     low: { base: 'bg-gray-800/50 border-gray-700/40', text: 'text-gray-400', label: 'L' },
-  }
-  return classes[confidence]
+  };
+  return classes[confidence];
 }
 
 export function TradeSetupCard({ synthesis, isLoading }: TradeSetupCardProps) {
@@ -59,7 +62,7 @@ export function TradeSetupCard({ synthesis, isLoading }: TradeSetupCardProps) {
           <span className="text-sm text-gray-400">Loading trade setup analysis...</span>
         </div>
       </div>
-    )
+    );
   }
 
   if (!synthesis) {
@@ -70,16 +73,18 @@ export function TradeSetupCard({ synthesis, isLoading }: TradeSetupCardProps) {
           <span className="text-gray-600 text-xs">Analysis not yet generated</span>
         </div>
       </div>
-    )
+    );
   }
 
-  const directionStyles = getDirectionStyles(synthesis.bias)
-  const confidenceBadge = getConfidenceBadgeClass(synthesis.confidence)
+  const directionStyles = getDirectionStyles(synthesis.bias);
+  const confidenceBadge = getConfidenceBadgeClass(synthesis.confidence);
 
   return (
     <div className={`rounded-lg border ${directionStyles.border} ${directionStyles.bg}`}>
       {/* Header with setup info */}
-      <div className={`px-4 py-3 ${directionStyles.header} border-b ${directionStyles.border} rounded-t-lg`}>
+      <div
+        className={`px-4 py-3 ${directionStyles.header} border-b ${directionStyles.border} rounded-t-lg`}
+      >
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-3">
             <span className={`text-lg font-semibold ${directionStyles.text}`}>
@@ -88,7 +93,9 @@ export function TradeSetupCard({ synthesis, isLoading }: TradeSetupCardProps) {
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${directionStyles.text}`}>
               {synthesis.bias.charAt(0).toUpperCase() + synthesis.bias.slice(1)}
             </span>
-            <span className={`border rounded px-2 py-0.5 text-xs font-medium ${confidenceBadge.base} ${confidenceBadge.text}`}>
+            <span
+              className={`border rounded px-2 py-0.5 text-xs font-medium ${confidenceBadge.base} ${confidenceBadge.text}`}
+            >
               {confidenceBadge.label} Confidence
             </span>
           </div>
@@ -111,9 +118,7 @@ export function TradeSetupCard({ synthesis, isLoading }: TradeSetupCardProps) {
       <div className="px-4 py-3 space-y-3">
         {/* Summary */}
         <div>
-          <p className="text-sm text-gray-200 leading-relaxed">
-            {synthesis.summary}
-          </p>
+          <p className="text-sm text-gray-200 leading-relaxed">{synthesis.summary}</p>
         </div>
 
         {/* Confluence and conflicts */}
@@ -122,18 +127,14 @@ export function TradeSetupCard({ synthesis, isLoading }: TradeSetupCardProps) {
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">
               Confluence
             </p>
-            <p className="text-gray-300">
-              {synthesis.signal_confluence}
-            </p>
+            <p className="text-gray-300">{synthesis.signal_confluence}</p>
           </div>
           {synthesis.signal_conflicts && (
             <div>
               <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">
                 Conflicts
               </p>
-              <p className="text-gray-300">
-                {synthesis.signal_conflicts}
-              </p>
+              <p className="text-gray-300">{synthesis.signal_conflicts}</p>
             </div>
           )}
         </div>
@@ -186,12 +187,10 @@ export function TradeSetupCard({ synthesis, isLoading }: TradeSetupCardProps) {
             <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">
               Key Risk
             </p>
-            <p className="text-sm text-gray-300">
-              {synthesis.key_risk}
-            </p>
+            <p className="text-sm text-gray-300">{synthesis.key_risk}</p>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }

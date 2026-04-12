@@ -1,58 +1,58 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { watchlistApi } from '../../api/watchlists'
-import { useWatchlistStore } from '../../stores/watchlistStore'
-import type { Watchlist } from '../../types'
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { watchlistApi } from '../../api/watchlists';
+import { useWatchlistStore } from '../../stores/watchlistStore';
+import type { Watchlist } from '../../types';
 
 interface Props {
-  watchlists: Watchlist[]
-  selectedId: number | null
-  onSelect: (id: number) => void
+  watchlists: Watchlist[];
+  selectedId: number | null;
+  onSelect: (id: number) => void;
 }
 
 export function WatchlistList({ watchlists, selectedId, onSelect }: Props) {
-  const [showNewInput, setShowNewInput] = useState(false)
-  const [newName, setNewName] = useState('')
-  const queryClient = useQueryClient()
-  const { setSelectedWatchlistId } = useWatchlistStore()
+  const [showNewInput, setShowNewInput] = useState(false);
+  const [newName, setNewName] = useState('');
+  const queryClient = useQueryClient();
+  const { setSelectedWatchlistId } = useWatchlistStore();
 
   const createMutation = useMutation({
     mutationFn: (name: string) => watchlistApi.create(name),
     onSuccess: (created) => {
-      setNewName('')
-      setShowNewInput(false)
-      void queryClient.invalidateQueries({ queryKey: ['watchlists'] })
-      onSelect(created.id)
+      setNewName('');
+      setShowNewInput(false);
+      void queryClient.invalidateQueries({ queryKey: ['watchlists'] });
+      onSelect(created.id);
     },
-  })
+  });
 
   const setActiveMutation = useMutation({
     mutationFn: (id: number) => watchlistApi.setActive(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['watchlists'] })
-      void queryClient.invalidateQueries({ queryKey: ['watchlist', 'active'] })
+      void queryClient.invalidateQueries({ queryKey: ['watchlists'] });
+      void queryClient.invalidateQueries({ queryKey: ['watchlist', 'active'] });
     },
-  })
+  });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => watchlistApi.delete(id),
     onSuccess: (_, deletedId) => {
-      void queryClient.invalidateQueries({ queryKey: ['watchlists'] })
-      void queryClient.invalidateQueries({ queryKey: ['watchlist', 'active'] })
+      void queryClient.invalidateQueries({ queryKey: ['watchlists'] });
+      void queryClient.invalidateQueries({ queryKey: ['watchlist', 'active'] });
       if (selectedId === deletedId) {
-        const remaining = watchlists.find((w) => w.id !== deletedId)
-        const nextId = remaining?.id ?? null
-        setSelectedWatchlistId(nextId)
-        onSelect(nextId ?? 0)
+        const remaining = watchlists.find((w) => w.id !== deletedId);
+        const nextId = remaining?.id ?? null;
+        setSelectedWatchlistId(nextId);
+        onSelect(nextId ?? 0);
       }
     },
-  })
+  });
 
   const handleCreateSubmit = () => {
-    const name = newName.trim()
-    if (!name) return
-    createMutation.mutate(name)
-  }
+    const name = newName.trim();
+    if (!name) return;
+    createMutation.mutate(name);
+  };
 
   return (
     <div className="flex flex-col gap-1">
@@ -68,7 +68,9 @@ export function WatchlistList({ watchlists, selectedId, onSelect }: Props) {
         >
           <div className="flex items-center gap-2 min-w-0">
             {wl.is_default && (
-              <span className="text-blue-400 shrink-0" title="Active watchlist">●</span>
+              <span className="text-blue-400 shrink-0" title="Active watchlist">
+                ●
+              </span>
             )}
             <span className="truncate text-sm font-medium">{wl.name}</span>
             <span className="text-xs text-gray-500 shrink-0">{wl.item_count}</span>
@@ -77,8 +79,8 @@ export function WatchlistList({ watchlists, selectedId, onSelect }: Props) {
             {!wl.is_default && (
               <button
                 onClick={(e) => {
-                  e.stopPropagation()
-                  setActiveMutation.mutate(wl.id)
+                  e.stopPropagation();
+                  setActiveMutation.mutate(wl.id);
                 }}
                 disabled={setActiveMutation.isPending}
                 className="px-2 py-0.5 rounded text-xs text-gray-400 hover:text-blue-300 hover:bg-gray-700 transition-colors"
@@ -89,15 +91,17 @@ export function WatchlistList({ watchlists, selectedId, onSelect }: Props) {
             )}
             <button
               onClick={(e) => {
-                e.stopPropagation()
-                if (watchlists.length <= 1) return
+                e.stopPropagation();
+                if (watchlists.length <= 1) return;
                 if (window.confirm(`Delete "${wl.name}"?`)) {
-                  deleteMutation.mutate(wl.id)
+                  deleteMutation.mutate(wl.id);
                 }
               }}
               disabled={watchlists.length <= 1 || deleteMutation.isPending}
               className="px-1.5 py-0.5 rounded text-xs text-gray-600 hover:text-red-400 disabled:opacity-30 transition-colors"
-              title={watchlists.length <= 1 ? 'Cannot delete the only watchlist' : `Delete "${wl.name}"`}
+              title={
+                watchlists.length <= 1 ? 'Cannot delete the only watchlist' : `Delete "${wl.name}"`
+              }
             >
               ✕
             </button>
@@ -114,15 +118,15 @@ export function WatchlistList({ watchlists, selectedId, onSelect }: Props) {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') handleCreateSubmit()
+              if (e.key === 'Enter') handleCreateSubmit();
               if (e.key === 'Escape') {
-                setShowNewInput(false)
-                setNewName('')
+                setShowNewInput(false);
+                setNewName('');
               }
             }}
             onBlur={() => {
               if (!newName.trim()) {
-                setShowNewInput(false)
+                setShowNewInput(false);
               }
             }}
             placeholder="Watchlist name…"
@@ -145,5 +149,5 @@ export function WatchlistList({ watchlists, selectedId, onSelect }: Props) {
         </button>
       )}
     </div>
-  )
+  );
 }

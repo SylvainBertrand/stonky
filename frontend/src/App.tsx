@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { ScannerPage } from './pages/ScannerPage'
-import { StockDetailPage } from './pages/StockDetailPage'
-import { WatchlistPage } from './pages/WatchlistPage'
-import { BacktestPage } from './pages/BacktestPage'
-import { MarketPage } from './pages/MarketPage'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { ScannerPage } from './pages/ScannerPage';
+import { StockDetailPage } from './pages/StockDetailPage';
+import { WatchlistPage } from './pages/WatchlistPage';
+import { BacktestPage } from './pages/BacktestPage';
+import { MarketPage } from './pages/MarketPage';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,7 +13,7 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
-})
+});
 
 export default function App() {
   return (
@@ -28,5 +28,5 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
-  )
+  );
 }

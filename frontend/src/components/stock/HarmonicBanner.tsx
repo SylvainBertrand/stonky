@@ -1,17 +1,17 @@
-import type { HarmonicInfo } from '../../types'
+import type { HarmonicInfo } from '../../types';
 
 interface Props {
-  harmonic: HarmonicInfo
+  harmonic: HarmonicInfo;
 }
 
 export function HarmonicBanner({ harmonic }: Props) {
-  if (!harmonic.detected) return null
+  if (!harmonic.detected) return null;
 
-  const isBullish = harmonic.direction === 'bullish'
-  const borderColor = isBullish ? 'border-green-700/50' : 'border-red-700/50'
-  const bgColor = isBullish ? 'bg-green-950/40' : 'bg-red-950/40'
-  const labelColor = isBullish ? 'text-green-400' : 'text-red-400'
-  const qualityPct = Math.round(harmonic.ratio_quality * 100)
+  const isBullish = harmonic.direction === 'bullish';
+  const borderColor = isBullish ? 'border-green-700/50' : 'border-red-700/50';
+  const bgColor = isBullish ? 'bg-green-950/40' : 'bg-red-950/40';
+  const labelColor = isBullish ? 'text-green-400' : 'text-red-400';
+  const qualityPct = Math.round(harmonic.ratio_quality * 100);
 
   return (
     <div className={`rounded-lg border ${borderColor} ${bgColor} px-4 py-3`}>
@@ -38,10 +38,12 @@ export function HarmonicBanner({ harmonic }: Props) {
         {harmonic.bars_since_completion != null && (
           <span className="text-gray-400">
             Point D:{' '}
-            <span className="text-gray-200 font-mono">{harmonic.bars_since_completion} bars ago</span>
+            <span className="text-gray-200 font-mono">
+              {harmonic.bars_since_completion} bars ago
+            </span>
           </span>
         )}
       </div>
     </div>
-  )
+  );
 }

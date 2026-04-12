@@ -1,5 +1,13 @@
-export type OverlayKey = 'ema21' | 'ema50' | 'ema200' | 'supertrend' | 'volume' | 'patterns' | 'waves' | 'forecast'
-export type OverlayToggles = Record<OverlayKey, boolean>
+export type OverlayKey =
+  | 'ema21'
+  | 'ema50'
+  | 'ema200'
+  | 'supertrend'
+  | 'volume'
+  | 'patterns'
+  | 'waves'
+  | 'forecast';
+export type OverlayToggles = Record<OverlayKey, boolean>;
 
 export const DEFAULT_OVERLAYS: OverlayToggles = {
   ema21: true,
@@ -10,19 +18,19 @@ export const DEFAULT_OVERLAYS: OverlayToggles = {
   patterns: true,
   waves: true,
   forecast: false,
-}
+};
 
 interface Props {
-  overlays: OverlayToggles
-  onToggle: (key: OverlayKey) => void
-  onReset: () => void
+  overlays: OverlayToggles;
+  onToggle: (key: OverlayKey) => void;
+  onReset: () => void;
 }
 
 const EMA_DOTS: Partial<Record<OverlayKey, string>> = {
-  ema21: '#3b82f6',   // blue
-  ema50: '#f97316',   // orange
-  ema200: '#6b7280',  // gray
-}
+  ema21: '#3b82f6', // blue
+  ema50: '#f97316', // orange
+  ema200: '#6b7280', // gray
+};
 
 const BUTTON_LABELS: Record<OverlayKey, string> = {
   ema21: 'EMA 21',
@@ -33,16 +41,25 @@ const BUTTON_LABELS: Record<OverlayKey, string> = {
   patterns: 'Patterns',
   waves: 'EW Waves',
   forecast: 'Forecast',
-}
+};
 
-const OVERLAY_KEYS: OverlayKey[] = ['ema21', 'ema50', 'ema200', 'supertrend', 'volume', 'patterns', 'waves', 'forecast']
+const OVERLAY_KEYS: OverlayKey[] = [
+  'ema21',
+  'ema50',
+  'ema200',
+  'supertrend',
+  'volume',
+  'patterns',
+  'waves',
+  'forecast',
+];
 
 export function ChartControls({ overlays, onToggle, onReset }: Props) {
   return (
     <div className="flex items-center gap-1 mb-2 flex-wrap">
       {OVERLAY_KEYS.map((key) => {
-        const active = overlays[key]
-        const dotColor = EMA_DOTS[key]
+        const active = overlays[key];
+        const dotColor = EMA_DOTS[key];
         return (
           <button
             key={key}
@@ -63,7 +80,7 @@ export function ChartControls({ overlays, onToggle, onReset }: Props) {
             )}
             {BUTTON_LABELS[key]}
           </button>
-        )
+        );
       })}
       <button
         onClick={onReset}
@@ -73,5 +90,5 @@ export function ChartControls({ overlays, onToggle, onReset }: Props) {
         ↺ Reset
       </button>
     </div>
-  )
+  );
 }

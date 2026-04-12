@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { drawEWOverlay } from '../components/stock/CandlestickChart'
-import type { EWWavePoint } from '../types'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { drawEWOverlay } from '../components/stock/CandlestickChart';
+import type { EWWavePoint } from '../types';
 
 function makeCtx() {
   return {
@@ -16,7 +16,7 @@ function makeCtx() {
     fillStyle: '' as string,
     lineWidth: 1 as number,
     font: '' as string,
-  }
+  };
 }
 
 const WAVES: EWWavePoint[] = [
@@ -26,79 +26,149 @@ const WAVES: EWWavePoint[] = [
   { time: '2024-01-25', price: 310, label: '3', bar_index: 25 },
   { time: '2024-02-01', price: 250, label: '4', bar_index: 30 },
   { time: '2024-02-10', price: 350, label: '5', bar_index: 40 },
-]
+];
 
 function makeCoords(waves: EWWavePoint[]) {
-  const map = new Map<string | number, number>(waves.map((w, i) => [w.time, i * 50]))
-  const timeToCoord = (t: string | number) => map.get(t) ?? null
-  const priceToCoord = (p: number) => 400 - p
-  return { timeToCoord, priceToCoord }
+  const map = new Map<string | number, number>(waves.map((w, i) => [w.time, i * 50]));
+  const timeToCoord = (t: string | number) => map.get(t) ?? null;
+  const priceToCoord = (p: number) => 400 - p;
+  return { timeToCoord, priceToCoord };
 }
 
-const CANVAS_W = 800
-const CANVAS_H = 420
+const CANVAS_W = 800;
+const CANVAS_H = 420;
 
 describe('drawEWOverlay', () => {
-  let ctx: ReturnType<typeof makeCtx>
-  let timeToCoord: (t: string | number) => number | null
-  let priceToCoord: (p: number) => number | null
+  let ctx: ReturnType<typeof makeCtx>;
+  let timeToCoord: (t: string | number) => number | null;
+  let priceToCoord: (p: number) => number | null;
 
   beforeEach(() => {
-    ctx = makeCtx()
-    const coords = makeCoords(WAVES)
-    timeToCoord = coords.timeToCoord
-    priceToCoord = coords.priceToCoord
-  })
+    ctx = makeCtx();
+    const coords = makeCoords(WAVES);
+    timeToCoord = coords.timeToCoord;
+    priceToCoord = coords.priceToCoord;
+  });
 
   it('calls clearRect', () => {
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, null, timeToCoord, priceToCoord)
-    expect(ctx.clearRect).toHaveBeenCalledWith(0, 0, CANVAS_W, CANVAS_H)
-  })
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      null,
+      timeToCoord,
+      priceToCoord
+    );
+    expect(ctx.clearRect).toHaveBeenCalledWith(0, 0, CANVAS_W, CANVAS_H);
+  });
 
   it('draws nothing extra when waves is null', () => {
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, null, timeToCoord, priceToCoord)
-    expect(ctx.moveTo).not.toHaveBeenCalled()
-  })
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      null,
+      timeToCoord,
+      priceToCoord
+    );
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+  });
 
   it('calls moveTo then multiple lineTo for the polyline', () => {
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, timeToCoord, priceToCoord, 'bullish')
-    expect(ctx.moveTo).toHaveBeenCalledTimes(1)
-    expect(ctx.lineTo).toHaveBeenCalledTimes(WAVES.length - 1)
-  })
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      WAVES,
+      timeToCoord,
+      priceToCoord,
+      'bullish'
+    );
+    expect(ctx.moveTo).toHaveBeenCalledTimes(1);
+    expect(ctx.lineTo).toHaveBeenCalledTimes(WAVES.length - 1);
+  });
 
   it('draws one label per wave point', () => {
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, timeToCoord, priceToCoord, 'bullish')
-    expect(ctx.fillText).toHaveBeenCalledTimes(WAVES.length)
-  })
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      WAVES,
+      timeToCoord,
+      priceToCoord,
+      'bullish'
+    );
+    expect(ctx.fillText).toHaveBeenCalledTimes(WAVES.length);
+  });
 
   it('skips wave point when timeToCoordinate returns null for all', () => {
-    const nullCoord = () => null
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, nullCoord, priceToCoord, 'bullish')
-    expect(ctx.moveTo).not.toHaveBeenCalled()
-  })
+    const nullCoord = () => null;
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      WAVES,
+      nullCoord,
+      priceToCoord,
+      'bullish'
+    );
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+  });
 
   it('draws nothing when waves array has only one point', () => {
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, [WAVES[0]], timeToCoord, priceToCoord, 'bullish')
-    expect(ctx.moveTo).not.toHaveBeenCalled()
-  })
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      [WAVES[0]],
+      timeToCoord,
+      priceToCoord,
+      'bullish'
+    );
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+  });
 
   it('bearish direction uses red strokeStyle', () => {
-    const styles: string[] = []
+    const styles: string[] = [];
     Object.defineProperty(ctx, 'strokeStyle', {
-      set(v: string) { styles.push(v) },
-      get() { return styles[styles.length - 1] ?? '' },
-    })
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, timeToCoord, priceToCoord, 'bearish')
-    expect(styles).toContain('rgba(239, 68, 68, 0.9)')
-  })
+      set(v: string) {
+        styles.push(v);
+      },
+      get() {
+        return styles[styles.length - 1] ?? '';
+      },
+    });
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      WAVES,
+      timeToCoord,
+      priceToCoord,
+      'bearish'
+    );
+    expect(styles).toContain('rgba(239, 68, 68, 0.9)');
+  });
 
   it('null direction uses grey strokeStyle', () => {
-    const styles: string[] = []
+    const styles: string[] = [];
     Object.defineProperty(ctx, 'strokeStyle', {
-      set(v: string) { styles.push(v) },
-      get() { return styles[styles.length - 1] ?? '' },
-    })
-    drawEWOverlay(ctx as unknown as CanvasRenderingContext2D, CANVAS_W, CANVAS_H, WAVES, timeToCoord, priceToCoord, null)
-    expect(styles).toContain('rgba(150, 150, 150, 0.9)')
-  })
-})
+      set(v: string) {
+        styles.push(v);
+      },
+      get() {
+        return styles[styles.length - 1] ?? '';
+      },
+    });
+    drawEWOverlay(
+      ctx as unknown as CanvasRenderingContext2D,
+      CANVAS_W,
+      CANVAS_H,
+      WAVES,
+      timeToCoord,
+      priceToCoord,
+      null
+    );
+    expect(styles).toContain('rgba(150, 150, 150, 0.9)');
+  });
+});

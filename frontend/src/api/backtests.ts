@@ -1,24 +1,24 @@
-import type { BacktestResponse, SweepResponse, BacktestHistoryItem } from '../types'
-import { apiFetch } from './client'
+import type { BacktestResponse, SweepResponse, BacktestHistoryItem } from '../types';
+import { apiFetch } from './client';
 
 export interface BacktestRequest {
-  symbol: string
-  timeframe: string
-  start_date: string
-  end_date: string
-  initial_capital: number
-  strategy_type: string
-  parameters: Record<string, unknown>
+  symbol: string;
+  timeframe: string;
+  start_date: string;
+  end_date: string;
+  initial_capital: number;
+  strategy_type: string;
+  parameters: Record<string, unknown>;
 }
 
 export interface SweepRequest {
-  symbol: string
-  timeframe: string
-  start_date: string
-  end_date: string
-  initial_capital: number
-  strategy_type: string
-  param_ranges: Record<string, [number, number, number]> // [min, max, step]
+  symbol: string;
+  timeframe: string;
+  start_date: string;
+  end_date: string;
+  initial_capital: number;
+  strategy_type: string;
+  param_ranges: Record<string, [number, number, number]>; // [min, max, step]
 }
 
 export const backtestApi = {
@@ -44,4 +44,4 @@ export const backtestApi = {
 
   delete: (id: number): Promise<void> =>
     apiFetch<void>(`/api/backtests/${id}`, { method: 'DELETE' }),
-}
+};

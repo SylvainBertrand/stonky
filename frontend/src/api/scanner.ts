@@ -1,18 +1,27 @@
-import type { EWDetection, ForecastData, OHLCVResponse, ScanRunResponse, ScanRunStatus, ScannerResult, SynthesisData, SymbolPatterns } from '../types'
-import { apiFetch } from './client'
+import type {
+  EWDetection,
+  ForecastData,
+  OHLCVResponse,
+  ScanRunResponse,
+  ScanRunStatus,
+  ScannerResult,
+  SynthesisData,
+  SymbolPatterns,
+} from '../types';
+import { apiFetch } from './client';
 
 export const scannerApi = {
   getResults: (profile?: string | null, watchlistId?: number | null): Promise<ScannerResult[]> => {
-    const params = new URLSearchParams()
-    if (profile) params.set('profile', profile)
-    if (watchlistId != null) params.set('watchlist_id', String(watchlistId))
-    const qs = params.size > 0 ? `?${params.toString()}` : ''
-    return apiFetch<ScannerResult[]>(`/api/scanner/results${qs}`)
+    const params = new URLSearchParams();
+    if (profile) params.set('profile', profile);
+    if (watchlistId != null) params.set('watchlist_id', String(watchlistId));
+    const qs = params.size > 0 ? `?${params.toString()}` : '';
+    return apiFetch<ScannerResult[]>(`/api/scanner/results${qs}`);
   },
 
   runScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
-    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
-    return apiFetch<ScanRunResponse>(`/api/scanner/run${qs}`, { method: 'POST' })
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : '';
+    return apiFetch<ScanRunResponse>(`/api/scanner/run${qs}`, { method: 'POST' });
   },
 
   getRunStatus: (runId: number): Promise<ScanRunStatus> =>
@@ -20,87 +29,98 @@ export const scannerApi = {
 
   getDetail: (symbol: string, timeframe = '1d'): Promise<ScannerResult> =>
     apiFetch<ScannerResult>(
-      `/api/scanner/results/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
+      `/api/scanner/results/${encodeURIComponent(symbol)}?timeframe=${timeframe}`
     ),
 
   getOHLCV: (symbol: string, timeframe = '1d', bars = 200): Promise<OHLCVResponse> =>
     apiFetch<OHLCVResponse>(
-      `/api/stocks/${encodeURIComponent(symbol)}/ohlcv?timeframe=${timeframe}&bars=${bars}`,
+      `/api/stocks/${encodeURIComponent(symbol)}/ohlcv?timeframe=${timeframe}&bars=${bars}`
     ),
 
-  loadMoreBars: (symbol: string, timeframe: string, before: string, limit = 200): Promise<OHLCVResponse> =>
+  loadMoreBars: (
+    symbol: string,
+    timeframe: string,
+    before: string,
+    limit = 200
+  ): Promise<OHLCVResponse> =>
     apiFetch<OHLCVResponse>(
-      `/api/stocks/${encodeURIComponent(symbol)}/ohlcv?timeframe=${timeframe}&bars=${limit}&before=${before}`,
+      `/api/stocks/${encodeURIComponent(symbol)}/ohlcv?timeframe=${timeframe}&bars=${limit}&before=${before}`
     ),
-}
+};
 
 export const patternsApi = {
   getPatterns: (symbol: string, timeframe = '1d'): Promise<SymbolPatterns> =>
-    apiFetch<SymbolPatterns>(
-      `/api/patterns/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
-    ),
+    apiFetch<SymbolPatterns>(`/api/patterns/${encodeURIComponent(symbol)}?timeframe=${timeframe}`),
 
   triggerScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
-    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
-    return apiFetch<ScanRunResponse>(`/api/patterns/scan${qs}`, { method: 'POST' })
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : '';
+    return apiFetch<ScanRunResponse>(`/api/patterns/scan${qs}`, { method: 'POST' });
   },
 
-  getScanStatus: (): Promise<ScanRunStatus> =>
-    apiFetch<ScanRunStatus>('/api/patterns/scan/status'),
+  getScanStatus: (): Promise<ScanRunStatus> => apiFetch<ScanRunStatus>('/api/patterns/scan/status'),
 
   getEWDetection: (symbol: string, timeframe = '1d'): Promise<EWDetection> =>
     apiFetch<EWDetection>(
-      `/api/patterns/elliott-wave/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
+      `/api/patterns/elliott-wave/${encodeURIComponent(symbol)}?timeframe=${timeframe}`
     ),
-}
+};
 
 export const forecastsApi = {
   getForecast: (symbol: string, timeframe = '1d'): Promise<ForecastData | null> =>
     apiFetch<ForecastData | null>(
-      `/api/forecasts/${encodeURIComponent(symbol)}?timeframe=${timeframe}`,
+      `/api/forecasts/${encodeURIComponent(symbol)}?timeframe=${timeframe}`
     ),
 
   triggerScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
-    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
-    return apiFetch<ScanRunResponse>(`/api/forecasts/scan${qs}`, { method: 'POST' })
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : '';
+    return apiFetch<ScanRunResponse>(`/api/forecasts/scan${qs}`, { method: 'POST' });
   },
 
-  getScanStatus: (): Promise<{ run_id: number; status: string; started_at: string | null; completed_at: string | null; symbols_scanned: number; symbols_forecast: number }> =>
-    apiFetch('/api/forecasts/scan/status'),
-}
+  getScanStatus: (): Promise<{
+    run_id: number;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    symbols_scanned: number;
+    symbols_forecast: number;
+  }> => apiFetch('/api/forecasts/scan/status'),
+};
 
 export interface PipelineStatus {
-  status: 'idle' | 'running' | 'completed' | 'failed'
-  started_at: string | null
-  completed_at: string | null
-  symbols_total: number
-  symbols_completed: number
-  symbols_failed: number
-  current_symbols: string[]
-  estimated_remaining_s: number | null
+  status: 'idle' | 'running' | 'completed' | 'failed';
+  started_at: string | null;
+  completed_at: string | null;
+  symbols_total: number;
+  symbols_completed: number;
+  symbols_failed: number;
+  current_symbols: string[];
+  estimated_remaining_s: number | null;
 }
 
 export const pipelineApi = {
   run: (watchlistId?: number | null): Promise<{ run_id: number; status: string }> => {
-    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
-    return apiFetch(`/api/pipeline/run${qs}`, { method: 'POST' })
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : '';
+    return apiFetch(`/api/pipeline/run${qs}`, { method: 'POST' });
   },
 
-  getStatus: (): Promise<PipelineStatus> =>
-    apiFetch<PipelineStatus>('/api/pipeline/status'),
-}
+  getStatus: (): Promise<PipelineStatus> => apiFetch<PipelineStatus>('/api/pipeline/status'),
+};
 
 export const synthesisApi = {
   getSynthesis: (symbol: string): Promise<SynthesisData | null> =>
-    apiFetch<SynthesisData | null>(
-      `/api/synthesis/${encodeURIComponent(symbol)}`,
-    ),
+    apiFetch<SynthesisData | null>(`/api/synthesis/${encodeURIComponent(symbol)}`),
 
   triggerScan: (watchlistId?: number | null): Promise<ScanRunResponse> => {
-    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : ''
-    return apiFetch<ScanRunResponse>(`/api/synthesis/scan${qs}`, { method: 'POST' })
+    const qs = watchlistId != null ? `?watchlist_id=${watchlistId}` : '';
+    return apiFetch<ScanRunResponse>(`/api/synthesis/scan${qs}`, { method: 'POST' });
   },
 
-  getScanStatus: (): Promise<{ run_id: number; status: string; started_at: string | null; completed_at: string | null; symbols_scanned: number; symbols_synthesized: number }> =>
-    apiFetch('/api/synthesis/scan/status'),
-}
+  getScanStatus: (): Promise<{
+    run_id: number;
+    status: string;
+    started_at: string | null;
+    completed_at: string | null;
+    symbols_scanned: number;
+    symbols_synthesized: number;
+  }> => apiFetch('/api/synthesis/scan/status'),
+};

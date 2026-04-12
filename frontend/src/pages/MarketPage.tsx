@@ -1,45 +1,45 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { marketApi } from '../api/market'
-import { MarketRegimeBanner } from '../components/market/MarketRegimeBanner'
-import { BreadthPanel } from '../components/market/BreadthPanel'
-import { MomentumPanel } from '../components/market/MomentumPanel'
-import { MacroPanel } from '../components/market/MacroPanel'
-import { SentimentPanel } from '../components/market/SentimentPanel'
-import { LoadingSpinner } from '../components/shared/LoadingSpinner'
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { marketApi } from '../api/market';
+import { MarketRegimeBanner } from '../components/market/MarketRegimeBanner';
+import { BreadthPanel } from '../components/market/BreadthPanel';
+import { MomentumPanel } from '../components/market/MomentumPanel';
+import { MacroPanel } from '../components/market/MacroPanel';
+import { SentimentPanel } from '../components/market/SentimentPanel';
+import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 
-type Tab = 'breadth' | 'momentum' | 'macro' | 'sentiment'
+type Tab = 'breadth' | 'momentum' | 'macro' | 'sentiment';
 
 export function MarketPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('breadth')
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<Tab>('breadth');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const { data: regime, isLoading: regimeLoading } = useQuery({
     queryKey: ['market', 'regime'],
     queryFn: marketApi.getRegime,
     staleTime: 5 * 60 * 1000,
-  })
+  });
 
   const handleRefresh = async () => {
-    setIsRefreshing(true)
-    setRefreshError(null)
+    setIsRefreshing(true);
+    setRefreshError(null);
     try {
-      await marketApi.triggerRefresh()
+      await marketApi.triggerRefresh();
     } catch (err) {
-      setRefreshError(err instanceof Error ? err.message : 'Refresh failed')
+      setRefreshError(err instanceof Error ? err.message : 'Refresh failed');
     } finally {
-      setIsRefreshing(false)
+      setIsRefreshing(false);
     }
-  }
+  };
 
   if (regimeLoading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <LoadingSpinner size="lg" />
       </div>
-    )
+    );
   }
 
   return (
@@ -50,24 +50,15 @@ export function MarketPage() {
           <div className="flex items-center gap-4">
             <h1 className="text-lg font-bold text-white tracking-tight">Stonky</h1>
             <nav className="flex items-center gap-3 text-sm">
-              <Link
-                to="/"
-                className="text-gray-400 hover:text-white transition-colors"
-              >
+              <Link to="/" className="text-gray-400 hover:text-white transition-colors">
                 Scanner
               </Link>
               <span className="text-gray-700">|</span>
-              <Link
-                to="/watchlists"
-                className="text-gray-400 hover:text-white transition-colors"
-              >
+              <Link to="/watchlists" className="text-gray-400 hover:text-white transition-colors">
                 Watchlists
               </Link>
               <span className="text-gray-700">|</span>
-              <Link
-                to="/backtest"
-                className="text-gray-400 hover:text-white transition-colors"
-              >
+              <Link to="/backtest" className="text-gray-400 hover:text-white transition-colors">
                 Backtest
               </Link>
               <span className="text-gray-700">|</span>
@@ -75,7 +66,9 @@ export function MarketPage() {
             </nav>
           </div>
           <button
-            onClick={() => { void handleRefresh() }}
+            onClick={() => {
+              void handleRefresh();
+            }}
             disabled={isRefreshing}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-gray-700 hover:border-gray-500 disabled:opacity-50 text-xs text-gray-400 hover:text-white transition-colors"
             title="Refresh market data"
@@ -150,5 +143,5 @@ export function MarketPage() {
         </div>
       </main>
     </div>
-  )
+  );
 }
