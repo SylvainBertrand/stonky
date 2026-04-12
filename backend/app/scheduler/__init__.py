@@ -113,12 +113,12 @@ async def run_nightly_pipeline() -> None:
         summary = await run_full_pipeline(symbols, config, AsyncSessionLocal, run_id)
 
         async with AsyncSessionLocal() as db:
-            scan_run = await db.get(ScanRun, run_id)
+            scan_run: ScanRun | None = await db.get(ScanRun, run_id)
             if scan_run:
                 scan_run.status = ScanRunStatus.COMPLETED
                 scan_run.completed_at = datetime.now(UTC)
-                scan_run.symbols_scanned = summary["completed"] + summary["failed"]
-                scan_run.symbols_scored = summary["completed"]
+                scan_run.symbols_scanned = int(summary["completed"]) + int(summary["failed"])
+                scan_run.symbols_scored = int(summary["completed"])
                 scan_run.error_message = "full_pipeline"
                 await db.commit()
 
@@ -133,7 +133,7 @@ async def run_nightly_pipeline() -> None:
         logger.error("nightly_full_pipeline failed: %s", exc, exc_info=True)
         try:
             async with AsyncSessionLocal() as db:
-                scan_run = await db.get(ScanRun, run_id)
+                scan_run: ScanRun | None = await db.get(ScanRun, run_id)
                 if scan_run:
                     scan_run.status = ScanRunStatus.FAILED
                     scan_run.completed_at = datetime.now(UTC)
