@@ -266,7 +266,7 @@ def run_backtest_sync(
 
     total_return_pct = (equity[-1] / initial_capital - 1) * 100
     days = n
-    if isinstance(df.index[0], (pd.Timestamp, datetime)):
+    if isinstance(df.index[0], pd.Timestamp | datetime):
         days = (df.index[-1] - df.index[0]).days
     cagr_pct = _compute_cagr(initial_capital, equity[-1], days)
     sharpe = _compute_sharpe(daily_returns)

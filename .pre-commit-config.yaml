@@ -20,9 +20,8 @@ repos:
     hooks:
       - id: mypy
         name: mypy
-        entry: uv run mypy
+        entry: bash -c 'cd backend && uv run mypy app'
         language: system
-        args: [app]
         files: ^backend/
         pass_filenames: false
 

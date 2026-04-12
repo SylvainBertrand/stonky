@@ -17,7 +17,20 @@
       "Bash(curl -s http://localhost:8000/api/health)",
       "Bash(curl -s http://localhost:5173)",
       "Bash(claude mcp:*)",
-      "Bash(grep -E \"\\\\.py$\")"
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(gh pr:*)",
+      "Bash(gh run:*)",
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" diff --stat HEAD)",
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" add backend/app/analysis/yolo_screener.py backend/app/api/market.py backend/app/backtesting/runner.py backend/app/market/indicators.py)",
+      "Bash(git -C c:/Users/sylva/my-software-projects/stonky commit -m ':*)",
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" push)",
+      "Bash(pre-commit install:*)",
+      "Bash(uv tool:*)",
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" config --show-origin core.hooksPath)",
+      "Bash(pre-commit run:*)",
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" add .pre-commit-config.yaml)",
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" add .claude/settings.json)",
+      "Bash(git -C \"c:/Users/sylva/my-software-projects/stonky\" status --short)"
     ]
   },
   "enabledPlugins": {
