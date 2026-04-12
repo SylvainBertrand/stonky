@@ -104,7 +104,9 @@ def get_model() -> Any:
 
     try:
         from huggingface_hub import hf_hub_download
-        from ultralytics import YOLO  # type: ignore[attr-defined]  # ultralytics lacks explicit __init__.pyi re-exports
+        from ultralytics import (
+            YOLO,  # type: ignore[attr-defined]  # ultralytics lacks explicit __init__.pyi re-exports
+        )
 
         log.info("Downloading YOLOv8 model weights from %s ...", _HF_REPO_ID)
         model_path = hf_hub_download(repo_id=_HF_REPO_ID, filename=_HF_MODEL_FILENAME)
