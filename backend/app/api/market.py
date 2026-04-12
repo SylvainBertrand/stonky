@@ -33,7 +33,9 @@ router = APIRouter(prefix="/market", tags=["market"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-async def _get_ohlcv_close(session: AsyncSession, ticker: str, limit: int = 252) -> list[dict[str, Any]]:
+async def _get_ohlcv_close(
+    session: AsyncSession, ticker: str, limit: int = 252
+) -> list[dict[str, Any]]:
     sym_result = await session.execute(select(Symbol).where(Symbol.ticker == ticker))
     sym = sym_result.scalar_one_or_none()
     if not sym:

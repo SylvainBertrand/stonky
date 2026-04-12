@@ -91,14 +91,18 @@ def materialize_yolo_detections(df: pd.DataFrame, detections: list[dict[str, Any
             df.iloc[idx, df.columns.get_loc("yolo_confidence")] = det["confidence"]
 
 
-def _compute_sharpe(returns: np.ndarray[Any, np.dtype[Any]], periods_per_year: float = 252.0) -> float:
+def _compute_sharpe(
+    returns: np.ndarray[Any, np.dtype[Any]], periods_per_year: float = 252.0
+) -> float:
     """Annualized Sharpe ratio from daily returns."""
     if len(returns) < 2 or np.std(returns) == 0:
         return 0.0
     return float(np.mean(returns) / np.std(returns) * np.sqrt(periods_per_year))
 
 
-def _compute_sortino(returns: np.ndarray[Any, np.dtype[Any]], periods_per_year: float = 252.0) -> float:
+def _compute_sortino(
+    returns: np.ndarray[Any, np.dtype[Any]], periods_per_year: float = 252.0
+) -> float:
     """Annualized Sortino ratio from daily returns."""
     if len(returns) < 2:
         return 0.0
