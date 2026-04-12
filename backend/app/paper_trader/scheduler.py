@@ -342,7 +342,9 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
         )
         if size <= 0:
             logger.warning(
-                "_process_signals: skipping %s — computed size=%.4f (zero or negative)", ticker, size
+                "_process_signals: skipping %s — computed size=%.4f (zero or negative)",
+                ticker,
+                size,
             )
             skipped += 1
             continue

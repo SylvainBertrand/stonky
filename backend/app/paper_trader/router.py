@@ -106,8 +106,11 @@ async def thesis_entry(body: ThesisEntryRequest) -> RunResult:
 
     # R:R gate
     passes_rr, rr_ratio = validate_rr(
-        entry=entry_price, stop=stop, target=target,
-        direction=direction, min_rr=settings.paper_trader_min_rr,
+        entry=entry_price,
+        stop=stop,
+        target=target,
+        direction=direction,
+        min_rr=settings.paper_trader_min_rr,
     )
     if not passes_rr:
         await nc.write_execution_log(
@@ -121,16 +124,21 @@ async def thesis_entry(body: ThesisEntryRequest) -> RunResult:
         )
 
     # Position sizing
-    size = body.size if body.size > 0 else compute_position_size(
-        portfolio_value=settings.paper_trader_portfolio_value,
-        risk_pct=settings.paper_trader_risk_pct,
-        entry=entry_price,
-        stop=stop,
-        direction=direction,
+    size = (
+        body.size
+        if body.size > 0
+        else compute_position_size(
+            portfolio_value=settings.paper_trader_portfolio_value,
+            risk_pct=settings.paper_trader_risk_pct,
+            entry=entry_price,
+            stop=stop,
+            direction=direction,
+        )
     )
     if size <= 0:
         await nc.write_execution_log(
-            run_id=run_id, status="failed",
+            run_id=run_id,
+            status="failed",
             errors=["size_zero: computed position size is zero or negative"],
         )
         raise HTTPException(status_code=422, detail="Computed position size is zero or negative.")
@@ -139,21 +147,40 @@ async def thesis_entry(body: ThesisEntryRequest) -> RunResult:
 
     try:
         portfolio_entry = await nc.create_portfolio_position(
-            ticker=ticker, entry_price=entry_price, stop=stop, target=target,
-            size=size, direction=direction.value, signal_id="",
-            thesis_id=body.thesis_id, risk_amount=risk_amount, rr_ratio=rr_ratio,
+            ticker=ticker,
+            entry_price=entry_price,
+            stop=stop,
+            target=target,
+            size=size,
+            direction=direction.value,
+            signal_id="",
+            thesis_id=body.thesis_id,
+            risk_amount=risk_amount,
+            rr_ratio=rr_ratio,
         )
         journal_entry = await nc.create_trade_journal_open(
-            ticker=ticker, signal_id="", entry_price=entry_price, stop=stop,
-            target=target, size=size, risk_amount=risk_amount, rr_ratio=rr_ratio,
-            direction=direction.value, portfolio_page_url=portfolio_entry["url"],
+            ticker=ticker,
+            signal_id="",
+            entry_price=entry_price,
+            stop=stop,
+            target=target,
+            size=size,
+            risk_amount=risk_amount,
+            rr_ratio=rr_ratio,
+            direction=direction.value,
+            portfolio_page_url=portfolio_entry["url"],
         )
         last_url = journal_entry["url"]
         opened = 1
         await disc.send_position_open(
-            ticker=ticker, entry_price=entry_price, stop=stop, target=target,
-            risk_amount=risk_amount, rr_ratio=rr_ratio,
-            notion_url=portfolio_entry["url"], direction=direction.value,
+            ticker=ticker,
+            entry_price=entry_price,
+            stop=stop,
+            target=target,
+            risk_amount=risk_amount,
+            rr_ratio=rr_ratio,
+            notion_url=portfolio_entry["url"],
+            direction=direction.value,
         )
     except Exception as exc:
         errors.append(str(exc))
@@ -161,15 +188,25 @@ async def thesis_entry(body: ThesisEntryRequest) -> RunResult:
 
     status = "success" if opened else "failed"
     await nc.write_execution_log(
-        run_id=run_id, status=status, errors=errors or None, output_page_url=last_url,
+        run_id=run_id,
+        status=status,
+        errors=errors or None,
+        output_page_url=last_url,
     )
     await disc.send_run_summary(
-        run_id=run_id, positions_opened=opened, positions_closed=0,
-        status=status, notion_url=last_url,
+        run_id=run_id,
+        positions_opened=opened,
+        positions_closed=0,
+        status=status,
+        notion_url=last_url,
     )
 
     return RunResult(
-        run_id=run_id, status=status, market_open=market_open,
-        positions_opened=opened, positions_closed=0,
-        signals_skipped=skipped, errors=errors,
+        run_id=run_id,
+        status=status,
+        market_open=market_open,
+        positions_opened=opened,
+        positions_closed=0,
+        signals_skipped=skipped,
+        errors=errors,
     )

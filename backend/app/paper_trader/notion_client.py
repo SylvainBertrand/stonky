@@ -1,13 +1,16 @@
 """Notion API client for the Paper Trader service.
 
+Uses the low-level ``client.request()`` method (stable across notion-client
+versions) to call the Notion REST API directly.  This avoids dependency on
+the high-level endpoint classes whose API changed across major versions.
+
 Handles all reads and writes to:
   - Signal Registry    (collection://777fdeb7-8b1b-4d25-9f98-bee68e1a3c28)
   - Paper Portfolio DB (collection://910c1cb0-65eb-4540-a0c3-7bdb20944939)
   - Trade Journal      (collection://d14fd908-48e4-475a-ab4e-f11bcc29fd0d)
   - Execution Log      (collection://b5adb864-bb3e-45a2-abfb-bd67e004c78d)
 
-Uses the official notion-client library (async). All DB IDs are hard-coded as
-module-level constants so they can be patched in tests.
+All DB IDs are module-level constants so they can be patched in tests.
 
 References:
   - Brief: briefs/paper-trader.yaml v1.0.0
@@ -46,7 +49,7 @@ def _get_client() -> AsyncClient:
 
 
 # ---------------------------------------------------------------------------
-# Property helpers
+# Property helpers (build Notion property objects)
 # ---------------------------------------------------------------------------
 
 
@@ -76,7 +79,7 @@ def _url(value: str) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Property readers (from Notion API response)
+# Property readers (extract values from Notion API response pages)
 # ---------------------------------------------------------------------------
 
 
@@ -120,17 +123,65 @@ def _read_date_start(page: dict[str, Any], prop: str) -> str:
         return ""
 
 
-def _read_url(page: dict[str, Any], prop: str) -> str:
-    try:
-        return page["properties"][prop]["url"] or ""
-    except (KeyError, TypeError):
-        return ""
-
-
 def _page_url(page: dict[str, Any]) -> str:
     """Return the canonical Notion URL for a page."""
     page_id: str = page.get("id", "").replace("-", "")
     return f"https://www.notion.so/{page_id}"
+
+
+# ---------------------------------------------------------------------------
+# Low-level Notion REST helpers
+# ---------------------------------------------------------------------------
+
+
+async def _query_database(
+    db_id: str,
+    filter_body: dict[str, Any] | None = None,
+    sorts: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Query a Notion database and return all result pages."""
+    client = _get_client()
+    body: dict[str, Any] = {}
+    if filter_body:
+        body["filter"] = filter_body
+    if sorts:
+        body["sorts"] = sorts
+    response = await client.request(
+        path=f"databases/{db_id}/query",
+        method="POST",
+        body=body,
+    )
+    return response.get("results", [])  # type: ignore[no-any-return]
+
+
+async def _create_page(
+    db_id: str,
+    properties: dict[str, Any],
+) -> dict[str, Any]:
+    """Create a new page in a Notion database."""
+    client = _get_client()
+    page: dict[str, Any] = await client.request(
+        path="pages",
+        method="POST",
+        body={
+            "parent": {"database_id": db_id},
+            "properties": properties,
+        },
+    )
+    return page
+
+
+async def _update_page(
+    page_id: str,
+    properties: dict[str, Any],
+) -> None:
+    """Update properties on an existing Notion page."""
+    client = _get_client()
+    await client.request(
+        path=f"pages/{page_id}",
+        method="PATCH",
+        body={"properties": properties},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -144,12 +195,10 @@ async def get_approved_signals() -> list[dict[str, Any]]:
     Filter: Board Decision = approved AND Agent != paper-trader
     Sorted by Score descending.
     """
-    client = _get_client()
     cutoff = _48h_cutoff()
-
-    response = await client.databases.query(
-        database_id=SIGNAL_REGISTRY_DB,
-        filter={
+    results = await _query_database(
+        db_id=SIGNAL_REGISTRY_DB,
+        filter_body={
             "and": [
                 {"property": "Board Decision", "select": {"equals": "approved"}},
                 {"property": "Agent", "rich_text": {"does_not_equal": "paper-trader"}},
@@ -158,8 +207,6 @@ async def get_approved_signals() -> list[dict[str, Any]]:
         },
         sorts=[{"property": "Score", "direction": "descending"}],
     )
-
-    results = response.get("results", [])
     logger.info("get_approved_signals: found %d approved signals", len(results))
     return [_parse_signal(p) for p in results]
 
@@ -190,8 +237,7 @@ def _parse_signal(page: dict[str, Any]) -> dict[str, Any]:
 
 async def mark_signal_executed(signal_id: str) -> None:
     """Transition Signal Registry Board Decision: approved → executed."""
-    client = _get_client()
-    await client.pages.update(
+    await _update_page(
         page_id=signal_id,
         properties={"Board Decision": _select("executed")},
     )
@@ -205,12 +251,10 @@ async def mark_signal_executed(signal_id: str) -> None:
 
 async def get_open_positions() -> list[dict[str, Any]]:
     """Query Paper Portfolio DB for all positions with Status = open."""
-    client = _get_client()
-    response = await client.databases.query(
-        database_id=PAPER_PORTFOLIO_DB,
-        filter={"property": "Status", "select": {"equals": "open"}},
+    results = await _query_database(
+        db_id=PAPER_PORTFOLIO_DB,
+        filter_body={"property": "Status", "select": {"equals": "open"}},
     )
-    results = response.get("results", [])
     logger.info("get_open_positions: found %d open positions", len(results))
     return [_parse_position(p) for p in results]
 
@@ -247,10 +291,9 @@ async def create_portfolio_position(
     rr_ratio: float = 0.0,
 ) -> dict[str, Any]:
     """Create a new open position in the Paper Portfolio DB."""
-    client = _get_client()
     now = datetime.now(UTC)
-    page = await client.pages.create(
-        parent={"database_id": PAPER_PORTFOLIO_DB},
+    page = await _create_page(
+        db_id=PAPER_PORTFOLIO_DB,
         properties={
             "Ticker": _title(ticker),
             "Status": _select("open"),
@@ -280,9 +323,8 @@ async def close_portfolio_position(
     r_multiple: float,
 ) -> None:
     """Close an open position: set Status=closed and write exit fields."""
-    client = _get_client()
     outcome = "win" if r_multiple > 0 else "loss"
-    await client.pages.update(
+    await _update_page(
         page_id=position_id,
         properties={
             "Status": _select("closed"),
@@ -294,9 +336,7 @@ async def close_portfolio_position(
             "Outcome": _select(outcome),
         },
     )
-    logger.info(
-        "close_portfolio_position: %s r=%.2f outcome=%s", position_id, r_multiple, outcome
-    )
+    logger.info("close_portfolio_position: %s r=%.2f outcome=%s", position_id, r_multiple, outcome)
 
 
 # ---------------------------------------------------------------------------
@@ -318,9 +358,8 @@ async def create_trade_journal_open(
     portfolio_page_url: str,
 ) -> dict[str, Any]:
     """Write a position-open entry to the Trade Journal."""
-    client = _get_client()
-    page = await client.pages.create(
-        parent={"database_id": TRADE_JOURNAL_DB},
+    page = await _create_page(
+        db_id=TRADE_JOURNAL_DB,
         properties={
             "Ticker": _title(ticker),
             "Event": _select("position-open"),
@@ -351,10 +390,9 @@ async def create_trade_journal_close(
     portfolio_page_url: str,
 ) -> dict[str, Any]:
     """Write a position-close entry to the Trade Journal."""
-    client = _get_client()
     outcome = "win" if r_multiple > 0 else "loss"
-    page = await client.pages.create(
-        parent={"database_id": TRADE_JOURNAL_DB},
+    page = await _create_page(
+        db_id=TRADE_JOURNAL_DB,
         properties={
             "Ticker": _title(ticker),
             "Event": _select("position-close"),
@@ -368,9 +406,7 @@ async def create_trade_journal_close(
             "Portfolio Page": _url(portfolio_page_url),
         },
     )
-    logger.debug(
-        "create_trade_journal_close: %s r=%.2f outcome=%s", ticker, r_multiple, outcome
-    )
+    logger.debug("create_trade_journal_close: %s r=%.2f outcome=%s", ticker, r_multiple, outcome)
     return {"id": page["id"], "url": _page_url(page)}
 
 
@@ -391,10 +427,9 @@ async def write_execution_log(
     model is hard-coded to 'stonky-engine' (AC #6) to signal this is no longer
     a Claude-driven run.
     """
-    client = _get_client()
     errors_text = "; ".join(errors) if errors else ""
-    await client.pages.create(
-        parent={"database_id": EXECUTION_LOG_DB},
+    await _create_page(
+        db_id=EXECUTION_LOG_DB,
         properties={
             "Run ID": _title(run_id),
             "Agent": _text("paper-trader"),

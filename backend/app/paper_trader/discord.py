@@ -27,12 +27,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Trading Company color palette (AC #5)
-COLOR_GREEN = 3_066_993    # clean success
+COLOR_GREEN = 3_066_993  # clean success
 COLOR_YELLOW = 16_776_960  # partial / informational
-COLOR_RED = 15_158_332     # failure / loss
+COLOR_RED = 15_158_332  # failure / loss
 
 
-async def _post(payload: dict) -> None:
+async def _post(payload: dict[str, object]) -> None:
     """POST a Discord embed payload to the configured webhook."""
     url = settings.discord_webhook_url
     if not url:
@@ -42,9 +42,7 @@ async def _post(payload: dict) -> None:
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(url, json=payload)
         if resp.status_code not in (200, 204):
-            logger.error(
-                "Discord webhook returned %s: %s", resp.status_code, resp.text[:200]
-            )
+            logger.error("Discord webhook returned %s: %s", resp.status_code, resp.text[:200])
 
 
 def _embed(
@@ -52,10 +50,10 @@ def _embed(
     title: str,
     description: str,
     color: int,
-    fields: list[dict] | None = None,
+    fields: list[dict[str, object]] | None = None,
     url: str = "",
-) -> dict:
-    embed: dict = {"title": title, "description": description, "color": color}
+) -> dict[str, object]:
+    embed: dict[str, object] = {"title": title, "description": description, "color": color}
     if fields:
         embed["fields"] = fields
     if url:
@@ -141,8 +139,7 @@ async def send_run_summary(
         emoji = "❌"
 
     description = (
-        f"Opened: **{positions_opened}** | Closed: **{positions_closed}** | "
-        f"Status: **{status}**"
+        f"Opened: **{positions_opened}** | Closed: **{positions_closed}** | Status: **{status}**"
     )
     embed = _embed(
         title=f"{emoji} Paper Trader — Run Summary",
