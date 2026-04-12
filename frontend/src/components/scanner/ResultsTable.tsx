@@ -1,86 +1,105 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import type { ForecastData, ScannerResult, SynthesisData } from '../../types'
-import { ProfileBadge } from './ProfileBadge'
-import { RowExpansion } from './RowExpansion'
-import { ScoreDisplay, scoreColor } from '../shared/ScoreDisplay'
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { ForecastData, ScannerResult, SynthesisData } from '../../types';
+import { ProfileBadge } from './ProfileBadge';
+import { RowExpansion } from './RowExpansion';
+import { ScoreDisplay, scoreColor } from '../shared/ScoreDisplay';
 
 const PROFILE_LABELS: Record<string, string> = {
   MomentumBreakout: 'Momentum Breakout',
   MeanReversion: 'Mean Reversion',
   TrendFollowing: 'Trend Following',
   HarmonicSetup: 'Harmonic Setup',
-}
+};
 
 interface Props {
-  results: ScannerResult[]
-  activeProfile?: string | null
-  hasScanned?: boolean
-  forecasts?: Record<string, ForecastData>
-  syntheses?: Record<string, SynthesisData>
+  results: ScannerResult[];
+  activeProfile?: string | null;
+  hasScanned?: boolean;
+  forecasts?: Record<string, ForecastData>;
+  syntheses?: Record<string, SynthesisData>;
 }
 
-type SortField = 'score' | 'price' | 'chg' | 'atr' | null
-type SortDir = 'asc' | 'desc'
+type SortField = 'score' | 'price' | 'chg' | 'atr' | null;
+type SortDir = 'asc' | 'desc';
 
 export function ResultsTable({ results, activeProfile, hasScanned, forecasts, syntheses }: Props) {
-  const navigate = useNavigate()
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
-  const [sortField, setSortField] = useState<SortField>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const navigate = useNavigate();
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sortField, setSortField] = useState<SortField>(null);
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   function handleSort(field: SortField) {
     if (sortField === field) {
-      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'))
+      setSortDir((d) => (d === 'desc' ? 'asc' : 'desc'));
     } else {
-      setSortField(field)
-      setSortDir('desc')
+      setSortField(field);
+      setSortDir('desc');
     }
   }
 
   const sortedResults = (() => {
-    if (!sortField) return results
-    const copy = [...results]
+    if (!sortField) return results;
+    const copy = [...results];
     copy.sort((a, b) => {
-      let av = 0
-      let bv = 0
+      let av = 0;
+      let bv = 0;
       switch (sortField) {
-        case 'score': av = a.composite_score ?? 0; bv = b.composite_score ?? 0; break
-        case 'price': av = a.meta?.last_price ?? 0; bv = b.meta?.last_price ?? 0; break
-        case 'chg': av = a.meta?.price_change_pct ?? 0; bv = b.meta?.price_change_pct ?? 0; break
-        case 'atr': av = a.meta?.atr_pct ?? 0; bv = b.meta?.atr_pct ?? 0; break
+        case 'score':
+          av = a.composite_score ?? 0;
+          bv = b.composite_score ?? 0;
+          break;
+        case 'price':
+          av = a.meta?.last_price ?? 0;
+          bv = b.meta?.last_price ?? 0;
+          break;
+        case 'chg':
+          av = a.meta?.price_change_pct ?? 0;
+          bv = b.meta?.price_change_pct ?? 0;
+          break;
+        case 'atr':
+          av = a.meta?.atr_pct ?? 0;
+          bv = b.meta?.atr_pct ?? 0;
+          break;
       }
-      return sortDir === 'desc' ? bv - av : av - bv
-    })
-    return copy
-  })()
+      return sortDir === 'desc' ? bv - av : av - bv;
+    });
+    return copy;
+  })();
 
   function toggleExpand(symbol: string) {
     setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(symbol)) next.delete(symbol)
-      else next.add(symbol)
-      return next
-    })
+      const next = new Set(prev);
+      if (next.has(symbol)) next.delete(symbol);
+      else next.add(symbol);
+      return next;
+    });
   }
 
   if (results.length === 0) {
     // Contextual empty state: distinguish "never scanned" vs "no matches for this filter"
     if (hasScanned && activeProfile) {
-      const label = PROFILE_LABELS[activeProfile] ?? activeProfile
+      const label = PROFILE_LABELS[activeProfile] ?? activeProfile;
       return (
         <div className="text-center py-16 text-gray-500">
-          <p className="text-lg">No stocks match <span className="text-gray-300">{label}</span></p>
-          <p className="text-sm mt-1">None of your watchlist symbols currently meet this profile's criteria. Check the <span className="text-gray-300">All</span> tab for full results.</p>
+          <p className="text-lg">
+            No stocks match <span className="text-gray-300">{label}</span>
+          </p>
+          <p className="text-sm mt-1">
+            None of your watchlist symbols currently meet this profile&apos;s criteria. Check the{' '}
+            <span className="text-gray-300">All</span> tab for full results.
+          </p>
         </div>
-      )
+      );
     }
     return (
       <div className="text-center py-16 text-gray-500">
         <p className="text-lg">No results yet</p>
-        <p className="text-sm mt-1">Click <span className="text-gray-300">Run Scan</span> to analyze your watchlist.</p>
+        <p className="text-sm mt-1">
+          Click <span className="text-gray-300">Run Scan</span> to analyze your watchlist.
+        </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -90,16 +109,28 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
           <tr className="bg-gray-800/80 text-gray-400 text-xs uppercase tracking-wider">
             <th className="px-3 py-2 text-right w-12">#</th>
             <th className="px-3 py-2 text-left">Symbol</th>
-            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('score')}>
+            <th
+              className="px-3 py-2 text-right cursor-pointer hover:text-white select-none"
+              onClick={() => handleSort('score')}
+            >
               Score {sortField === 'score' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
             </th>
-            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('price')}>
+            <th
+              className="px-3 py-2 text-right cursor-pointer hover:text-white select-none"
+              onClick={() => handleSort('price')}
+            >
               Price {sortField === 'price' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
             </th>
-            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('chg')}>
+            <th
+              className="px-3 py-2 text-right cursor-pointer hover:text-white select-none"
+              onClick={() => handleSort('chg')}
+            >
               Chg% {sortField === 'chg' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
             </th>
-            <th className="px-3 py-2 text-right cursor-pointer hover:text-white select-none" onClick={() => handleSort('atr')}>
+            <th
+              className="px-3 py-2 text-right cursor-pointer hover:text-white select-none"
+              onClick={() => handleSort('atr')}
+            >
               ATR% {sortField === 'atr' ? (sortDir === 'desc' ? '▼' : '▲') : ''}
             </th>
             <th className="px-3 py-2 text-left">Profiles</th>
@@ -112,10 +143,11 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
         </thead>
         <tbody>
           {sortedResults.map((r) => {
-            const isExpanded = expanded.has(r.symbol)
-            const meta = r.meta
-            const chgPct = meta?.price_change_pct ?? 0
-            const chgColor = chgPct > 0 ? 'text-green-400' : chgPct < 0 ? 'text-red-400' : 'text-gray-400'
+            const isExpanded = expanded.has(r.symbol);
+            const meta = r.meta;
+            const chgPct = meta?.price_change_pct ?? 0;
+            const chgColor =
+              chgPct > 0 ? 'text-green-400' : chgPct < 0 ? 'text-red-400' : 'text-gray-400';
 
             return (
               <>
@@ -131,15 +163,29 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold text-white font-mono">{r.symbol}</span>
                       {r.needs_scan && (
-                        <span className="text-xs text-yellow-500 border border-yellow-700 rounded px-1 py-0.5" title="Not yet scanned — run a scan to get analysis">needs scan</span>
+                        <span
+                          className="text-xs text-yellow-500 border border-yellow-700 rounded px-1 py-0.5"
+                          title="Not yet scanned — run a scan to get analysis"
+                        >
+                          needs scan
+                        </span>
                       )}
                       {!r.needs_scan && r.is_actionable && (
-                        <span className="text-xs text-blue-400" title="Actionable: ≥3 categories agree">●</span>
+                        <span
+                          className="text-xs text-blue-400"
+                          title="Actionable: ≥3 categories agree"
+                        >
+                          ●
+                        </span>
                       )}
                     </div>
                   </td>
                   <td className="px-3 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
-                    {r.needs_scan ? <span className="text-gray-600 text-xs">—</span> : <ScoreDisplay score={r.composite_score} showBar />}
+                    {r.needs_scan ? (
+                      <span className="text-gray-600 text-xs">—</span>
+                    ) : (
+                      <ScoreDisplay score={r.composite_score} showBar />
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-right font-mono text-gray-200">
                     {meta ? `$${meta.last_price.toFixed(2)}` : '—'}
@@ -161,67 +207,88 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
                   </td>
                   <td className="px-3 py-2.5">
                     {(() => {
-                      const syn = syntheses?.[r.symbol]
-                      if (!syn) return <span className="text-gray-600 text-xs">—</span>
+                      const syn = syntheses?.[r.symbol];
+                      if (!syn) return <span className="text-gray-600 text-xs">—</span>;
                       const biasColors: Record<string, string> = {
                         bullish: 'text-green-400',
                         bearish: 'text-red-400',
                         neutral: 'text-gray-400',
-                      }
-                      const confBadgeStyles: Record<string, { bg: string; text: string; label: string }> = {
+                      };
+                      const confBadgeStyles: Record<
+                        string,
+                        { bg: string; text: string; label: string }
+                      > = {
                         high: { bg: 'bg-green-900/50', text: 'text-green-300', label: 'H' },
                         medium: { bg: 'bg-yellow-900/50', text: 'text-yellow-300', label: 'M' },
                         low: { bg: 'bg-gray-800/50', text: 'text-gray-400', label: 'L' },
-                      }
-                      const confStyle = confBadgeStyles[syn.confidence]
+                      };
+                      const confStyle = confBadgeStyles[syn.confidence];
                       return (
                         <div className="flex items-center gap-2">
                           <span className={`${biasColors[syn.bias]}`}>●</span>
-                          <span className="text-xs font-medium text-gray-300">{syn.setup_type}</span>
-                          <span className={`${confStyle.bg} ${confStyle.text} rounded px-1 py-0.5 text-xs font-semibold`}>
+                          <span className="text-xs font-medium text-gray-300">
+                            {syn.setup_type}
+                          </span>
+                          <span
+                            className={`${confStyle.bg} ${confStyle.text} rounded px-1 py-0.5 text-xs font-semibold`}
+                          >
                             {confStyle.label}
                           </span>
                         </div>
-                      )
+                      );
                     })()}
                   </td>
                   <td className="px-3 py-2.5">
                     {(() => {
-                      const best = r.chart_patterns?.[0]
-                      if (!best) return <span className="text-gray-600 text-xs">—</span>
-                      const dirColor = best.direction === 'bullish'
-                        ? 'text-green-400'
-                        : best.direction === 'bearish'
-                          ? 'text-red-400'
-                          : 'text-gray-400'
+                      const best = r.chart_patterns?.[0];
+                      if (!best) return <span className="text-gray-600 text-xs">—</span>;
+                      const dirColor =
+                        best.direction === 'bullish'
+                          ? 'text-green-400'
+                          : best.direction === 'bearish'
+                            ? 'text-red-400'
+                            : 'text-gray-400';
                       const label = best.pattern
                         .split('_')
                         .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-                        .join(' ')
+                        .join(' ');
                       return (
                         <span className={`text-xs font-medium ${dirColor}`}>
-                          {best.direction === 'bullish' ? '▲' : best.direction === 'bearish' ? '▼' : '◆'}{' '}
+                          {best.direction === 'bullish'
+                            ? '▲'
+                            : best.direction === 'bearish'
+                              ? '▼'
+                              : '◆'}{' '}
                           {label} {Math.round(best.confidence * 100)}%
                         </span>
-                      )
+                      );
                     })()}
                   </td>
                   <td className="px-3 py-2.5">
                     {(() => {
-                      const sigs = r.signals ?? {}
-                      const w3 = sigs.ew_wave3_active ?? 0
-                      const w5 = sigs.ew_wave5_active ?? 0
-                      const abc = sigs.ew_corrective_abc ?? 0
-                      const quality = sigs.ew_ratio_quality ?? 0
+                      const sigs = r.signals ?? {};
+                      const w3 = sigs.ew_wave3_active ?? 0;
+                      const w5 = sigs.ew_wave5_active ?? 0;
+                      const abc = sigs.ew_corrective_abc ?? 0;
+                      const quality = sigs.ew_ratio_quality ?? 0;
 
-                      if (quality < 0.1) return <span className="text-gray-600 text-xs">—</span>
+                      if (quality < 0.1) return <span className="text-gray-600 text-xs">—</span>;
 
-                      let label = ''
-                      let colorClass = 'text-gray-400'
-                      if (w3 > 0.5) { label = 'W3 ↑'; colorClass = 'text-green-400' }
-                      else if (w5 > 0.3) { label = 'W5 ↑'; colorClass = 'text-green-300' }
-                      else if (abc < -0.1) { label = 'ABC ↓'; colorClass = 'text-red-400' }
-                      else { label = `EW ${Math.round(quality * 100)}%`; colorClass = 'text-gray-400' }
+                      let label = '';
+                      let colorClass = 'text-gray-400';
+                      if (w3 > 0.5) {
+                        label = 'W3 ↑';
+                        colorClass = 'text-green-400';
+                      } else if (w5 > 0.3) {
+                        label = 'W5 ↑';
+                        colorClass = 'text-green-300';
+                      } else if (abc < -0.1) {
+                        label = 'ABC ↓';
+                        colorClass = 'text-red-400';
+                      } else {
+                        label = `EW ${Math.round(quality * 100)}%`;
+                        colorClass = 'text-gray-400';
+                      }
 
                       return (
                         <span
@@ -230,32 +297,38 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
                         >
                           {label}
                         </span>
-                      )
+                      );
                     })()}
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     {(() => {
-                      const fc = forecasts?.[r.symbol]
+                      const fc = forecasts?.[r.symbol];
                       if (!fc || fc.direction_confidence < 0.6) {
-                        return <span className="text-gray-600 text-xs">—</span>
+                        return <span className="text-gray-600 text-xs">—</span>;
                       }
-                      const colorClass = fc.direction === 'bullish'
-                        ? 'text-green-400'
-                        : fc.direction === 'bearish'
-                          ? 'text-red-400'
-                          : 'text-gray-400'
-                      const arrow = fc.direction === 'bullish' ? '▲' : fc.direction === 'bearish' ? '▼' : '◆'
-                      const sign = fc.expected_move_pct >= 0 ? '+' : ''
+                      const colorClass =
+                        fc.direction === 'bullish'
+                          ? 'text-green-400'
+                          : fc.direction === 'bearish'
+                            ? 'text-red-400'
+                            : 'text-gray-400';
+                      const arrow =
+                        fc.direction === 'bullish' ? '▲' : fc.direction === 'bearish' ? '▼' : '◆';
+                      const sign = fc.expected_move_pct >= 0 ? '+' : '';
                       return (
                         <span className={`text-xs font-medium ${colorClass}`}>
-                          {arrow} {sign}{fc.expected_move_pct.toFixed(1)}%
+                          {arrow} {sign}
+                          {fc.expected_move_pct.toFixed(1)}%
                         </span>
-                      )
+                      );
                     })()}
                   </td>
                   <td
                     className="px-3 py-2.5 text-center text-gray-500 hover:text-gray-200"
-                    onClick={(e) => { e.stopPropagation(); toggleExpand(r.symbol) }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpand(r.symbol);
+                    }}
                   >
                     <span className="text-xs select-none">{isExpanded ? '▾' : '▸'}</span>
                   </td>
@@ -268,13 +341,13 @@ export function ResultsTable({ results, activeProfile, hasScanned, forecasts, sy
                   </tr>
                 )}
               </>
-            )
+            );
           })}
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 
 // Re-export for use in pages
-export { scoreColor }
+export { scoreColor };

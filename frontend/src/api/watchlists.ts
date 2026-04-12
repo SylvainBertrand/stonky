@@ -1,33 +1,31 @@
-import type { SAImportResult, Watchlist, WatchlistItemWithRatings } from '../types'
+import type { SAImportResult, Watchlist, WatchlistItemWithRatings } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? ''
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init)
+  const res = await fetch(`${API_BASE}${path}`, init);
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`HTTP ${res.status}${body ? `: ${body}` : ''}`)
+    const body = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}${body ? `: ${body}` : ''}`);
   }
-  return res.json() as Promise<T>
+  return res.json() as Promise<T>;
 }
 
 // For 404 that should return null (e.g. GET /active when no active watchlist)
 async function apiFetchNullable<T>(path: string): Promise<T | null> {
-  const res = await fetch(`${API_BASE}${path}`)
-  if (res.status === 404) return null
+  const res = await fetch(`${API_BASE}${path}`);
+  if (res.status === 404) return null;
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`HTTP ${res.status}${body ? `: ${body}` : ''}`)
+    const body = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status}${body ? `: ${body}` : ''}`);
   }
-  return res.json() as Promise<T>
+  return res.json() as Promise<T>;
 }
 
 export const watchlistApi = {
-  getAll: (): Promise<Watchlist[]> =>
-    apiFetch<Watchlist[]>('/api/watchlists'),
+  getAll: (): Promise<Watchlist[]> => apiFetch<Watchlist[]>('/api/watchlists'),
 
-  getActive: (): Promise<Watchlist | null> =>
-    apiFetchNullable<Watchlist>('/api/watchlists/active'),
+  getActive: (): Promise<Watchlist | null> => apiFetchNullable<Watchlist>('/api/watchlists/active'),
 
   create: (name: string): Promise<Watchlist> =>
     apiFetch<Watchlist>('/api/watchlists', {
@@ -72,11 +70,11 @@ export const watchlistApi = {
     apiFetch<{ status: string }>(`/api/watchlists/${id}/refresh`, { method: 'POST' }),
 
   importSA: (id: number, file: File): Promise<SAImportResult> => {
-    const form = new FormData()
-    form.append('file', file)
+    const form = new FormData();
+    form.append('file', file);
     return apiFetch<SAImportResult>(`/api/watchlists/${id}/import-sa`, {
       method: 'POST',
       body: form,
-    })
+    });
   },
-}
+};

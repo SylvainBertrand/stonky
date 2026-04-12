@@ -4,15 +4,15 @@ Revision ID: 001
 Revises: None
 Create Date: 2026-02-28
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -82,9 +82,7 @@ def upgrade() -> None:
     """)
     op.execute("CREATE INDEX idx_symbols_ticker ON symbols(ticker)")
     op.execute("CREATE INDEX idx_symbols_asset_type ON symbols(asset_type)")
-    op.execute(
-        "CREATE INDEX idx_symbols_active ON symbols(is_active) WHERE is_active = TRUE"
-    )
+    op.execute("CREATE INDEX idx_symbols_active ON symbols(is_active) WHERE is_active = TRUE")
 
     # =========================================================================
     # 1b. sa_ratings
@@ -148,9 +146,7 @@ def upgrade() -> None:
             UNIQUE(watchlist_id, symbol_id)
         )
     """)
-    op.execute(
-        "CREATE INDEX idx_watchlist_items_watchlist ON watchlist_items(watchlist_id)"
-    )
+    op.execute("CREATE INDEX idx_watchlist_items_watchlist ON watchlist_items(watchlist_id)")
 
     # =========================================================================
     # 3. ohlcv (hypertable)
@@ -170,9 +166,7 @@ def upgrade() -> None:
         )
     """)
     op.execute("SELECT create_hypertable('ohlcv', 'time')")
-    op.execute(
-        "CREATE INDEX idx_ohlcv_symbol_tf_time ON ohlcv(symbol_id, timeframe, time DESC)"
-    )
+    op.execute("CREATE INDEX idx_ohlcv_symbol_tf_time ON ohlcv(symbol_id, timeframe, time DESC)")
 
     # =========================================================================
     # 4. indicator_cache (hypertable)
@@ -229,9 +223,7 @@ def upgrade() -> None:
             created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
-    op.execute(
-        "CREATE INDEX idx_scan_runs_profile ON scan_runs(profile_id, created_at DESC)"
-    )
+    op.execute("CREATE INDEX idx_scan_runs_profile ON scan_runs(profile_id, created_at DESC)")
     op.execute(
         "CREATE INDEX idx_scan_runs_status ON scan_runs(status)"
         " WHERE status IN ('pending', 'running')"
@@ -256,12 +248,8 @@ def upgrade() -> None:
             UNIQUE(scan_run_id, symbol_id)
         )
     """)
-    op.execute(
-        "CREATE INDEX idx_scan_results_run_rank ON scan_results(scan_run_id, rank)"
-    )
-    op.execute(
-        "CREATE INDEX idx_scan_results_symbol ON scan_results(symbol_id, created_at DESC)"
-    )
+    op.execute("CREATE INDEX idx_scan_results_run_rank ON scan_results(scan_run_id, rank)")
+    op.execute("CREATE INDEX idx_scan_results_symbol ON scan_results(symbol_id, created_at DESC)")
 
     # =========================================================================
     # 8. signal_results
@@ -283,9 +271,7 @@ def upgrade() -> None:
     op.execute(
         "CREATE INDEX idx_signal_results_run_symbol ON signal_results(scan_run_id, symbol_id)"
     )
-    op.execute(
-        "CREATE INDEX idx_signal_results_category ON signal_results(scan_run_id, category)"
-    )
+    op.execute("CREATE INDEX idx_signal_results_category ON signal_results(scan_run_id, category)")
 
     # =========================================================================
     # 9. pattern_detections
@@ -338,9 +324,7 @@ def upgrade() -> None:
             created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
-    op.execute(
-        "CREATE INDEX idx_divergences_run_symbol ON divergences(scan_run_id, symbol_id)"
-    )
+    op.execute("CREATE INDEX idx_divergences_run_symbol ON divergences(scan_run_id, symbol_id)")
 
     # =========================================================================
     # 11. swing_points

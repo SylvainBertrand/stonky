@@ -1,46 +1,45 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { watchlistApi } from '../../api/watchlists'
-import type { Watchlist } from '../../types'
-import { LoadingSpinner } from '../shared/LoadingSpinner'
-import { AddSymbolInput } from './AddSymbolInput'
-import { SAImportButton } from './SAImportButton'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { watchlistApi } from '../../api/watchlists';
+import type { Watchlist } from '../../types';
+import { LoadingSpinner } from '../shared/LoadingSpinner';
+import { AddSymbolInput } from './AddSymbolInput';
+import { SAImportButton } from './SAImportButton';
 
 interface Props {
-  watchlist: Watchlist
+  watchlist: Watchlist;
 }
 
 function GradeBadge({ grade }: { grade: string | null }) {
-  if (!grade) return <span className="text-gray-600">—</span>
-  const color =
-    grade.startsWith('A')
-      ? 'text-green-400 bg-green-950/50 border-green-800'
-      : grade.startsWith('B')
-        ? 'text-blue-400 bg-blue-950/50 border-blue-800'
-        : grade.startsWith('C')
-          ? 'text-yellow-400 bg-yellow-950/50 border-yellow-800'
-          : 'text-red-400 bg-red-950/50 border-red-800'
+  if (!grade) return <span className="text-gray-600">—</span>;
+  const color = grade.startsWith('A')
+    ? 'text-green-400 bg-green-950/50 border-green-800'
+    : grade.startsWith('B')
+      ? 'text-blue-400 bg-blue-950/50 border-blue-800'
+      : grade.startsWith('C')
+        ? 'text-yellow-400 bg-yellow-950/50 border-yellow-800'
+        : 'text-red-400 bg-red-950/50 border-red-800';
   return (
     <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold border ${color}`}>
       {grade}
     </span>
-  )
+  );
 }
 
 export function WatchlistDetail({ watchlist }: Props) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ['watchlist', watchlist.id, 'items'],
     queryFn: () => watchlistApi.getItems(watchlist.id),
-  })
+  });
 
   const removeMutation = useMutation({
     mutationFn: (ticker: string) => watchlistApi.removeSymbol(watchlist.id, ticker),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['watchlist', watchlist.id, 'items'] })
-      void queryClient.invalidateQueries({ queryKey: ['watchlists'] })
+      void queryClient.invalidateQueries({ queryKey: ['watchlist', watchlist.id, 'items'] });
+      void queryClient.invalidateQueries({ queryKey: ['watchlists'] });
     },
-  })
+  });
 
   return (
     <div className="flex flex-col gap-4">
@@ -89,9 +88,7 @@ export function WatchlistDetail({ watchlist }: Props) {
                   <td className="py-2 pr-4 font-mono font-semibold text-white">
                     {item.ticker}
                     {item.name && (
-                      <span className="ml-2 text-xs text-gray-500 font-normal">
-                        {item.name}
-                      </span>
+                      <span className="ml-2 text-xs text-gray-500 font-normal">{item.name}</span>
                     )}
                   </td>
                   <td className="py-2 pr-4 text-gray-300">
@@ -123,5 +120,5 @@ export function WatchlistDetail({ watchlist }: Props) {
         </div>
       )}
     </div>
-  )
+  );
 }

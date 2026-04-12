@@ -1,5 +1,5 @@
-import { http, HttpResponse } from 'msw'
-import type { ScannerResult, ScanRunStatus } from '../../types'
+import { http, HttpResponse } from 'msw';
+import type { ScannerResult, ScanRunStatus } from '../../types';
 
 // ---------------------------------------------------------------------------
 // Shared fixture data
@@ -35,14 +35,20 @@ export function makeScannerResult(overrides: Partial<ScannerResult> = {}): Scann
     is_actionable: true,
     volume_contradiction: false,
     ...overrides,
-  }
+  };
 }
 
 export const MOCK_RESULTS: ScannerResult[] = [
   makeScannerResult({ symbol: 'AAPL', rank: 1, composite_score: 0.65 }),
-  makeScannerResult({ symbol: 'MSFT', rank: 2, composite_score: 0.50, is_actionable: false, profile_matches: [] }),
-  makeScannerResult({ symbol: 'NVDA', rank: 3, composite_score: -0.20, is_actionable: false }),
-]
+  makeScannerResult({
+    symbol: 'MSFT',
+    rank: 2,
+    composite_score: 0.5,
+    is_actionable: false,
+    profile_matches: [],
+  }),
+  makeScannerResult({ symbol: 'NVDA', rank: 3, composite_score: -0.2, is_actionable: false }),
+];
 
 export const MOCK_RUN_PENDING: ScanRunStatus = {
   run_id: 1,
@@ -52,7 +58,7 @@ export const MOCK_RUN_PENDING: ScanRunStatus = {
   error_message: null,
   symbols_scanned: 3,
   symbols_scored: 0,
-}
+};
 
 export const MOCK_RUN_COMPLETED: ScanRunStatus = {
   run_id: 1,
@@ -62,7 +68,7 @@ export const MOCK_RUN_COMPLETED: ScanRunStatus = {
   error_message: null,
   symbols_scanned: 3,
   symbols_scored: 3,
-}
+};
 
 export const MOCK_RUN_FAILED: ScanRunStatus = {
   run_id: 1,
@@ -72,7 +78,7 @@ export const MOCK_RUN_FAILED: ScanRunStatus = {
   error_message: 'DB connection timeout',
   symbols_scanned: 3,
   symbols_scored: 0,
-}
+};
 
 // ---------------------------------------------------------------------------
 // Default handlers (used by all tests unless overridden with server.use())
@@ -80,38 +86,55 @@ export const MOCK_RUN_FAILED: ScanRunStatus = {
 
 export const handlers = [
   http.get('/api/health', () => {
-    return HttpResponse.json({ status: 'ok', db: 'connected' })
+    return HttpResponse.json({ status: 'ok', db: 'connected' });
   }),
 
   http.get('/api/watchlists', () => {
     return HttpResponse.json([
       { id: 1, name: 'Tech Stocks', description: 'Top technology picks', is_default: true },
       { id: 2, name: 'Dividend Growth', description: null, is_default: false },
-    ])
+    ]);
   }),
 
   // Scanner endpoints
   http.post('/api/scanner/run', () => {
-    return HttpResponse.json(
-      { run_id: 1, status: 'queued', symbols_queued: 3 },
-      { status: 202 },
-    )
+    return HttpResponse.json({ run_id: 1, status: 'queued', symbols_queued: 3 }, { status: 202 });
   }),
 
   http.get('/api/scanner/runs/:runId', () => {
-    return HttpResponse.json(MOCK_RUN_COMPLETED)
+    return HttpResponse.json(MOCK_RUN_COMPLETED);
   }),
 
   http.get('/api/scanner/results', () => {
-    return HttpResponse.json(MOCK_RESULTS)
+    return HttpResponse.json(MOCK_RESULTS);
   }),
 
   http.get('/api/scanner/profiles', () => {
     return HttpResponse.json([
-      { name: 'MomentumBreakout', description: 'Momentum breakout setups', score_threshold: 0.5, required_conditions: ['rsi > 0'] },
-      { name: 'MeanReversion', description: 'Mean reversion setups', score_threshold: 0.4, required_conditions: [] },
-      { name: 'TrendFollowing', description: 'Trend following setups', score_threshold: 0.45, required_conditions: [] },
-      { name: 'HarmonicSetup', description: 'Harmonic pattern setups', score_threshold: 0.3, required_conditions: [] },
-    ])
+      {
+        name: 'MomentumBreakout',
+        description: 'Momentum breakout setups',
+        score_threshold: 0.5,
+        required_conditions: ['rsi > 0'],
+      },
+      {
+        name: 'MeanReversion',
+        description: 'Mean reversion setups',
+        score_threshold: 0.4,
+        required_conditions: [],
+      },
+      {
+        name: 'TrendFollowing',
+        description: 'Trend following setups',
+        score_threshold: 0.45,
+        required_conditions: [],
+      },
+      {
+        name: 'HarmonicSetup',
+        description: 'Harmonic pattern setups',
+        score_threshold: 0.3,
+        required_conditions: [],
+      },
+    ]);
   }),
-]
+];

@@ -1,40 +1,40 @@
-import { useRef, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { watchlistApi } from '../../api/watchlists'
+import { useRef, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { watchlistApi } from '../../api/watchlists';
 
 interface Props {
-  watchlistId: number
+  watchlistId: number;
 }
 
 export function AddSymbolInput({ watchlistId }: Props) {
-  const [ticker, setTicker] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const queryClient = useQueryClient()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [ticker, setTicker] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const mutation = useMutation({
     mutationFn: (t: string) => watchlistApi.addSymbol(watchlistId, t),
     onSuccess: () => {
-      setTicker('')
-      setError(null)
-      void queryClient.invalidateQueries({ queryKey: ['watchlist', watchlistId, 'items'] })
-      void queryClient.invalidateQueries({ queryKey: ['watchlists'] })
+      setTicker('');
+      setError(null);
+      void queryClient.invalidateQueries({ queryKey: ['watchlist', watchlistId, 'items'] });
+      void queryClient.invalidateQueries({ queryKey: ['watchlists'] });
     },
     onError: (err: Error) => {
       if (err.message.includes('409')) {
-        setError(`${ticker.toUpperCase()} is already in this watchlist`)
+        setError(`${ticker.toUpperCase()} is already in this watchlist`);
       } else {
-        setError(err.message)
+        setError(err.message);
       }
     },
-  })
+  });
 
   const handleSubmit = () => {
-    const t = ticker.trim().toUpperCase()
-    if (!t) return
-    setError(null)
-    mutation.mutate(t)
-  }
+    const t = ticker.trim().toUpperCase();
+    if (!t) return;
+    setError(null);
+    mutation.mutate(t);
+  };
 
   return (
     <div className="space-y-1">
@@ -45,8 +45,8 @@ export function AddSymbolInput({ watchlistId }: Props) {
           value={ticker}
           onChange={(e) => setTicker(e.target.value.toUpperCase())}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSubmit()
-            if (e.key === 'Escape') setTicker('')
+            if (e.key === 'Enter') handleSubmit();
+            if (e.key === 'Escape') setTicker('');
           }}
           placeholder="Add ticker (e.g. AAPL)"
           className="flex-1 px-2 py-1.5 rounded bg-gray-800 border border-gray-700 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
@@ -61,5 +61,5 @@ export function AddSymbolInput({ watchlistId }: Props) {
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
-  )
+  );
 }

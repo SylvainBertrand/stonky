@@ -1,5 +1,5 @@
-import { type CategoryScores as CategoryScoresType } from '../../types'
-import { scoreColor } from '../shared/ScoreDisplay'
+import { type CategoryScores as CategoryScoresType } from '../../types';
+import { scoreColor } from '../shared/ScoreDisplay';
 
 const CATEGORIES: { key: keyof CategoryScoresType; label: string; weight: string }[] = [
   { key: 'trend', label: 'Trend', weight: '30%' },
@@ -9,12 +9,12 @@ const CATEGORIES: { key: keyof CategoryScoresType; label: string; weight: string
   { key: 'support_resistance', label: 'S/R', weight: '10%' },
   { key: 'divergence', label: 'Divergence', weight: '10%' },
   { key: 'pattern', label: 'Patterns', weight: '5%' },
-]
+];
 
 interface Props {
-  scores: CategoryScoresType
-  onSelect?: (category: keyof CategoryScoresType | null) => void
-  selected?: keyof CategoryScoresType | null
+  scores: CategoryScoresType;
+  onSelect?: (category: keyof CategoryScoresType | null) => void;
+  selected?: keyof CategoryScoresType | null;
 }
 
 export function CategoryScoresPanel({ scores, onSelect, selected }: Props) {
@@ -24,11 +24,12 @@ export function CategoryScoresPanel({ scores, onSelect, selected }: Props) {
         Category Scores
       </h3>
       {CATEGORIES.map(({ key, label, weight }) => {
-        const score = scores[key]
-        const magnitude = Math.min(1, Math.abs(score))
-        const pct = `${Math.round(magnitude * 100)}%`
-        const barColor = score >= 0.1 ? 'bg-green-500' : score <= -0.1 ? 'bg-red-500' : 'bg-gray-500'
-        const isActive = selected === key
+        const score = scores[key];
+        const magnitude = Math.min(1, Math.abs(score));
+        const pct = `${Math.round(magnitude * 100)}%`;
+        const barColor =
+          score >= 0.1 ? 'bg-green-500' : score <= -0.1 ? 'bg-red-500' : 'bg-gray-500';
+        const isActive = selected === key;
 
         return (
           <button
@@ -41,10 +42,7 @@ export function CategoryScoresPanel({ scores, onSelect, selected }: Props) {
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-300 w-24 shrink-0">{label}</span>
               <div className="flex-1 h-1.5 bg-gray-700 rounded overflow-hidden">
-                <div
-                  className={`h-full ${barColor} rounded`}
-                  style={{ width: pct }}
-                />
+                <div className={`h-full ${barColor} rounded`} style={{ width: pct }} />
               </div>
               <span className={`text-xs font-mono w-12 text-right ${scoreColor(score)}`}>
                 {score.toFixed(3)}
@@ -52,8 +50,8 @@ export function CategoryScoresPanel({ scores, onSelect, selected }: Props) {
               <span className="text-xs text-gray-600 w-8 text-right">{weight}</span>
             </div>
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

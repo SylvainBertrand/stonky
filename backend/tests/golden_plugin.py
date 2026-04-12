@@ -11,7 +11,7 @@ Golden files live in tests/fixtures/golden/{indicator_name}.json
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -65,7 +65,7 @@ def save_golden(
         "indicator": indicator_name,
         "params": params,
         "snapshot": snapshot,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "tolerance": tolerance,
         "values": values,
     }
@@ -111,8 +111,7 @@ def assert_golden(
     expected = golden["values"]
 
     assert len(actual_values) == len(expected), (
-        f"Length mismatch for {indicator_name}: "
-        f"got {len(actual_values)}, expected {len(expected)}"
+        f"Length mismatch for {indicator_name}: got {len(actual_values)}, expected {len(expected)}"
     )
 
     for i, (actual, exp) in enumerate(zip(actual_values, expected)):

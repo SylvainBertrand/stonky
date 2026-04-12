@@ -1,36 +1,36 @@
-import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { watchlistApi } from '../api/watchlists'
-import { useWatchlistStore } from '../stores/watchlistStore'
-import { WatchlistList } from '../components/watchlist/WatchlistList'
-import { WatchlistDetail } from '../components/watchlist/WatchlistDetail'
-import { LoadingSpinner } from '../components/shared/LoadingSpinner'
+import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { watchlistApi } from '../api/watchlists';
+import { useWatchlistStore } from '../stores/watchlistStore';
+import { WatchlistList } from '../components/watchlist/WatchlistList';
+import { WatchlistDetail } from '../components/watchlist/WatchlistDetail';
+import { LoadingSpinner } from '../components/shared/LoadingSpinner';
 
 export function WatchlistPage() {
-  const { selectedWatchlistId, setSelectedWatchlistId } = useWatchlistStore()
+  const { selectedWatchlistId, setSelectedWatchlistId } = useWatchlistStore();
 
   const { data: watchlists = [], isLoading } = useQuery({
     queryKey: ['watchlists'],
     queryFn: () => watchlistApi.getAll(),
-  })
+  });
 
   const { data: activeWatchlist } = useQuery({
     queryKey: ['watchlist', 'active'],
     queryFn: () => watchlistApi.getActive(),
-  })
+  });
 
   // On first load, default selectedWatchlistId to the active watchlist
   useEffect(() => {
     if (selectedWatchlistId === null && activeWatchlist) {
-      setSelectedWatchlistId(activeWatchlist.id)
+      setSelectedWatchlistId(activeWatchlist.id);
     } else if (selectedWatchlistId === null && watchlists.length > 0) {
-      setSelectedWatchlistId(watchlists[0].id)
+      setSelectedWatchlistId(watchlists[0].id);
     }
-  }, [activeWatchlist, watchlists, selectedWatchlistId, setSelectedWatchlistId])
+  }, [activeWatchlist, watchlists, selectedWatchlistId, setSelectedWatchlistId]);
 
   const selectedWatchlist =
-    watchlists.find((w) => w.id === selectedWatchlistId) ?? watchlists[0] ?? null
+    watchlists.find((w) => w.id === selectedWatchlistId) ?? watchlists[0] ?? null;
 
   return (
     <div className="min-h-screen">
@@ -40,26 +40,17 @@ export function WatchlistPage() {
           <div className="flex items-center gap-4">
             <h1 className="text-lg font-bold text-white tracking-tight">Stonky</h1>
             <nav className="flex items-center gap-3 text-sm">
-              <Link
-                to="/"
-                className="text-gray-400 hover:text-white transition-colors"
-              >
+              <Link to="/" className="text-gray-400 hover:text-white transition-colors">
                 Scanner
               </Link>
               <span className="text-gray-700">|</span>
               <span className="text-white font-medium">Watchlists</span>
               <span className="text-gray-700">|</span>
-              <Link
-                to="/backtest"
-                className="text-gray-400 hover:text-white transition-colors"
-              >
+              <Link to="/backtest" className="text-gray-400 hover:text-white transition-colors">
                 Backtest
               </Link>
               <span className="text-gray-700">|</span>
-              <Link
-                to="/market"
-                className="text-gray-400 hover:text-white transition-colors"
-              >
+              <Link to="/market" className="text-gray-400 hover:text-white transition-colors">
                 Market
               </Link>
             </nav>
@@ -100,5 +91,5 @@ export function WatchlistPage() {
         )}
       </main>
     </div>
-  )
+  );
 }

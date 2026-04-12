@@ -29,9 +29,7 @@ pytestmark = pytest.mark.unit
 
 def _make_history(bars: int, tz: str | None = "UTC") -> pd.DataFrame:
     """Build a fake yfinance history DataFrame indexed by tz-aware DatetimeIndex."""
-    idx = pd.date_range(
-        "2026-04-07 13:30", periods=bars, freq="5min", tz=tz
-    )
+    idx = pd.date_range("2026-04-07 13:30", periods=bars, freq="5min", tz=tz)
     return pd.DataFrame(
         {
             "Open": [100.0 + i * 0.1 for i in range(bars)],
@@ -84,9 +82,7 @@ def test_fetch_sync_calls_yfinance_with_correct_interval_and_period() -> None:
         df = _fetch_sync("aapl", "5min", 50)
 
     ticker_cls.assert_called_once_with("AAPL")
-    instance.history.assert_called_once_with(
-        period="60d", interval="5m", auto_adjust=False
-    )
+    instance.history.assert_called_once_with(period="60d", interval="5m", auto_adjust=False)
     # Should have tail(50) applied
     assert len(df) == 50
     assert list(df.columns) == ["time", "open", "high", "low", "close", "volume"]

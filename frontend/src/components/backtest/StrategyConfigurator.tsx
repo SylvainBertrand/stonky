@@ -1,12 +1,15 @@
-import { useCallback } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { backtestApi } from '../../api/backtests'
-import { useBacktestStore } from '../../stores/backtestStore'
-import type { StrategyType } from '../../types'
-import { LoadingSpinner } from '../shared/LoadingSpinner'
+import { useCallback } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { backtestApi } from '../../api/backtests';
+import { useBacktestStore } from '../../stores/backtestStore';
+import type { StrategyType } from '../../types';
+import { LoadingSpinner } from '../shared/LoadingSpinner';
 
 // Strategy parameter metadata
-const STRATEGY_PARAMS: Record<StrategyType, Array<{ name: string; default: number; min: number; max: number }>> = {
+const STRATEGY_PARAMS: Record<
+  StrategyType,
+  Array<{ name: string; default: number; min: number; max: number }>
+> = {
   ema_crossover: [
     { name: 'fast', default: 21, min: 2, max: 100 },
     { name: 'slow', default: 50, min: 2, max: 200 },
@@ -39,14 +42,10 @@ const STRATEGY_PARAMS: Record<StrategyType, Array<{ name: string; default: numbe
     { name: 'rsi_max', default: 30, min: 15, max: 45 },
     { name: 'stoch_k_max', default: 20, min: 5, max: 40 },
   ],
-  harmonic_setup: [
-    { name: 'min_pattern_score', default: 0.6, min: 0.1, max: 1.0 },
-  ],
-  yolo_pattern: [
-    { name: 'min_confidence', default: 0.7, min: 0.1, max: 1.0 },
-  ],
+  harmonic_setup: [{ name: 'min_pattern_score', default: 0.6, min: 0.1, max: 1.0 }],
+  yolo_pattern: [{ name: 'min_confidence', default: 0.7, min: 0.1, max: 1.0 }],
   custom: [],
-}
+};
 
 export function StrategyConfigurator() {
   const {
@@ -69,12 +68,12 @@ export function StrategyConfigurator() {
     setResult,
     setIsRunning,
     setError,
-  } = useBacktestStore()
+  } = useBacktestStore();
 
   const runMutation = useMutation({
     mutationFn: async () => {
-      setIsRunning(true)
-      setError(null)
+      setIsRunning(true);
+      setError(null);
       try {
         const result = await backtestApi.run({
           symbol,
@@ -84,41 +83,41 @@ export function StrategyConfigurator() {
           initial_capital: initialCapital,
           strategy_type: strategyType,
           parameters,
-        })
-        setResult(result)
-        return result
+        });
+        setResult(result);
+        return result;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Backtest failed'
-        setError(msg)
-        throw err
+        const msg = err instanceof Error ? err.message : 'Backtest failed';
+        setError(msg);
+        throw err;
       } finally {
-        setIsRunning(false)
+        setIsRunning(false);
       }
     },
-  })
+  });
 
   const handleRun = useCallback(async () => {
     if (!symbol || !startDate || !endDate) {
-      setError('Please fill in all required fields')
-      return
+      setError('Please fill in all required fields');
+      return;
     }
-    await runMutation.mutateAsync()
-  }, [symbol, startDate, endDate, runMutation, setError])
+    await runMutation.mutateAsync();
+  }, [symbol, startDate, endDate, runMutation, setError]);
 
-  const strategyParams = STRATEGY_PARAMS[strategyType] || []
+  const strategyParams = STRATEGY_PARAMS[strategyType] || [];
 
   // Initialize parameters if not already set
   if (Object.keys(parameters).length === 0 && strategyParams.length > 0) {
-    const initialParams: Record<string, unknown> = {}
+    const initialParams: Record<string, unknown> = {};
     for (const param of strategyParams) {
-      initialParams[param.name] = param.default
+      initialParams[param.name] = param.default;
     }
     // Use a quick update without triggering re-renders
     Object.entries(initialParams).forEach(([key, value]) => {
       if (!(key in parameters)) {
-        setParameter(key, value)
+        setParameter(key, value);
       }
-    })
+    });
   }
 
   return (
@@ -229,9 +228,7 @@ export function StrategyConfigurator() {
           </div>
           {strategyParams.map((param) => (
             <div key={param.name} className="space-y-1">
-              <label className="text-xs text-gray-400">
-                {param.name}
-              </label>
+              <label className="text-xs text-gray-400">{param.name}</label>
               <input
                 type="number"
                 min={param.min}
@@ -260,7 +257,9 @@ export function StrategyConfigurator() {
       {/* Action Buttons */}
       <div className="flex flex-col gap-2 border-t border-gray-800 pt-4">
         <button
-          onClick={() => { void handleRun() }}
+          onClick={() => {
+            void handleRun();
+          }}
           disabled={isRunning || !symbol || !startDate || !endDate}
           className="flex items-center justify-center gap-2 px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-semibold text-white transition-colors"
         >
@@ -276,5 +275,5 @@ export function StrategyConfigurator() {
         </button>
       </div>
     </div>
-  )
+  );
 }

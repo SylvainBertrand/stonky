@@ -1,42 +1,42 @@
-import { create } from 'zustand'
-import type { BacktestResponse, SweepResponse, StrategyType } from '../types'
+import { create } from 'zustand';
+import type { BacktestResponse, SweepResponse, StrategyType } from '../types';
 
 interface BacktestStore {
   // Form state
-  strategyType: StrategyType
-  symbol: string
-  timeframe: 'Daily' | 'Weekly'
-  startDate: string
-  endDate: string
-  initialCapital: number
-  parameters: Record<string, unknown>
+  strategyType: StrategyType;
+  symbol: string;
+  timeframe: 'Daily' | 'Weekly';
+  startDate: string;
+  endDate: string;
+  initialCapital: number;
+  parameters: Record<string, unknown>;
 
   // Results state
-  result: BacktestResponse | null
-  sweepResult: SweepResponse | null
-  selectedSweepIndex: number | null
-  isRunning: boolean
-  isSweeping: boolean
-  error: string | null
+  result: BacktestResponse | null;
+  sweepResult: SweepResponse | null;
+  selectedSweepIndex: number | null;
+  isRunning: boolean;
+  isSweeping: boolean;
+  error: string | null;
 
   // Setters
-  setStrategyType: (strategy: StrategyType) => void
-  setSymbol: (symbol: string) => void
-  setTimeframe: (timeframe: 'Daily' | 'Weekly') => void
-  setStartDate: (date: string) => void
-  setEndDate: (date: string) => void
-  setInitialCapital: (capital: number) => void
-  setParameters: (params: Record<string, unknown>) => void
-  setParameter: (key: string, value: unknown) => void
+  setStrategyType: (strategy: StrategyType) => void;
+  setSymbol: (symbol: string) => void;
+  setTimeframe: (timeframe: 'Daily' | 'Weekly') => void;
+  setStartDate: (date: string) => void;
+  setEndDate: (date: string) => void;
+  setInitialCapital: (capital: number) => void;
+  setParameters: (params: Record<string, unknown>) => void;
+  setParameter: (key: string, value: unknown) => void;
 
-  setResult: (result: BacktestResponse | null) => void
-  setSweepResult: (result: SweepResponse | null) => void
-  setSelectedSweepIndex: (index: number | null) => void
-  setIsRunning: (running: boolean) => void
-  setIsSweeping: (sweeping: boolean) => void
-  setError: (error: string | null) => void
+  setResult: (result: BacktestResponse | null) => void;
+  setSweepResult: (result: SweepResponse | null) => void;
+  setSelectedSweepIndex: (index: number | null) => void;
+  setIsRunning: (running: boolean) => void;
+  setIsSweeping: (sweeping: boolean) => void;
+  setError: (error: string | null) => void;
 
-  reset: () => void
+  reset: () => void;
 }
 
 const initialState = {
@@ -53,7 +53,7 @@ const initialState = {
   isRunning: false,
   isSweeping: false,
   error: null,
-}
+};
 
 export const useBacktestStore = create<BacktestStore>((set) => ({
   ...initialState,
@@ -78,4 +78,4 @@ export const useBacktestStore = create<BacktestStore>((set) => ({
   setError: (error) => set({ error }),
 
   reset: () => set(initialState),
-}))
+}));

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
 
 
 def _make_df(
@@ -122,7 +121,11 @@ def gen_consolidation(
     closes[0] = base_price
     theta = 0.1  # mean reversion speed
     for i in range(1, bars):
-        closes[i] = closes[i - 1] + theta * (base_price - closes[i - 1]) + _noise(rng, 1, base_price * volatility)[0]
+        closes[i] = (
+            closes[i - 1]
+            + theta * (base_price - closes[i - 1])
+            + _noise(rng, 1, base_price * volatility)[0]
+        )
 
     spread = base_price * volatility
     opens = closes + _noise(rng, bars, spread * 0.3)
@@ -171,7 +174,9 @@ def gen_v_recovery(
     if drop_start + drop_duration < bars:
         recovery_per_bar = (target - bottom) / recovery_duration
         for i in range(drop_start + drop_duration, recovery_end):
-            closes[i] = closes[i - 1] + recovery_per_bar + _noise(rng, 1, base_price * volatility * 0.5)[0]
+            closes[i] = (
+                closes[i - 1] + recovery_per_bar + _noise(rng, 1, base_price * volatility * 0.5)[0]
+            )
 
     # Post-recovery: gentle drift
     for i in range(recovery_end, bars):
@@ -217,7 +222,11 @@ def gen_breakout(
     # Consolidation phase (mean-reverting, tight range)
     theta = 0.1
     for i in range(1, breakout_bar):
-        closes[i] = closes[i - 1] + theta * (base_price - closes[i - 1]) + _noise(rng, 1, base_price * volatility)[0]
+        closes[i] = (
+            closes[i - 1]
+            + theta * (base_price - closes[i - 1])
+            + _noise(rng, 1, base_price * volatility)[0]
+        )
 
     # Breakout + trend
     for i in range(breakout_bar, bars):
@@ -315,8 +324,8 @@ def gen_double_top(
     # Build path: rise → peak1 → pullback → peak2 → decline
     q = bars // 5
     segments = [
-        np.linspace(base_price, peak_price, q),              # rise to peak 1
-        np.linspace(peak_price, base_price * 1.08, q),       # pullback to neckline
+        np.linspace(base_price, peak_price, q),  # rise to peak 1
+        np.linspace(peak_price, base_price * 1.08, q),  # pullback to neckline
         np.linspace(base_price * 1.08, peak_price * 0.995, q),  # rise to peak 2 (slightly lower)
         np.linspace(peak_price * 0.995, base_price * 1.02, q),  # decline
         np.linspace(base_price * 1.02, base_price * 0.92, bars - 4 * q),  # breakdown
@@ -331,7 +340,7 @@ def gen_double_top(
 
     # Volume: declining on second peak (classic divergence)
     volumes = rng.lognormal(mean=15, sigma=0.4, size=bars)
-    volumes[q - 3 : q + 3] *= 2.5       # high volume at peak 1
+    volumes[q - 3 : q + 3] *= 2.5  # high volume at peak 1
     volumes[3 * q - 3 : 3 * q + 3] *= 1.5  # lower volume at peak 2
     volumes = volumes.astype(int)
 

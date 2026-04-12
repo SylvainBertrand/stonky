@@ -4,11 +4,13 @@ Revision ID: 006
 Revises: 005
 Create Date: 2026-03-15
 """
+
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
+
+from alembic import op
 
 revision = "006"
 down_revision = "005"
@@ -25,9 +27,7 @@ def upgrade() -> None:
         sa.Column("value", sa.Numeric(12, 4), nullable=True),
         sa.UniqueConstraint("series_id", "date", name="uq_macro_series_sid_date"),
     )
-    op.create_index(
-        "idx_macro_series_lookup", "macro_series", ["series_id", sa.text("date DESC")]
-    )
+    op.create_index("idx_macro_series_lookup", "macro_series", ["series_id", sa.text("date DESC")])
 
     op.create_table(
         "sentiment_data",

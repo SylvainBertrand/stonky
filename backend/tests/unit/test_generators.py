@@ -7,7 +7,6 @@ Validates:
 - Shape-specific properties (uptrend goes up, consolidation stays in range, etc.)
 """
 
-import numpy as np
 import pytest
 
 from tests.generators import (
@@ -41,8 +40,7 @@ class TestGeneratorShape:
     def test_has_required_columns(self, generator) -> None:  # type: ignore[no-untyped-def]
         df = generator()
         assert set(df.columns) >= _EXPECTED_COLUMNS, (
-            f"{generator.__name__} is missing columns: "
-            f"{_EXPECTED_COLUMNS - set(df.columns)}"
+            f"{generator.__name__} is missing columns: {_EXPECTED_COLUMNS - set(df.columns)}"
         )
 
     def test_no_nan_in_ohlcv(self, generator) -> None:  # type: ignore[no-untyped-def]
@@ -107,9 +105,7 @@ class TestTrendProperties:
 
     def test_v_recovery_has_dip_and_recovery(self) -> None:
         base = 130.0
-        df = gen_v_recovery(
-            bars=100, seed=42, base_price=base, drop_start=30, drop_duration=15
-        )
+        df = gen_v_recovery(bars=100, seed=42, base_price=base, drop_start=30, drop_duration=15)
         # Should have a low below base
         assert df["close"].min() < base, "gen_v_recovery: no dip below base price"
         # Should recover — last price higher than the dip
@@ -144,9 +140,7 @@ class TestTrendProperties:
         df = gen_bullish_engulfing(bars=50, seed=42)
         last = df.iloc[-1]
         # Engulfing candle: close > open (bullish body)
-        assert last["close"] > last["open"], (
-            "gen_bullish_engulfing: last candle is not bullish"
-        )
+        assert last["close"] > last["open"], "gen_bullish_engulfing: last candle is not bullish"
 
     def test_bullish_engulfing_volume_spike(self) -> None:
         df = gen_bullish_engulfing(bars=50, seed=42)

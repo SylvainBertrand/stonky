@@ -1,0 +1,136 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend ─────────────────────────────────────────────────────────────────
+
+  backend-lint:
+    name: Backend lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dev dependencies
+        run: uv sync --extra dev
+        working-directory: backend
+      - name: ruff check
+        run: uv run ruff check .
+        working-directory: backend
+      - name: ruff format --check
+        run: uv run ruff format --check .
+        working-directory: backend
+
+  backend-typecheck:
+    name: Backend typecheck (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dev dependencies
+        run: uv sync --extra dev
+        working-directory: backend
+      - name: mypy
+        run: uv run mypy app
+        working-directory: backend
+        # NOTE: 123 pre-existing type errors exist (tracked in TC-003b).
+        # This job will fail until TC-003b is resolved.
+        continue-on-error: true
+
+  backend-test:
+    name: Backend tests (pytest unit + ta_validation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dev dependencies
+        run: uv sync --extra dev
+        working-directory: backend
+      - name: pytest (unit + ta_validation — no Docker needed)
+        run: uv run pytest -m "unit or ta_validation" -q
+        working-directory: backend
+      # Integration tests require Docker + TimescaleDB — run locally only.
+      # See CLAUDE.md: `uv run pytest -m integration`
+
+  # ── Frontend ────────────────────────────────────────────────────────────────
+
+  frontend-lint:
+    name: Frontend lint (eslint + prettier)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: eslint
+        run: npm run lint
+        working-directory: frontend
+      - name: prettier --check
+        run: npm run format:check
+        working-directory: frontend
+
+  frontend-typecheck:
+    name: Frontend typecheck (tsc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: tsc --noEmit
+        run: npm run typecheck
+        working-directory: frontend
+
+  frontend-test:
+    name: Frontend tests (vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: vitest run
+        run: npm test -- --run
+        working-directory: frontend
+
+  frontend-build:
+    name: Frontend build (vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+      - name: vite build
+        run: npm run build
+        working-directory: frontend

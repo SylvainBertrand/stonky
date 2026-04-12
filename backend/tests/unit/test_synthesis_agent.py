@@ -8,6 +8,7 @@ Tests cover:
 - build_user_prompt produces expected structure
 - synthesize with mock LLM provider
 """
+
 from __future__ import annotations
 
 import json
@@ -16,12 +17,10 @@ import pytest
 
 from app.analysis.signal_aggregator import AggregatedSignals
 from app.analysis.synthesis_agent import (
-    SynthesisResult,
     build_user_prompt,
     parse_response,
     synthesize,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,19 +72,21 @@ def _make_signals(**overrides: object) -> AggregatedSignals:
     return AggregatedSignals(**defaults)  # type: ignore[arg-type]
 
 
-_VALID_JSON_RESPONSE = json.dumps({
-    "setup_type": "Momentum Breakout",
-    "bias": "bullish",
-    "confidence": "high",
-    "summary": "AAPL shows strong momentum with bullish EMA stack.",
-    "signal_confluence": "EMA stack, ADX, Supertrend all bullish.",
-    "signal_conflicts": "None",
-    "entry": 185.50,
-    "stop": 181.00,
-    "target": 195.00,
-    "risk_reward": 2.1,
-    "key_risk": "Break below $181 invalidates the setup.",
-})
+_VALID_JSON_RESPONSE = json.dumps(
+    {
+        "setup_type": "Momentum Breakout",
+        "bias": "bullish",
+        "confidence": "high",
+        "summary": "AAPL shows strong momentum with bullish EMA stack.",
+        "signal_confluence": "EMA stack, ADX, Supertrend all bullish.",
+        "signal_conflicts": "None",
+        "entry": 185.50,
+        "stop": 181.00,
+        "target": 195.00,
+        "risk_reward": 2.1,
+        "key_risk": "Break below $181 invalidates the setup.",
+    }
+)
 
 
 # ── parse_response tests ────────────────────────────────────────────────────
@@ -156,15 +157,17 @@ class TestParseResponse:
         assert result.parse_error is True
 
     def test_missing_optional_fields(self) -> None:
-        raw = json.dumps({
-            "setup_type": "No Clear Setup",
-            "bias": "neutral",
-            "confidence": "low",
-            "summary": "Mixed signals.",
-            "signal_confluence": "None strong.",
-            "signal_conflicts": "Everything conflicts.",
-            "key_risk": "No clear direction.",
-        })
+        raw = json.dumps(
+            {
+                "setup_type": "No Clear Setup",
+                "bias": "neutral",
+                "confidence": "low",
+                "summary": "Mixed signals.",
+                "signal_confluence": "None strong.",
+                "signal_conflicts": "Everything conflicts.",
+                "key_risk": "No clear direction.",
+            }
+        )
         signals = _make_signals()
         result = parse_response(raw, signals)
 
@@ -175,15 +178,17 @@ class TestParseResponse:
         assert result.risk_reward is None
 
     def test_invalid_bias_defaults(self) -> None:
-        raw = json.dumps({
-            "setup_type": "Test",
-            "bias": "INVALID",
-            "confidence": "WRONG",
-            "summary": "Test.",
-            "signal_confluence": "",
-            "signal_conflicts": "",
-            "key_risk": "Test.",
-        })
+        raw = json.dumps(
+            {
+                "setup_type": "Test",
+                "bias": "INVALID",
+                "confidence": "WRONG",
+                "summary": "Test.",
+                "signal_confluence": "",
+                "signal_conflicts": "",
+                "key_risk": "Test.",
+            }
+        )
         signals = _make_signals()
         result = parse_response(raw, signals)
 

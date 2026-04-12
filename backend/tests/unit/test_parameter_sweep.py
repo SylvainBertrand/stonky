@@ -15,7 +15,6 @@ import pytest
 
 from tests.generators import gen_uptrend
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -50,7 +49,7 @@ class TestSweepGridSize:
 
     def test_3x3_grid_produces_9_results(self) -> None:
         """A strategy with 3 fast x 3 slow values must yield exactly 9 sweep results."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         # Override param_space to a deterministic 3x3 grid (small so the test is fast)
@@ -77,12 +76,12 @@ class TestSweepGridSize:
 
     def test_result_count_matches_cartesian_product(self) -> None:
         """Result count must equal the product of all param_space axis lengths."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
-        strategy.param_space["fast"] = [9, 21]       # 2 values
-        strategy.param_space["slow"] = [50, 100]     # 2 values
+        strategy.param_space["fast"] = [9, 21]  # 2 values
+        strategy.param_space["slow"] = [50, 100]  # 2 values
         # 2 x 2 = 4 combinations
 
         df = gen_uptrend(bars=200, seed=42)
@@ -101,7 +100,7 @@ class TestSweepGridSize:
 
     def test_all_param_combos_are_unique(self) -> None:
         """No two sweep runs should use the identical parameter combination."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
@@ -136,7 +135,7 @@ class TestBestResultSelection:
 
     def test_best_result_has_highest_sharpe(self) -> None:
         """best_result must be the BacktestResult with the highest sharpe_ratio."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
@@ -163,7 +162,7 @@ class TestBestResultSelection:
 
     def test_best_result_has_highest_total_return(self) -> None:
         """When metric='total_return_pct', best_result must have the highest total return."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
@@ -189,7 +188,7 @@ class TestBestResultSelection:
 
     def test_best_result_is_member_of_results_list(self) -> None:
         """best_result must be one of the objects in results (not a copy or new object)."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
@@ -222,11 +221,11 @@ class TestHeatmapData:
 
     def test_2x2_grid_produces_4_heatmap_entries(self) -> None:
         """A 2x2 parameter grid must produce exactly 4 entries in heatmap_data."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
-        strategy.param_space["fast"] = [9, 21]    # 2 values
+        strategy.param_space["fast"] = [9, 21]  # 2 values
         strategy.param_space["slow"] = [50, 100]  # 2 values
 
         df = gen_uptrend(bars=200, seed=42)
@@ -246,7 +245,7 @@ class TestHeatmapData:
 
     def test_3x3_grid_produces_9_heatmap_entries(self) -> None:
         """A 3x3 parameter grid must produce exactly 9 entries in heatmap_data."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
@@ -269,7 +268,7 @@ class TestHeatmapData:
 
     def test_heatmap_keys_represent_param_axis_pairs(self) -> None:
         """Heatmap keys must be string representations of (ax1_value, ax2_value) tuples."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
@@ -287,11 +286,7 @@ class TestHeatmapData:
         )
 
         # Keys should look like "(9, 50)", "(9, 100)", "(21, 50)", "(21, 100)"
-        expected_keys = {
-            str((fast, slow))
-            for fast in [9, 21]
-            for slow in [50, 100]
-        }
+        expected_keys = {str((fast, slow)) for fast in [9, 21] for slow in [50, 100]}
         actual_keys = set(sweep_result.heatmap_data.keys())
         assert actual_keys == expected_keys, (
             f"Heatmap keys mismatch.\n  Expected: {expected_keys}\n  Got: {actual_keys}"
@@ -299,9 +294,10 @@ class TestHeatmapData:
 
     def test_heatmap_values_are_numeric(self) -> None:
         """All heatmap values must be finite floats (the metric value for each cell)."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
-        from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
         import math
+
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
+        from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
         strategy.param_space["fast"] = [9, 21]
@@ -322,13 +318,11 @@ class TestHeatmapData:
                 f"heatmap_data[{key!r}]={value!r} is not numeric"
             )
             # Sharpe can legitimately be 0.0 (no trades) but should not be NaN/Inf
-            assert not math.isnan(value), (
-                f"heatmap_data[{key!r}] is NaN"
-            )
+            assert not math.isnan(value), f"heatmap_data[{key!r}] is NaN"
 
     def test_single_axis_sweep_produces_correct_heatmap_count(self) -> None:
         """A sweep with a single param_axis must produce heatmap entries equal to axis length."""
-        from app.backtesting.parameter_sweep import run_sweep_sync, SweepConfig
+        from app.backtesting.parameter_sweep import SweepConfig, run_sweep_sync
         from app.backtesting.strategies.indicator_strategies import EMACrossoverStrategy
 
         strategy = EMACrossoverStrategy()
@@ -340,7 +334,7 @@ class TestHeatmapData:
             df=df,
             sweep_config=SweepConfig(
                 strategy=strategy,
-                param_axes=["fast"],   # single-axis heatmap
+                param_axes=["fast"],  # single-axis heatmap
                 metric="sharpe_ratio",
             ),
         )

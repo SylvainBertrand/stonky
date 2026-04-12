@@ -4,8 +4,8 @@ Integration test for the GET /api/health endpoint.
 Requires a running TimescaleDB container (provided by the db_container fixture).
 """
 
-import pytest
 import httpx
+import pytest
 
 pytestmark = pytest.mark.integration
 

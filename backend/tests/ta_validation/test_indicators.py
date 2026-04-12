@@ -141,9 +141,9 @@ async def test_macd(
 
     macd_df = ta.macd(df["close"], fast=12, slow=26, signal=9)
     assert macd_df is not None
-    df["macd"] = macd_df.iloc[:, 0]      # MACD line
+    df["macd"] = macd_df.iloc[:, 0]  # MACD line
     df["macd_signal"] = macd_df.iloc[:, 1]  # Signal line
-    df["macd_hist"] = macd_df.iloc[:, 2]   # Histogram
+    df["macd_hist"] = macd_df.iloc[:, 2]  # Histogram
 
     values = _df_to_golden_values(df, ["macd", "macd_signal", "macd_hist"])
 
@@ -259,7 +259,14 @@ async def test_supertrend(
     result = ta.supertrend(df["high"], df["low"], df["close"], length=10, multiplier=3.0)
     assert result is not None
     dir_col = next((c for c in result.columns if c.startswith("SUPERTd_")), None)
-    val_col = next((c for c in result.columns if c.startswith("SUPERT_") and "d" not in c and "s" not in c.lower()), None)
+    val_col = next(
+        (
+            c
+            for c in result.columns
+            if c.startswith("SUPERT_") and "d" not in c and "s" not in c.lower()
+        ),
+        None,
+    )
     if dir_col:
         df["supertrend_dir"] = result[dir_col]
     if val_col:

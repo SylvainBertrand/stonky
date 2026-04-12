@@ -1,22 +1,22 @@
-import { create } from 'zustand'
+import { create } from 'zustand';
 
 interface ScannerStore {
   /** Active profile filter — null means "All" */
-  activeProfile: string | null
+  activeProfile: string | null;
   /** True while a scan is running in the background */
-  isScanning: boolean
+  isScanning: boolean;
   /** The run_id returned by POST /api/scanner/run — used to poll run status */
-  activeRunId: number | null
+  activeRunId: number | null;
   /** Wall-clock time when the last scan was triggered */
-  scanStartTime: Date | null
+  scanStartTime: Date | null;
   /** Wall-clock time when results were last fetched successfully */
-  lastFetched: Date | null
+  lastFetched: Date | null;
 
-  setActiveProfile: (profile: string | null) => void
-  setIsScanning: (scanning: boolean) => void
-  setActiveRunId: (runId: number | null) => void
-  setScanStartTime: (t: Date | null) => void
-  setLastFetched: (t: Date | null) => void
+  setActiveProfile: (profile: string | null) => void;
+  setIsScanning: (scanning: boolean) => void;
+  setActiveRunId: (runId: number | null) => void;
+  setScanStartTime: (t: Date | null) => void;
+  setLastFetched: (t: Date | null) => void;
 }
 
 export const useScannerStore = create<ScannerStore>((set) => ({
@@ -31,4 +31,4 @@ export const useScannerStore = create<ScannerStore>((set) => ({
   setActiveRunId: (runId) => set({ activeRunId: runId }),
   setScanStartTime: (t) => set({ scanStartTime: t }),
   setLastFetched: (t) => set({ lastFetched: t }),
-}))
+}));

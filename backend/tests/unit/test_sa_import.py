@@ -1,7 +1,7 @@
 """Unit tests for app.ingestion.sa_import (no DB, no network)."""
+
 from __future__ import annotations
 
-import io
 import tempfile
 from pathlib import Path
 
@@ -9,14 +9,13 @@ import pandas as pd
 import pytest
 
 from app.ingestion.sa_import import (
+    _find_column,
     _parse_float,
     _parse_grade,
     _parse_int,
-    _find_column,
     parse_sa_spreadsheet,
 )
 from app.models.enums import SALetterGrade
-
 
 # ---------------------------------------------------------------------------
 # _parse_grade
@@ -197,7 +196,13 @@ def test_parse_sa_spreadsheet_grade_columns_present() -> None:
     p = _write_csv(csv)
     try:
         df = parse_sa_spreadsheet(p)
-        for col in ("valuation_grade", "growth_grade", "profitability_grade", "momentum_grade", "eps_revision_grade"):
+        for col in (
+            "valuation_grade",
+            "growth_grade",
+            "profitability_grade",
+            "momentum_grade",
+            "eps_revision_grade",
+        ):
             assert col in df.columns, f"{col} should be in result"
     finally:
         p.unlink(missing_ok=True)

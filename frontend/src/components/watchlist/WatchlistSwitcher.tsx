@@ -1,36 +1,36 @@
-import { useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { watchlistApi } from '../../api/watchlists'
-import { useWatchlistStore } from '../../stores/watchlistStore'
+import { useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { watchlistApi } from '../../api/watchlists';
+import { useWatchlistStore } from '../../stores/watchlistStore';
 
 export function WatchlistSwitcher() {
-  const [open, setOpen] = useState(false)
-  const [switchedTo, setSwitchedTo] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const queryClient = useQueryClient()
-  const { setSelectedWatchlistId } = useWatchlistStore()
+  const [open, setOpen] = useState(false);
+  const [switchedTo, setSwitchedTo] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
+  const { setSelectedWatchlistId } = useWatchlistStore();
 
   const { data: watchlists = [] } = useQuery({
     queryKey: ['watchlists'],
     queryFn: () => watchlistApi.getAll(),
-  })
+  });
 
-  const active = watchlists.find((w) => w.is_default) ?? null
+  const active = watchlists.find((w) => w.is_default) ?? null;
 
   const setActiveMutation = useMutation({
     mutationFn: (id: number) => watchlistApi.setActive(id),
     onSuccess: (wl) => {
-      void queryClient.invalidateQueries({ queryKey: ['watchlists'] })
-      void queryClient.invalidateQueries({ queryKey: ['watchlist', 'active'] })
-      void queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] })
-      setSelectedWatchlistId(wl.id)
-      setSwitchedTo(wl.name)
-      setOpen(false)
-      setTimeout(() => setSwitchedTo(null), 4000)
+      void queryClient.invalidateQueries({ queryKey: ['watchlists'] });
+      void queryClient.invalidateQueries({ queryKey: ['watchlist', 'active'] });
+      void queryClient.invalidateQueries({ queryKey: ['scanner', 'results'] });
+      setSelectedWatchlistId(wl.id);
+      setSwitchedTo(wl.name);
+      setOpen(false);
+      setTimeout(() => setSwitchedTo(null), 4000);
     },
-  })
+  });
 
-  if (watchlists.length === 0) return null
+  if (watchlists.length === 0) return null;
 
   return (
     <div className="relative" ref={containerRef}>
@@ -50,9 +50,9 @@ export function WatchlistSwitcher() {
               key={wl.id}
               onClick={() => {
                 if (!wl.is_default) {
-                  setActiveMutation.mutate(wl.id)
+                  setActiveMutation.mutate(wl.id);
                 } else {
-                  setOpen(false)
+                  setOpen(false);
                 }
               }}
               className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
@@ -75,5 +75,5 @@ export function WatchlistSwitcher() {
         </div>
       )}
     </div>
-  )
+  );
 }

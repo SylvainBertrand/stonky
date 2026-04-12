@@ -4,18 +4,18 @@ const PROFILES = [
   { key: 'MeanReversion', label: 'Mean Reversion' },
   { key: 'TrendFollowing', label: 'Trend Following' },
   { key: 'HarmonicSetup', label: 'Harmonic Setup' },
-]
+];
 
 interface Props {
-  active: string | null
-  onChange: (profile: string | null) => void
+  active: string | null;
+  onChange: (profile: string | null) => void;
 }
 
 export function ProfileFilterTabs({ active, onChange }: Props) {
   return (
     <div className="flex flex-wrap gap-1">
       {PROFILES.map(({ key, label }) => {
-        const isActive = active === key
+        const isActive = active === key;
         return (
           <button
             key={key ?? 'all'}
@@ -28,8 +28,8 @@ export function ProfileFilterTabs({ active, onChange }: Props) {
           >
             {label}
           </button>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

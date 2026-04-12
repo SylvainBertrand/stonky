@@ -16,7 +16,6 @@ import pytest
 
 from tests.generators import gen_uptrend
 
-
 # ---------------------------------------------------------------------------
 # enrich_dataframe
 # ---------------------------------------------------------------------------
@@ -92,9 +91,7 @@ class TestEnrichDataframe:
         """Enrichment must not add or remove rows."""
         bars = 200
         df = _make_enriched_df(bars=bars)
-        assert len(df) == bars, (
-            f"enrich_dataframe changed row count from {bars} to {len(df)}"
-        )
+        assert len(df) == bars, f"enrich_dataframe changed row count from {bars} to {len(df)}"
 
     def test_ema_21_column_has_numeric_values(self) -> None:
         """ema_21 must be numeric with no non-finite values after the EMA(21) warmup period."""
@@ -122,8 +119,13 @@ class TestEnrichDataframe:
         """enrich_dataframe must materialize harmonic detection columns via _materialize_harmonics."""
         df = _make_enriched_df()
 
-        for col in ("harmonic_detected", "harmonic_score", "harmonic_prz_low",
-                    "harmonic_prz_high", "harmonic_x_price"):
+        for col in (
+            "harmonic_detected",
+            "harmonic_score",
+            "harmonic_prz_low",
+            "harmonic_prz_high",
+            "harmonic_x_price",
+        ):
             assert col in df.columns, (
                 f"Column '{col}' missing — enrich_dataframe must call _materialize_harmonics"
             )
@@ -300,18 +302,21 @@ class TestRunBacktestSync:
             pytest.skip("No trades to validate trade log structure")
 
         required_keys = {
-            "entry_bar", "exit_bar", "entry_price", "exit_price",
-            "pnl_pct", "pnl_abs", "direction", "entry_date", "exit_date",
+            "entry_bar",
+            "exit_bar",
+            "entry_price",
+            "exit_price",
+            "pnl_pct",
+            "pnl_abs",
+            "direction",
+            "entry_date",
+            "exit_date",
         }
         for i, trade in enumerate(result.trades):
             missing = required_keys - set(trade.keys())
-            assert not missing, (
-                f"Trade {i} is missing keys: {missing}"
-            )
+            assert not missing, f"Trade {i} is missing keys: {missing}"
 
     def test_profit_factor_is_non_negative(self) -> None:
         """profit_factor must be >= 0. It is undefined (set to 0) when there are no losing trades."""
         result = self._make_result()
-        assert result.profit_factor >= 0.0, (
-            f"profit_factor={result.profit_factor} is negative"
-        )
+        assert result.profit_factor >= 0.0, f"profit_factor={result.profit_factor} is negative"

@@ -1,12 +1,12 @@
 """Unit tests for app.ingestion.fetcher (no DB, no network)."""
+
 from __future__ import annotations
 
 import pandas as pd
 import pytest
 
-from app.ingestion.fetcher import _normalize_df, _YF_INTERVAL, _BACKFILL_PERIOD
+from app.ingestion.fetcher import _BACKFILL_PERIOD, _YF_INTERVAL, _normalize_df
 from app.models.enums import TimeframeEnum
-
 
 # ---------------------------------------------------------------------------
 # _normalize_df

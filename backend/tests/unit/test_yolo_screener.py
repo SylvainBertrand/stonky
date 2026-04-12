@@ -18,7 +18,6 @@ import pandas as pd
 import pytest
 
 from app.analysis.yolo_screener import (
-    DEFAULT_CONFIDENCE_THRESHOLD,
     DIRECTION_SIGN,
     GEOMETRIC_PATTERN_WEIGHT,
     PATTERN_DIRECTIONS,
@@ -29,8 +28,8 @@ from app.analysis.yolo_screener import (
     run_yolo_inference,
 )
 
-
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _make_detection(
     pattern: str = "double_bottom",
@@ -53,26 +52,32 @@ def _gen_ohlcv(bars: int = 120, seed: int = 42) -> pd.DataFrame:
     """Generate synthetic OHLCV data for chart rendering tests."""
     rng = np.random.default_rng(seed)
     close = 100 + np.cumsum(rng.standard_normal(bars) * 0.5)
-    return pd.DataFrame({
-        "time": pd.date_range("2025-06-01", periods=bars, freq="B"),
-        "open": close - rng.uniform(0, 1, bars),
-        "high": close + rng.uniform(0, 2, bars),
-        "low": close - rng.uniform(0, 2, bars),
-        "close": close,
-        "volume": rng.integers(100_000, 1_000_000, bars),
-    })
+    return pd.DataFrame(
+        {
+            "time": pd.date_range("2025-06-01", periods=bars, freq="B"),
+            "open": close - rng.uniform(0, 1, bars),
+            "high": close + rng.uniform(0, 2, bars),
+            "low": close - rng.uniform(0, 2, bars),
+            "close": close,
+            "volume": rng.integers(100_000, 1_000_000, bars),
+        }
+    )
 
 
 # ── Pattern direction mapping ────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestPatternDirections:
     def test_all_6_patterns_mapped(self) -> None:
         """The foduucom model detects 6 patterns, mapped to canonical names."""
         expected = {
-            "head_and_shoulders", "inverse_head_and_shoulders",
-            "double_top", "double_bottom",
-            "triangle", "trendline",
+            "head_and_shoulders",
+            "inverse_head_and_shoulders",
+            "double_top",
+            "double_bottom",
+            "triangle",
+            "trendline",
         }
         assert set(PATTERN_DIRECTIONS.keys()) == expected
 
@@ -92,6 +97,7 @@ class TestPatternDirections:
 
 
 # ── Class name normalization ─────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestNormalizeClassName:
@@ -119,6 +125,7 @@ class TestNormalizeClassName:
 
 # ── compute_yolo_signals ─────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 class TestComputeYoloSignals:
     def test_no_detections_returns_zeros(self) -> None:
@@ -136,7 +143,9 @@ class TestComputeYoloSignals:
         assert result["yolo_pattern_score"] > 0.0
 
     def test_bearish_pattern_negative_score(self) -> None:
-        det = _make_detection("head_and_shoulders", confidence=0.75, direction="bearish", bar_end=118)
+        det = _make_detection(
+            "head_and_shoulders", confidence=0.75, direction="bearish", bar_end=118
+        )
         result = compute_yolo_signals([det], total_bars=120)
 
         assert result["yolo_pattern_detected"] == 1.0
@@ -182,6 +191,7 @@ class TestComputeYoloSignals:
 
 # ── Recency decay ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 class TestRecencyDecay:
     def test_at_chart_end_no_decay(self) -> None:
@@ -211,6 +221,7 @@ class TestRecencyDecay:
 
 
 # ── Scoring integration ─────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestScoringIntegration:
@@ -274,6 +285,7 @@ class TestScoringIntegration:
 
 
 # ── Chart rendering ──────────────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestChartRenderer:
@@ -340,6 +352,7 @@ class TestChartRenderer:
 
 # ── Model singleton ─────────────────────────────────────────────────────────
 
+
 @pytest.mark.unit
 class TestModelSingleton:
     def test_failure_is_cached(self) -> None:
@@ -366,6 +379,7 @@ class TestModelSingleton:
 
 
 # ── YOLO inference (mocked) ─────────────────────────────────────────────────
+
 
 @pytest.mark.unit
 class TestRunYoloInference:
@@ -415,7 +429,7 @@ class TestRunYoloInference:
             names,
             [
                 (0, 0.80, [480, 100, 608, 500]),  # above threshold
-                (1, 0.25, [100, 50, 300, 450]),     # below threshold
+                (1, 0.25, [100, 50, 300, 450]),  # below threshold
             ],
         )
         mock_model.return_value = [result_obj]
@@ -423,6 +437,7 @@ class TestRunYoloInference:
         # Create a minimal test image
         img = Image.new("RGB", (640, 640), "black")
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         image_bytes = buf.getvalue()
@@ -450,6 +465,7 @@ class TestRunYoloInference:
 
         img = Image.new("RGB", (640, 640), "black")
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
 
@@ -479,6 +495,7 @@ class TestRunYoloInference:
 
         img = Image.new("RGB", (640, 640), "black")
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
 
@@ -487,7 +504,9 @@ class TestRunYoloInference:
         assert detections[0].confidence > detections[1].confidence
 
     @patch("app.analysis.yolo_screener.get_model")
-    def test_price_top_bottom_computed_from_bbox_y_and_price_range(self, mock_get_model: MagicMock) -> None:
+    def test_price_top_bottom_computed_from_bbox_y_and_price_range(
+        self, mock_get_model: MagicMock
+    ) -> None:
         from PIL import Image
 
         mock_model = MagicMock()
@@ -502,6 +521,7 @@ class TestRunYoloInference:
 
         img = Image.new("RGB", (640, 640), "black")
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
 
@@ -524,6 +544,7 @@ class TestRunYoloInference:
 
         img = Image.new("RGB", (640, 640), "black")
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
 
@@ -544,6 +565,7 @@ class TestRunYoloInference:
 
         img = Image.new("RGB", (640, 640), "black")
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
 
@@ -567,6 +589,7 @@ class TestRunYoloInference:
 
         img = Image.new("RGB", (640, 640), "black")
         import io
+
         buf = io.BytesIO()
         img.save(buf, format="PNG")
 

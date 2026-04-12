@@ -3,18 +3,18 @@ const ABBREV: Record<string, string> = {
   MeanReversion: 'MR',
   TrendFollowing: 'TF',
   HarmonicSetup: 'HS',
-}
+};
 
 const FULL_NAME: Record<string, string> = {
   MomentumBreakout: 'Momentum Breakout',
   MeanReversion: 'Mean Reversion',
   TrendFollowing: 'Trend Following',
   HarmonicSetup: 'Harmonic Setup',
-}
+};
 
 export function ProfileBadge({ profile }: { profile: string }) {
-  const label = ABBREV[profile] ?? profile.slice(0, 2).toUpperCase()
-  const fullName = FULL_NAME[profile] ?? profile
+  const label = ABBREV[profile] ?? profile.slice(0, 2).toUpperCase();
+  const fullName = FULL_NAME[profile] ?? profile;
   return (
     <span
       title={fullName}
@@ -22,5 +22,5 @@ export function ProfileBadge({ profile }: { profile: string }) {
     >
       {label}
     </span>
-  )
+  );
 }

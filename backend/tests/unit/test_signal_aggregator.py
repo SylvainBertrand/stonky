@@ -6,16 +6,16 @@ Tests cover:
 - Aggregation returns None when no P0 scanner results exist
 - Aggregation returns None for unknown symbol
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
-from app.analysis.signal_aggregator import AggregatedSignals, aggregate_signals
-
+from app.analysis.signal_aggregator import aggregate_signals
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,16 +29,28 @@ def _mock_cache_value(
     return {
         "symbol": "TEST",
         "composite_score": composite,
-        "category_scores": category_scores or {
-            "trend": 0.6, "momentum": 0.4, "volume": 0.2,
-            "volatility": 0.1, "support_resistance": 0.3,
-            "divergence": 0.0, "pattern": 0.1,
+        "category_scores": category_scores
+        or {
+            "trend": 0.6,
+            "momentum": 0.4,
+            "volume": 0.2,
+            "volatility": 0.1,
+            "support_resistance": 0.3,
+            "divergence": 0.0,
+            "pattern": 0.1,
         },
         "profile_matches": ["TrendFollowing"],
-        "signals": signals or {
-            "rsi": 0.3, "macd": 0.4, "ema_stack": 0.6,
-            "adx_dmi": 0.5, "supertrend": 0.7, "stochastic": 0.2,
-            "ttm_squeeze": 0.3, "fibonacci": 0.2, "pivot_points": 0.1,
+        "signals": signals
+        or {
+            "rsi": 0.3,
+            "macd": 0.4,
+            "ema_stack": 0.6,
+            "adx_dmi": 0.5,
+            "supertrend": 0.7,
+            "stochastic": 0.2,
+            "ttm_squeeze": 0.3,
+            "fibonacci": 0.2,
+            "pivot_points": 0.1,
         },
         "meta": {
             "last_price": 150.0,
@@ -53,6 +65,7 @@ def _mock_cache_value(
 
 class _FakeRow:
     """Simulates a SQLAlchemy result row for indicator_cache."""
+
     def __init__(self, value: dict[str, Any], time: datetime):
         self._data = (value, time)
 
@@ -62,6 +75,7 @@ class _FakeRow:
 
 class _FakeScalarResult:
     """Simulates scalar_one_or_none() result."""
+
     def __init__(self, value: Any = None):
         self._value = value
 
@@ -71,6 +85,7 @@ class _FakeScalarResult:
 
 class _FakeFirstResult:
     """Simulates .first() result."""
+
     def __init__(self, row: Any = None):
         self._row = row
 
@@ -80,10 +95,11 @@ class _FakeFirstResult:
 
 class _FakeScalarsResult:
     """Simulates .scalars().all() result."""
+
     def __init__(self, items: list[Any] | None = None):
         self._items = items or []
 
-    def scalars(self) -> "_FakeScalarsResult":
+    def scalars(self) -> _FakeScalarsResult:
         return self
 
     def all(self) -> list[Any]:
@@ -127,12 +143,12 @@ class TestAggregateSignals:
         db = AsyncMock()
         db.execute = AsyncMock(
             side_effect=[
-                _FakeScalarResult(1),           # symbol lookup
-                _FakeFirstResult(               # indicator_cache
+                _FakeScalarResult(1),  # symbol lookup
+                _FakeFirstResult(  # indicator_cache
                     _FakeRow(cache_value, now),
                 ),
-                _FakeScalarsResult([]),          # pattern_detections (empty)
-                _FakeScalarResult(None),         # forecast_cache (None)
+                _FakeScalarsResult([]),  # pattern_detections (empty)
+                _FakeScalarResult(None),  # forecast_cache (None)
             ]
         )
 
@@ -151,12 +167,12 @@ class TestAggregateSignals:
         db = AsyncMock()
         db.execute = AsyncMock(
             side_effect=[
-                _FakeScalarResult(1),           # symbol lookup
-                _FakeFirstResult(               # indicator_cache
+                _FakeScalarResult(1),  # symbol lookup
+                _FakeFirstResult(  # indicator_cache
                     _FakeRow(cache_value, now),
                 ),
-                _FakeScalarsResult([]),          # pattern_detections
-                _FakeScalarResult(None),         # forecast_cache (None)
+                _FakeScalarsResult([]),  # pattern_detections
+                _FakeScalarResult(None),  # forecast_cache (None)
             ]
         )
 
@@ -197,8 +213,11 @@ class TestAggregateSignals:
         now = datetime.now(UTC)
         cache_value = _mock_cache_value(
             signals={
-                "rsi": 0.3, "macd": 0.4, "ema_stack": 0.6,
-                "ew_ratio_quality": 0.8, "ew_wave3_active": 0.9,
+                "rsi": 0.3,
+                "macd": 0.4,
+                "ema_stack": 0.6,
+                "ew_ratio_quality": 0.8,
+                "ew_wave3_active": 0.9,
             }
         )
 
