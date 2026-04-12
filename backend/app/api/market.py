@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, UploadFile
 from sqlalchemy import desc, select
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/market", tags=["market"])
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 
-async def _get_ohlcv_close(session: AsyncSession, ticker: str, limit: int = 252) -> list[dict]:
+async def _get_ohlcv_close(session: AsyncSession, ticker: str, limit: int = 252) -> list[dict[str, Any]]:
     sym_result = await session.execute(select(Symbol).where(Symbol.ticker == ticker))
     sym = sym_result.scalar_one_or_none()
     if not sym:
@@ -44,7 +44,7 @@ async def _get_ohlcv_close(session: AsyncSession, ticker: str, limit: int = 252)
         .order_by(desc(OHLCV.time))
         .limit(limit)
     )
-    rows = result.scalars().all()
+    rows = list(result.scalars().all())
     rows.reverse()
     return [{"date": r.time.isoformat()[:10], "close": float(r.close)} for r in rows]
 
@@ -127,7 +127,7 @@ async def get_momentum(session: SessionDep) -> TimeSeriesResponse:
 async def get_macro(session: SessionDep) -> TimeSeriesResponse:
     """Return FRED series (DGS10, DGS2, M2SL) + DXY close."""
     fred_ids = ["DGS10", "DGS2", "M2SL"]
-    fred_data: dict[str, list[dict]] = {}
+    fred_data: dict[str, list[dict[str, Any]]] = {}
 
     for sid in fred_ids:
         result = await session.execute(
@@ -195,7 +195,7 @@ async def get_sentiment(session: SessionDep) -> TimeSeriesResponse:
         return TimeSeriesResponse(labels=[], series=[])
 
     # Build maps
-    aaii_map: dict[str, dict] = {}
+    aaii_map: dict[str, dict[str, Any]] = {}
     for r in aaii_rows:
         d = r.week_ending.isoformat()
         extra = r.extra or {}
@@ -244,7 +244,7 @@ async def import_sentiment(
         readings = parse_aaii_csv(content)
         for r in readings:
             stmt = (
-                pg_insert(SentimentData.__table__)
+                pg_insert(SentimentData)
                 .values(
                     source="aaii",
                     week_ending=r.week_ending,
@@ -261,13 +261,13 @@ async def import_sentiment(
         count = len(readings)
     else:
         readings_naaim = parse_naaim_csv(content)
-        for r in readings_naaim:
+        for naaim_row in readings_naaim:
             stmt = (
-                pg_insert(SentimentData.__table__)
+                pg_insert(SentimentData)
                 .values(
                     source="naaim",
-                    week_ending=r["week_ending"],
-                    value=r["exposure"],
+                    week_ending=naaim_row["week_ending"],
+                    value=naaim_row["exposure"],
                 )
                 .on_conflict_do_nothing(constraint="uq_sentiment_source_week")
             )
