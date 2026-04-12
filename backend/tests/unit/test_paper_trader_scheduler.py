@@ -287,9 +287,7 @@ async def test_zero_computed_size_skipped() -> None:
 @pytest.mark.asyncio
 async def test_stop_hit_closes_position() -> None:
     """When current price reaches stop, position is closed as a loss."""
-    position = _make_position(
-        ticker="AAPL", entry_price=100.0, stop=90.0, target=125.0, size=30.0
-    )
+    position = _make_position(ticker="AAPL", entry_price=100.0, stop=90.0, target=125.0, size=30.0)
     # Current price at stop level
     price = _price_quote(price=90.0)
 
@@ -329,9 +327,7 @@ async def test_stop_hit_closes_position() -> None:
 @pytest.mark.asyncio
 async def test_target_hit_closes_position() -> None:
     """When current price reaches target, position is closed as a win."""
-    position = _make_position(
-        ticker="MSFT", entry_price=100.0, stop=90.0, target=125.0, size=30.0
-    )
+    position = _make_position(ticker="MSFT", entry_price=100.0, stop=90.0, target=125.0, size=30.0)
     price = _price_quote(price=125.0)
 
     mock_close = AsyncMock()
@@ -366,9 +362,7 @@ async def test_target_hit_closes_position() -> None:
 @pytest.mark.asyncio
 async def test_no_exit_when_price_inside_range() -> None:
     """Position inside stop/target range should NOT be closed."""
-    position = _make_position(
-        ticker="GOOG", entry_price=100.0, stop=90.0, target=125.0, size=30.0
-    )
+    position = _make_position(ticker="GOOG", entry_price=100.0, stop=90.0, target=125.0, size=30.0)
     price = _price_quote(price=105.0)
 
     mock_close = AsyncMock()
@@ -452,8 +446,12 @@ async def test_run_id_format() -> None:
 async def test_short_stop_hit_pnl_is_negative() -> None:
     """Short position that hits its stop must produce negative PnL."""
     position = _make_position(
-        ticker="SPY", entry_price=100.0, stop=110.0, target=80.0,
-        direction="short", size=30.0,
+        ticker="SPY",
+        entry_price=100.0,
+        stop=110.0,
+        target=80.0,
+        direction="short",
+        size=30.0,
     )
     # current price at stop (110) → stop-hit
     price = _price_quote(price=110.0)
@@ -483,7 +481,7 @@ async def test_short_stop_hit_pnl_is_negative() -> None:
     assert closed == 1
     kwargs = mock_close.call_args.kwargs
     assert kwargs["exit_reason"] == "stop-hit"
-    assert kwargs["realized_pnl"] < 0   # loss
+    assert kwargs["realized_pnl"] < 0  # loss
     assert kwargs["r_multiple"] == pytest.approx(-1.0, abs=1e-4)
 
 
@@ -491,8 +489,12 @@ async def test_short_stop_hit_pnl_is_negative() -> None:
 async def test_short_target_hit_pnl_is_positive() -> None:
     """Short position that hits its target must produce positive PnL."""
     position = _make_position(
-        ticker="QQQ", entry_price=100.0, stop=110.0, target=85.0,
-        direction="short", size=30.0,
+        ticker="QQQ",
+        entry_price=100.0,
+        stop=110.0,
+        target=85.0,
+        direction="short",
+        size=30.0,
     )
     price = _price_quote(price=85.0)
 
@@ -521,5 +523,5 @@ async def test_short_target_hit_pnl_is_positive() -> None:
     assert closed == 1
     kwargs = mock_close.call_args.kwargs
     assert kwargs["exit_reason"] == "target-hit"
-    assert kwargs["realized_pnl"] > 0   # win
+    assert kwargs["realized_pnl"] > 0  # win
     assert kwargs["r_multiple"] == pytest.approx(1.5, abs=1e-4)  # (100-85)/10

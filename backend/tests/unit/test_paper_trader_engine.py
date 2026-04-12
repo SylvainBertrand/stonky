@@ -59,17 +59,13 @@ class TestValidateRR:
 
     def test_short_passes_at_minimum(self) -> None:
         # entry=100, stop=110, target=85 → rr = (100-85)/(110-100) = 1.5
-        passes, rr = validate_rr(
-            entry=100.0, stop=110.0, target=85.0, direction=Direction.SHORT
-        )
+        passes, rr = validate_rr(entry=100.0, stop=110.0, target=85.0, direction=Direction.SHORT)
         assert passes is True
         assert rr == pytest.approx(1.5, abs=1e-4)
 
     def test_short_fails_below_minimum(self) -> None:
         # entry=100, stop=110, target=88 → rr = (100-88)/(110-100) = 1.2
-        passes, rr = validate_rr(
-            entry=100.0, stop=110.0, target=88.0, direction=Direction.SHORT
-        )
+        passes, rr = validate_rr(entry=100.0, stop=110.0, target=88.0, direction=Direction.SHORT)
         assert passes is False
         assert rr < 1.5
 
@@ -108,8 +104,11 @@ class TestComputePositionSize:
     def test_short_sizing(self) -> None:
         # entry=100, stop=105 → risk_per_share=5.0; size=60
         size = compute_position_size(
-            portfolio_value=30_000.0, risk_pct=0.01,
-            entry=100.0, stop=105.0, direction=Direction.SHORT,
+            portfolio_value=30_000.0,
+            risk_pct=0.01,
+            entry=100.0,
+            stop=105.0,
+            direction=Direction.SHORT,
         )
         assert size == pytest.approx(60.0, abs=1e-4)
 
@@ -135,9 +134,7 @@ class TestComputePositionSize:
         assert size == pytest.approx(30_000.0, rel=1e-3)
 
     def test_zero_portfolio_value_returns_zero(self) -> None:
-        size = compute_position_size(
-            portfolio_value=0.0, risk_pct=0.01, entry=100.0, stop=95.0
-        )
+        size = compute_position_size(portfolio_value=0.0, risk_pct=0.01, entry=100.0, stop=95.0)
         assert size == 0.0
 
 
@@ -189,9 +186,7 @@ class TestEvaluateExit:
     def test_long_stop_priority_over_target(self) -> None:
         # pathological: current is both below stop AND above target
         # (shouldn't happen in practice but stop takes precedence)
-        reason, _ = evaluate_exit(
-            current_price=90.0, entry_price=100.0, stop=95.0, target=85.0
-        )
+        reason, _ = evaluate_exit(current_price=90.0, entry_price=100.0, stop=95.0, target=85.0)
         assert reason == ExitReason.STOP_HIT
 
     # ---- Short positions ----
@@ -199,7 +194,10 @@ class TestEvaluateExit:
     def test_short_no_exit_inside_range(self) -> None:
         # entry=100, stop=110, target=85; current=95 → still open
         reason, price = evaluate_exit(
-            current_price=95.0, entry_price=100.0, stop=110.0, target=85.0,
+            current_price=95.0,
+            entry_price=100.0,
+            stop=110.0,
+            target=85.0,
             direction=Direction.SHORT,
         )
         assert reason is None
@@ -208,7 +206,10 @@ class TestEvaluateExit:
     def test_short_stop_hit(self) -> None:
         # current >= stop (110) → stop-hit
         reason, price = evaluate_exit(
-            current_price=110.0, entry_price=100.0, stop=110.0, target=85.0,
+            current_price=110.0,
+            entry_price=100.0,
+            stop=110.0,
+            target=85.0,
             direction=Direction.SHORT,
         )
         assert reason == ExitReason.STOP_HIT
@@ -216,7 +217,10 @@ class TestEvaluateExit:
 
     def test_short_target_hit(self) -> None:
         reason, price = evaluate_exit(
-            current_price=85.0, entry_price=100.0, stop=110.0, target=85.0,
+            current_price=85.0,
+            entry_price=100.0,
+            stop=110.0,
+            target=85.0,
             direction=Direction.SHORT,
         )
         assert reason == ExitReason.TARGET_HIT
