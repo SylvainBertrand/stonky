@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -14,7 +15,7 @@ class BacktestConfig:
     start_date: str  # ISO date
     end_date: str  # ISO date
     strategy_name: str
-    strategy_params: dict
+    strategy_params: dict[str, Any]
     initial_capital: float = 10_000.0
     commission_pct: float = 0.001  # 0.1%
     slippage_pct: float = 0.0005  # 0.05%
@@ -44,11 +45,11 @@ class BacktestResult:
     avg_loss_pct: float
 
     # Time series (for charts)
-    equity_curve: list[dict]  # [{date, value}]
-    drawdown_curve: list[dict]  # [{date, pct}]
+    equity_curve: list[dict[str, Any]]  # [{date, value}]
+    drawdown_curve: list[dict[str, Any]]  # [{date, pct}]
 
     # Trade log
-    trades: list[dict]
+    trades: list[dict[str, Any]]
 
     # Benchmark comparison (buy-and-hold)
     benchmark_return_pct: float

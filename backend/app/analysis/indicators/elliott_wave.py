@@ -7,7 +7,7 @@ existing swing point infrastructure. Runs inline in the analysis pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd  # noqa: F401  # used by detect_elliott_waves (added in next task)
@@ -120,8 +120,8 @@ def _corrective_confidence(prices: list[float]) -> float:
 
 def detect_elliott_waves(
     df: pd.DataFrame,
-    swing_high_idx: np.ndarray,
-    swing_low_idx: np.ndarray,
+    swing_high_idx: np.ndarray[Any, np.dtype[Any]],
+    swing_low_idx: np.ndarray[Any, np.dtype[Any]],
     lookback_bars: int = 120,
 ) -> EWResult:
     """Detect Elliott Wave patterns using pre-computed swing point indices.

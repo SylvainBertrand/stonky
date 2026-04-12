@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -13,7 +14,7 @@ class BacktestRequest(BaseModel):
     start_date: date
     end_date: date
     strategy_type: str
-    parameters: dict = Field(default_factory=dict)
+    parameters: dict[str, Any] = Field(default_factory=dict)
     initial_capital: float = 10_000.0
     commission_pct: float = 0.001
     slippage_pct: float = 0.0005
@@ -26,10 +27,10 @@ class SweepRequest(BacktestRequest):
 
 class BacktestResponse(BaseModel):
     id: int | None = None
-    stats: dict
-    equity_curve: list[dict]
-    drawdown_curve: list[dict]
-    trades: list[dict]
+    stats: dict[str, Any]
+    equity_curve: list[dict[str, Any]]
+    drawdown_curve: list[dict[str, Any]]
+    trades: list[dict[str, Any]]
     benchmark_return_pct: float
     benchmark_sharpe: float
 
@@ -37,7 +38,7 @@ class BacktestResponse(BaseModel):
 class SweepResponse(BaseModel):
     results: list[BacktestResponse]
     best_index: int
-    heatmap_data: dict
+    heatmap_data: dict[str, Any]
 
 
 class BacktestHistoryItem(BaseModel):

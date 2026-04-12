@@ -76,8 +76,8 @@ async def _run_pipeline_background(
             if scan_run:
                 scan_run.status = ScanRunStatus.COMPLETED
                 scan_run.completed_at = datetime.now(UTC)
-                scan_run.symbols_scanned = summary["completed"] + summary["failed"]
-                scan_run.symbols_scored = summary["completed"]
+                scan_run.symbols_scanned = int(summary["completed"]) + int(summary["failed"])
+                scan_run.symbols_scored = int(summary["completed"])
                 scan_run.error_message = PIPELINE_SCAN_MARKER
                 await db.commit()
 

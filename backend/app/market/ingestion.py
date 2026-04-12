@@ -104,7 +104,7 @@ async def fetch_fred_data(session: AsyncSession) -> None:
 
         for _, row in df.iterrows():
             stmt = (
-                pg_insert(MacroSeries.__table__)
+                pg_insert(MacroSeries)
                 .values(
                     series_id=series_id,
                     date=row["date"],
@@ -123,7 +123,7 @@ async def fetch_sentiment_data(session: AsyncSession) -> None:
     aaii_readings = await scrape_aaii()
     for r in aaii_readings:
         stmt = (
-            pg_insert(SentimentData.__table__)
+            pg_insert(SentimentData)
             .values(
                 source="aaii",
                 week_ending=r.week_ending,
@@ -139,13 +139,13 @@ async def fetch_sentiment_data(session: AsyncSession) -> None:
         await session.execute(stmt)
 
     naaim_readings = await scrape_naaim()
-    for r in naaim_readings:
+    for naaim_row in naaim_readings:
         stmt = (
-            pg_insert(SentimentData.__table__)
+            pg_insert(SentimentData)
             .values(
                 source="naaim",
-                week_ending=r["week_ending"],
-                value=r["exposure"],
+                week_ending=naaim_row["week_ending"],
+                value=naaim_row["exposure"],
             )
             .on_conflict_do_nothing(constraint="uq_sentiment_source_week")
         )

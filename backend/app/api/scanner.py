@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import desc, select
@@ -61,7 +61,7 @@ _TF_MAP: dict[str, TimeframeEnum] = {
 # ---------------------------------------------------------------------------
 
 
-def _dict_to_harmonic_info(d: dict | None) -> HarmonicInfo | None:
+def _dict_to_harmonic_info(d: dict[str, Any] | None) -> HarmonicInfo | None:
     """Convert a cached harmonics dict to a HarmonicInfo schema object."""
     if d is None:
         return None

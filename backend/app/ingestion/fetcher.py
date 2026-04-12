@@ -157,13 +157,13 @@ async def store_ohlcv(
         )
 
     stmt = (
-        pg_insert(OHLCV.__table__)
+        pg_insert(OHLCV)
         .values(rows)
         .on_conflict_do_nothing(index_elements=["time", "symbol_id", "timeframe"])
     )
     result = await session.execute(stmt)
     # rowcount = rows actually inserted (0 for conflicts)
-    return result.rowcount if result.rowcount >= 0 else len(rows)
+    return result.rowcount if result.rowcount >= 0 else len(rows)  # type: ignore[attr-defined]  # CursorResult for DML has rowcount; stubs expose Result[Any]
 
 
 async def _latest_bar(

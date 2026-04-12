@@ -49,7 +49,7 @@ class OllamaProvider:
             resp = await client.post(f"{self.base_url}/api/chat", json=payload)
             resp.raise_for_status()
             data = resp.json()
-        return data["message"]["content"]
+        return str(data["message"]["content"])
 
     async def is_available(self) -> bool:
         """Check if Ollama is running by pinging /api/tags."""

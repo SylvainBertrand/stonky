@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -17,7 +18,7 @@ class YOLOPatternStrategy:
     pattern_names: list[str] = field(default_factory=lambda: ["bull_flag", "ascending_triangle"])
     min_confidence: float = 0.7
     name: str = field(init=False, default="yolo_pattern")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {
             "min_confidence": [0.6, 0.7, 0.8],
@@ -30,7 +31,7 @@ class YOLOPatternStrategy:
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {
             "pattern_names": self.pattern_names,
             "min_confidence": self.min_confidence,

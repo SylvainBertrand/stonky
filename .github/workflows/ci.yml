@@ -41,9 +41,6 @@ jobs:
       - name: mypy
         run: uv run mypy app
         working-directory: backend
-        # NOTE: 123 pre-existing type errors exist (tracked in TC-003b).
-        # This job will fail until TC-003b is resolved.
-        continue-on-error: true
 
   backend-test:
     name: Backend tests (pytest unit + ta_validation)

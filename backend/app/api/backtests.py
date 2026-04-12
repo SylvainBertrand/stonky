@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
@@ -83,7 +83,7 @@ async def _fetch_ohlcv(
 
 async def _fetch_yolo_detections(
     session: AsyncSession, symbol_id: int, start: date, end: date
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Fetch pre-computed YOLO pattern detections from DB."""
     query = (
         select(PatternDetection)
@@ -165,7 +165,7 @@ async def _save_result(session: AsyncSession, req: BacktestRequest, result: Back
 
 
 @router.post("/run", response_model=BacktestResponse)
-async def run_backtest(req: BacktestRequest, session: SessionDep):
+async def run_backtest(req: BacktestRequest, session: SessionDep) -> BacktestResponse:
     """Run a single backtest and return results."""
     logger.info(
         "Backtest request: strategy=%s, symbol=%s, timeframe=%s, params=%s",
@@ -202,7 +202,7 @@ async def run_backtest(req: BacktestRequest, session: SessionDep):
 
 
 @router.post("/sweep", response_model=SweepResponse)
-async def run_sweep(req: SweepRequest, session: SessionDep):
+async def run_sweep(req: SweepRequest, session: SessionDep) -> SweepResponse:
     """Run a parameter sweep and return all results."""
     strategy = create_strategy(req.strategy_type, req.parameters)
     df, _symbol_id = await _fetch_ohlcv(
@@ -233,7 +233,7 @@ async def run_sweep(req: SweepRequest, session: SessionDep):
 
 
 @router.get("/history", response_model=list[BacktestHistoryItem])
-async def get_history(session: SessionDep):
+async def get_history(session: SessionDep) -> list[BacktestHistoryItem]:
     """List the 20 most recent backtest results."""
     query = select(BacktestResultModel).order_by(desc(BacktestResultModel.created_at)).limit(20)
     result = await session.execute(query)
@@ -254,7 +254,7 @@ async def get_history(session: SessionDep):
 
 
 @router.get("/{backtest_id}", response_model=BacktestResponse)
-async def get_backtest(backtest_id: int, session: SessionDep):
+async def get_backtest(backtest_id: int, session: SessionDep) -> BacktestResponse:
     """Get a stored backtest result by ID."""
     result = await session.get(BacktestResultModel, backtest_id)
     if not result:
@@ -271,7 +271,7 @@ async def get_backtest(backtest_id: int, session: SessionDep):
 
 
 @router.delete("/{backtest_id}")
-async def delete_backtest(backtest_id: int, session: SessionDep):
+async def delete_backtest(backtest_id: int, session: SessionDep) -> dict[str, str]:
     """Delete a stored backtest result."""
     result = await session.get(BacktestResultModel, backtest_id)
     if not result:

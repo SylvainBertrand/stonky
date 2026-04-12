@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from scipy.signal import argrelextrema  # type: ignore[import-untyped]
+from scipy.signal import argrelextrema
 
 
 def detect_swing_points(

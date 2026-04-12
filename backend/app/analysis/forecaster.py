@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -40,7 +41,7 @@ class ForecastResult:
 _pipeline = None
 
 
-def _get_pipeline():  # type: ignore[no-untyped-def]
+def _get_pipeline() -> Any:
     global _pipeline
     if _pipeline is None:
         from chronos import ChronosPipeline

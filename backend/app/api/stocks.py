@@ -95,7 +95,7 @@ def _format_time(t: Any, intraday: bool) -> int | str:
     """Return Unix timestamp (int) for intraday, 'YYYY-MM-DD' string otherwise."""
     if intraday:
         return int(pd.Timestamp(t).timestamp())
-    return pd.Timestamp(t).strftime("%Y-%m-%d")
+    return str(pd.Timestamp(t).strftime("%Y-%m-%d"))
 
 
 @router.get("/{symbol}/ohlcv", response_model=dict[str, Any])

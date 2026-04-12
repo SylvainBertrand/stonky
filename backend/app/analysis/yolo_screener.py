@@ -10,6 +10,7 @@ import io
 import logging
 import re
 from dataclasses import dataclass
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -83,11 +84,11 @@ class YoloDetection:
 
 # ── Model singleton ──────────────────────────────────────────────────────────
 
-_model: object | None = None
+_model: Any = None
 _model_load_error: str | None = None
 
 
-def get_model() -> object:
+def get_model() -> Any:
     """Load the YOLOv8 model once and cache it.
 
     Downloads weights from HuggingFace on first call, then loads via ultralytics.
@@ -103,7 +104,9 @@ def get_model() -> object:
 
     try:
         from huggingface_hub import hf_hub_download
-        from ultralytics import YOLO
+        from ultralytics import (  # type: ignore[attr-defined]  # ultralytics lacks explicit __init__.pyi re-exports
+            YOLO,
+        )
 
         log.info("Downloading YOLOv8 model weights from %s ...", _HF_REPO_ID)
         model_path = hf_hub_download(repo_id=_HF_REPO_ID, filename=_HF_MODEL_FILENAME)

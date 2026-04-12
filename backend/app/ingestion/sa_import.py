@@ -144,7 +144,7 @@ def _find_column(df: pd.DataFrame, aliases: list[str]) -> str | None:
     for alias in aliases:
         key = _normalize_col(alias)
         if key in lookup:
-            return lookup[key]
+            return str(lookup[key])
     return None
 
 
@@ -287,7 +287,7 @@ async def import_sa_ratings(
             # Exclude created_at from the update set — let server_default win on insert
             update_set = {k: v for k, v in data.items() if k not in ("symbol_id", "snapshot_date")}
             stmt = (
-                pg_insert(SARating.__table__)
+                pg_insert(SARating)
                 .values(**data)
                 .on_conflict_do_update(
                     index_elements=["symbol_id", "snapshot_date"],
