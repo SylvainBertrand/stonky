@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -28,27 +29,27 @@ INDICATOR_MAP: dict[str, str] = {
 SUPERTREND_VALUES = {"bullish": 1, "bearish": -1}
 
 
-def _get_series(df: pd.DataFrame, indicator: str) -> np.ndarray:
+def _get_series(df: pd.DataFrame, indicator: str) -> np.ndarray[Any, np.dtype[Any]]:
     """Get the numpy array for an indicator, computing derived columns if needed."""
     if indicator == "ema21_slope":
         if "_ema21_slope" not in df.columns:
             df["_ema21_slope"] = df["ema_21"].diff()
-        return df["_ema21_slope"].to_numpy()
+        return df["_ema21_slope"].to_numpy()  # type: ignore[no-any-return]  # pandas stubs return Any for .to_numpy()
     if indicator == "obv_slope":
         if "_obv_slope" not in df.columns:
             df["_obv_slope"] = df["obv"].diff()
-        return df["_obv_slope"].to_numpy()
+        return df["_obv_slope"].to_numpy()  # type: ignore[no-any-return]  # pandas stubs return Any for .to_numpy()
 
     col = INDICATOR_MAP.get(indicator, indicator)
-    return df[col].to_numpy()
+    return df[col].to_numpy()  # type: ignore[no-any-return]  # pandas stubs return Any for .to_numpy()
 
 
 def _eval_rule(
-    series: np.ndarray,
+    series: np.ndarray[Any, np.dtype[Any]],
     operator: str,
     value: object,
-    prev_series: np.ndarray | None = None,
-) -> np.ndarray:
+    prev_series: np.ndarray[Any, np.dtype[Any]] | None = None,
+) -> np.ndarray[Any, np.dtype[Any]]:
     """Evaluate a single rule, returning a boolean array. No eval() — safe dispatch."""
     # Handle supertrend string values
     if isinstance(value, str) and value in SUPERTREND_VALUES:
@@ -64,8 +65,8 @@ def _eval_rule(
         return series >= value
     elif operator == "==":
         if isinstance(value, bool):
-            return series.astype(bool) == value
-        return series == value
+            return series.astype(bool) == value  # type: ignore[no-any-return]  # comparison returns Any in stubs
+        return series == value  # type: ignore[no-any-return]  # comparison returns Any in stubs
     elif operator == "crosses_above":
         if prev_series is None:
             return np.zeros(len(series), dtype=bool)
@@ -86,12 +87,12 @@ def _eval_rule(
 class CustomStrategy:
     """Flexible rule combiner configured via JSON dict from the UI."""
 
-    config: dict
+    config: dict[str, Any]
     name: str = field(init=False, default="custom")
-    param_space: dict = field(init=False, default_factory=dict)
+    param_space: dict[str, Any] = field(init=False, default_factory=dict)
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return self.config
 
     def generate_signals(self, df: pd.DataFrame) -> SignalResult:

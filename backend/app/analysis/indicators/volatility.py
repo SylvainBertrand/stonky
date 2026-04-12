@@ -17,7 +17,7 @@ def compute_bbands(df: pd.DataFrame) -> pd.DataFrame:
     """Add bbl, bbm, bbu, bbp columns (Bollinger Bands, 20-period, 2 std)."""
     out = df.copy()
     try:
-        result = ta.bbands(out["close"], length=20, std=2.0)
+        result = ta.bbands(out["close"], length=20, std=2.0)  # type: ignore[arg-type]  # pandas_ta stubs mistype std as dict
         if result is not None and not result.empty:
             cols = result.columns.tolist()
             lower = next((c for c in cols if c.startswith("BBL_")), None)

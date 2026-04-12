@@ -4,16 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
+from typing import Any
 
 import pandas as pd
 
 from app.backtesting.results import BacktestResult
 from app.backtesting.runner import run_backtest_sync
+from app.backtesting.strategies.base import StrategyBase
 
 
 @dataclass
 class SweepConfig:
-    strategy: object  # StrategyBase instance (used as template)
+    strategy: StrategyBase  # StrategyBase instance (used as template)
     param_axes: list[str]  # which 2 params for heatmap
     metric: str = "sharpe_ratio"
     initial_capital: float = 10_000.0
@@ -25,8 +27,8 @@ class SweepConfig:
 class SweepResult:
     results: list[BacktestResult]
     best_result: BacktestResult | None
-    heatmap_data: dict  # {str(param_combo): metric_value}
-    param_combos: list[dict]
+    heatmap_data: dict[str, Any]  # {str(param_combo): metric_value}
+    param_combos: list[dict[str, Any]]
 
 
 def run_sweep_sync(
@@ -43,13 +45,13 @@ def run_sweep_sync(
     combos = [dict(zip(param_names, vals)) for vals in product(*param_values)]
 
     results: list[BacktestResult] = []
-    param_combos: list[dict] = []
+    param_combos: list[dict[str, Any]] = []
 
     for combo in combos:
         strategy_cls = type(strategy)
         try:
             if hasattr(strategy, "config"):
-                new_strategy = strategy_cls(config=combo)
+                new_strategy = strategy_cls(config=combo)  # type: ignore[call-arg]  # config= not in Protocol; concrete CustomStrategy accepts it
             else:
                 new_strategy = strategy_cls(**combo)
         except TypeError:

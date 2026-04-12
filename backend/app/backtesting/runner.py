@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -73,7 +74,7 @@ def _materialize_harmonics(df: pd.DataFrame) -> None:
             df.loc[idx, "harmonic_x_price"] = m.x
 
 
-def materialize_yolo_detections(df: pd.DataFrame, detections: list[dict]) -> None:
+def materialize_yolo_detections(df: pd.DataFrame, detections: list[dict[str, Any]]) -> None:
     """Write pre-fetched YOLO pattern_detections into DataFrame columns.
 
     Called by the API layer after fetching detections from DB.
@@ -90,14 +91,14 @@ def materialize_yolo_detections(df: pd.DataFrame, detections: list[dict]) -> Non
             df.iloc[idx, df.columns.get_loc("yolo_confidence")] = det["confidence"]
 
 
-def _compute_sharpe(returns: np.ndarray, periods_per_year: float = 252.0) -> float:
+def _compute_sharpe(returns: np.ndarray[Any, np.dtype[Any]], periods_per_year: float = 252.0) -> float:
     """Annualized Sharpe ratio from daily returns."""
     if len(returns) < 2 or np.std(returns) == 0:
         return 0.0
     return float(np.mean(returns) / np.std(returns) * np.sqrt(periods_per_year))
 
 
-def _compute_sortino(returns: np.ndarray, periods_per_year: float = 252.0) -> float:
+def _compute_sortino(returns: np.ndarray[Any, np.dtype[Any]], periods_per_year: float = 252.0) -> float:
     """Annualized Sortino ratio from daily returns."""
     if len(returns) < 2:
         return 0.0
@@ -117,7 +118,7 @@ def _compute_cagr(start_value: float, end_value: float, days: int) -> float:
     return float((end_value / start_value) ** (1 / years) - 1) * 100
 
 
-def _compute_max_drawdown(equity: np.ndarray) -> tuple[float, int]:
+def _compute_max_drawdown(equity: np.ndarray[Any, np.dtype[Any]]) -> tuple[float, int]:
     """Returns (max_drawdown_pct, max_drawdown_duration_days)."""
     if len(equity) < 2:
         return 0.0, 0
@@ -140,14 +141,14 @@ def _compute_max_drawdown(equity: np.ndarray) -> tuple[float, int]:
 
 
 def _simulate_portfolio(
-    close: np.ndarray,
-    entries: np.ndarray,
-    exits: np.ndarray,
+    close: np.ndarray[Any, np.dtype[Any]],
+    entries: np.ndarray[Any, np.dtype[Any]],
+    exits: np.ndarray[Any, np.dtype[Any]],
     initial_capital: float,
     commission_pct: float,
     slippage_pct: float,
     position_size_pct: float = 0.95,
-) -> tuple[np.ndarray, list[dict]]:
+) -> tuple[np.ndarray[Any, np.dtype[Any]], list[dict[str, Any]]]:
     """Simple long-only portfolio simulation. Returns (equity_array, trade_list)."""
     n = len(close)
     equity = np.full(n, initial_capital, dtype=float)
@@ -156,7 +157,7 @@ def _simulate_portfolio(
     in_position = False
     entry_price = 0.0
     entry_bar = 0
-    trades: list[dict] = []
+    trades: list[dict[str, Any]] = []
 
     for i in range(n):
         # Update equity
@@ -289,7 +290,7 @@ def run_backtest_sync(
 
     def _fmt_date(d: object) -> str:
         if hasattr(d, "strftime"):
-            return d.strftime("%Y-%m-%d")  # type: ignore[union-attr]
+            return str(d.strftime("%Y-%m-%d"))  # noqa: strftime narrowed by hasattr
         return str(d)[:10]
 
     equity_curve = [

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ class MomentumBreakoutStrategy:
     volume_multiplier: float = 1.5
     squeeze_required: bool = True
     name: str = field(init=False, default="momentum_breakout")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {
             "rsi_min": [45, 50, 55],
@@ -31,7 +32,7 @@ class MomentumBreakoutStrategy:
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {
             "rsi_min": self.rsi_min,
             "rsi_max": self.rsi_max,
@@ -97,7 +98,7 @@ class TrendFollowingStrategy:
     rsi_pullback_min: int = 40
     rsi_pullback_max: int = 50
     name: str = field(init=False, default="trend_following")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {
             "adx_min": [20, 25, 30],
@@ -107,7 +108,7 @@ class TrendFollowingStrategy:
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {
             "adx_min": self.adx_min,
             "ema_stack_required": self.ema_stack_required,
@@ -160,7 +161,7 @@ class MeanReversionStrategy:
     require_bb_touch: bool = True
     require_cmf_positive: bool = True
     name: str = field(init=False, default="mean_reversion")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {
             "rsi_max": [25, 30, 35],
@@ -169,7 +170,7 @@ class MeanReversionStrategy:
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {
             "rsi_max": self.rsi_max,
             "stoch_k_max": self.stoch_k_max,
@@ -226,13 +227,13 @@ class HarmonicSetupStrategy:
     min_pattern_score: float = 0.6
     require_rsi_divergence: bool = True
     name: str = field(init=False, default="harmonic_setup")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {"min_pattern_score": [0.5, 0.6, 0.7, 0.8]},
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {
             "min_pattern_score": self.min_pattern_score,
             "require_rsi_divergence": self.require_rsi_divergence,

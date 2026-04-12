@@ -243,7 +243,7 @@ def _safe_float(value: object) -> float | None:
     if value is None:
         return None
     try:
-        return float(value)
+        return float(value)  # type: ignore[arg-type]  # value: object, float() accepts it at runtime
     except (ValueError, TypeError):
         return None
 

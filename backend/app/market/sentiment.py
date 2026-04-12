@@ -7,6 +7,7 @@ import io
 import logging
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 
 import httpx
 
@@ -49,9 +50,9 @@ def parse_aaii_csv(content: str) -> list[AAIISentiment]:
     return results
 
 
-def parse_naaim_csv(content: str) -> list[dict]:
+def parse_naaim_csv(content: str) -> list[dict[str, Any]]:
     """Parse NAAIM CSV. Expected columns: date, exposure."""
-    results: list[dict] = []
+    results: list[dict[str, Any]] = []
     try:
         reader = csv.DictReader(io.StringIO(content))
         for row in reader:
@@ -123,7 +124,7 @@ async def scrape_aaii() -> list[AAIISentiment]:
         return []
 
 
-async def scrape_naaim() -> list[dict]:
+async def scrape_naaim() -> list[dict[str, Any]]:
     """Scrape NAAIM exposure index page. Returns empty list on failure."""
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
@@ -147,7 +148,7 @@ async def scrape_naaim() -> list[dict]:
                 logger.warning("NAAIM: no table found on page")
                 return []
 
-            results: list[dict] = []
+            results: list[dict[str, Any]] = []
             rows = table.find_all("tr")[1:]
             for tr in rows[:52]:
                 cells = tr.find_all("td")

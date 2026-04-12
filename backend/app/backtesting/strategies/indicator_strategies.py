@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -17,13 +18,13 @@ class EMACrossoverStrategy:
     fast: int = 21
     slow: int = 50
     name: str = field(init=False, default="ema_crossover")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {"fast": [9, 12, 21], "slow": [26, 50, 100]},
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {"fast": self.fast, "slow": self.slow}
 
     def generate_signals(self, df: pd.DataFrame) -> SignalResult:
@@ -66,13 +67,13 @@ class RSIThresholdStrategy:
     oversold: int = 30
     overbought: int = 70
     name: str = field(init=False, default="rsi_threshold")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {"oversold": [25, 30, 35], "overbought": [65, 70, 75]},
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {"oversold": self.oversold, "overbought": self.overbought}
 
     def generate_signals(self, df: pd.DataFrame) -> SignalResult:
@@ -101,7 +102,7 @@ class MACDCrossStrategy:
     slow: int = 26
     signal: int = 9
     name: str = field(init=False, default="macd_cross")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {
             "fast": [8, 12, 16],
@@ -111,7 +112,7 @@ class MACDCrossStrategy:
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {"fast": self.fast, "slow": self.slow, "signal": self.signal}
 
     def generate_signals(self, df: pd.DataFrame) -> SignalResult:
@@ -147,7 +148,7 @@ class SupertrendStrategy:
     atr_period: int = 10
     multiplier: float = 3.0
     name: str = field(init=False, default="supertrend")
-    param_space: dict = field(
+    param_space: dict[str, Any] = field(
         init=False,
         default_factory=lambda: {
             "atr_period": [7, 10, 14],
@@ -156,7 +157,7 @@ class SupertrendStrategy:
     )
 
     @property
-    def parameters(self) -> dict:
+    def parameters(self) -> dict[str, Any]:
         return {"atr_period": self.atr_period, "multiplier": self.multiplier}
 
     def generate_signals(self, df: pd.DataFrame) -> SignalResult:

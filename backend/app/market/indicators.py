@@ -146,7 +146,7 @@ def compute_macro(
     }
 
 
-def compute_sentiment(aaii_readings: list[dict], naaim_readings: list[dict]) -> dict[str, Any]:
+def compute_sentiment(aaii_readings: list[dict[str, Any]], naaim_readings: list[dict[str, Any]]) -> dict[str, Any]:
     """Compute AAII bull-bear spread stats and NAAIM exposure."""
     aaii_latest: float | None = None
     aaii_4wk_ma: float | None = None

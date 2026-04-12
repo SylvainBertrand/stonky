@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 import numpy as np
 import pandas as pd
 import torch
+from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class ForecastResult:
 _pipeline = None
 
 
-def _get_pipeline():  # type: ignore[no-untyped-def]
+def _get_pipeline() -> Any:
     global _pipeline
     if _pipeline is None:
         from chronos import ChronosPipeline

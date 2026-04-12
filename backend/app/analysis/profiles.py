@@ -19,6 +19,7 @@ class ScannerProfile(Protocol):
     name: str
     description: str
     score_threshold: float
+    required_conditions: list[str]
 
     def check(
         self,
@@ -201,10 +202,10 @@ class HarmonicSetup:
 # ---------------------------------------------------------------------------
 
 PROFILES: dict[str, ScannerProfile] = {
-    "MomentumBreakout": MomentumBreakout(),  # type: ignore[dict-item]
-    "MeanReversion": MeanReversion(),  # type: ignore[dict-item]
-    "TrendFollowing": TrendFollowing(),  # type: ignore[dict-item]
-    "HarmonicSetup": HarmonicSetup(),  # type: ignore[dict-item]
+    "MomentumBreakout": MomentumBreakout(),
+    "MeanReversion": MeanReversion(),
+    "TrendFollowing": TrendFollowing(),
+    "HarmonicSetup": HarmonicSetup(),
 }
 
 

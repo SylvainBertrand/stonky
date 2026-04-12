@@ -113,13 +113,13 @@ async def run_nightly_pipeline() -> None:
         summary = await run_full_pipeline(symbols, config, AsyncSessionLocal, run_id)
 
         async with AsyncSessionLocal() as db:
-            scan_run: ScanRun | None = await db.get(ScanRun, run_id)
-            if scan_run:
-                scan_run.status = ScanRunStatus.COMPLETED
-                scan_run.completed_at = datetime.now(UTC)
-                scan_run.symbols_scanned = int(summary["completed"]) + int(summary["failed"])
-                scan_run.symbols_scored = int(summary["completed"])
-                scan_run.error_message = "full_pipeline"
+            run_record: ScanRun | None = await db.get(ScanRun, run_id)
+            if run_record:
+                run_record.status = ScanRunStatus.COMPLETED
+                run_record.completed_at = datetime.now(UTC)
+                run_record.symbols_scanned = int(summary["completed"]) + int(summary["failed"])
+                run_record.symbols_scored = int(summary["completed"])
+                run_record.error_message = "full_pipeline"
                 await db.commit()
 
         logger.info(
@@ -133,11 +133,11 @@ async def run_nightly_pipeline() -> None:
         logger.error("nightly_full_pipeline failed: %s", exc, exc_info=True)
         try:
             async with AsyncSessionLocal() as db:
-                scan_run: ScanRun | None = await db.get(ScanRun, run_id)
-                if scan_run:
-                    scan_run.status = ScanRunStatus.FAILED
-                    scan_run.completed_at = datetime.now(UTC)
-                    scan_run.error_message = f"full_pipeline: {str(exc)[:1900]}"
+                run_record_err: ScanRun | None = await db.get(ScanRun, run_id)
+                if run_record_err:
+                    run_record_err.status = ScanRunStatus.FAILED
+                    run_record_err.completed_at = datetime.now(UTC)
+                    run_record_err.error_message = f"full_pipeline: {str(exc)[:1900]}"
                     await db.commit()
         except Exception as commit_exc:
             logger.error("nightly_full_pipeline: failed to record error: %s", commit_exc)
