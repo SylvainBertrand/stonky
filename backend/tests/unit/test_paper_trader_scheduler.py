@@ -109,8 +109,8 @@ async def test_market_closed_skips_position_actions() -> None:
     """When NYSE is not in regular session, no positions are opened or closed."""
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_closed_market_snapshot(),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=False,
         ),
         patch("app.paper_trader.scheduler.nc.write_execution_log", new_callable=AsyncMock),
         patch("app.paper_trader.scheduler.disc.send_run_summary", new_callable=AsyncMock),
@@ -138,8 +138,8 @@ async def test_pre_market_skips_position_actions() -> None:
     """Pre-market session also prevents any position actions."""
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_closed_market_snapshot(session="pre-market"),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=False,
         ),
         patch("app.paper_trader.scheduler.nc.write_execution_log", new_callable=AsyncMock),
         patch("app.paper_trader.scheduler.disc.send_run_summary", new_callable=AsyncMock),
@@ -401,8 +401,8 @@ async def test_execution_log_written_even_on_empty_run() -> None:
 
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_closed_market_snapshot(),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=False,
         ),
         patch("app.paper_trader.scheduler.nc.write_execution_log", mock_log),
         patch("app.paper_trader.scheduler.disc.send_run_summary", mock_summary),
@@ -423,8 +423,8 @@ async def test_run_id_format() -> None:
 
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_closed_market_snapshot(),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=False,
         ),
         patch("app.paper_trader.scheduler.nc.write_execution_log", new_callable=AsyncMock),
         patch("app.paper_trader.scheduler.disc.send_run_summary", new_callable=AsyncMock),

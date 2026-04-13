@@ -22,8 +22,8 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime
 
+from app.agents_common.scheduler import is_regular_session
 from app.config import settings
-from app.market.calendar_service import get_market_status
 from app.paper_trader import discord as disc
 from app.paper_trader import notion_client as nc
 from app.paper_trader.engine import (
@@ -66,13 +66,11 @@ async def run_paper_trader() -> RunResult:
     # ------------------------------------------------------------------
     # 1. Market-hours gate
     # ------------------------------------------------------------------
-    market_snapshot = get_market_status()
-    market_open = market_snapshot.is_open and market_snapshot.session == "regular"
+    market_open = is_regular_session()
 
     if not market_open:
         logger.info(
-            "paper_trader: market not in regular session (session=%s) — skipping position actions",
-            market_snapshot.session,
+            "paper_trader: market not in regular session — skipping position actions",
         )
 
     try:

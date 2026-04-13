@@ -90,8 +90,8 @@ async def test_approved_signal_opens_position_and_logs() -> None:
 
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_regular_market(),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=True,
         ),
         patch(
             "app.paper_trader.scheduler.nc.get_approved_signals",
@@ -195,8 +195,8 @@ async def test_market_closed_run_writes_log_and_discord_only() -> None:
 
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_closed_market(),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=False,
         ),
         patch(
             "app.paper_trader.scheduler.nc.write_execution_log",
@@ -257,8 +257,8 @@ async def test_stop_hit_closes_position_end_to_end() -> None:
 
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_regular_market(),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=True,
         ),
         patch(
             "app.paper_trader.scheduler.nc.get_open_positions",
@@ -339,8 +339,8 @@ async def test_execution_log_model_field_is_stonky_engine() -> None:
 
     with (
         patch(
-            "app.paper_trader.scheduler.get_market_status",
-            return_value=_closed_market(),
+            "app.paper_trader.scheduler.is_regular_session",
+            return_value=False,
         ),
         patch(
             "app.paper_trader.scheduler.nc.write_execution_log",

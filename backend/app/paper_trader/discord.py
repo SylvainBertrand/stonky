@@ -7,58 +7,22 @@ Sends Mobile Command Surface-standard embeds for:
   - anomaly
 
 Webhook URL is read from settings.discord_webhook_url. When the URL is not
-configured the function logs a warning and returns silently — callers should
-not treat a missing webhook as a fatal error, but a missing per-run summary
-IS treated as a failure by the brief guardrails (callers enforce this).
+configured the function logs a warning and returns silently.
+
+Shared infrastructure (_post, _embed, colors) imported from agents_common.discord.
 
 References:
   - Brief: briefs/paper-trader.yaml v1.0.0 (discord_notification schema)
-  - Ticket: TC-007 Acceptance Criteria #5
+  - Ticket: TC-007, TC-008 (agents_common extraction)
 """
 
 from __future__ import annotations
 
 import logging
 
-import httpx
-
-from app.config import settings
+from app.agents_common.discord import COLOR_GREEN, COLOR_RED, COLOR_YELLOW, _embed, _post
 
 logger = logging.getLogger(__name__)
-
-# Trading Company color palette (AC #5)
-COLOR_GREEN = 3_066_993  # clean success
-COLOR_YELLOW = 16_776_960  # partial / informational
-COLOR_RED = 15_158_332  # failure / loss
-
-
-async def _post(payload: dict[str, object]) -> None:
-    """POST a Discord embed payload to the configured webhook."""
-    url = settings.discord_webhook_url
-    if not url:
-        logger.warning("discord_webhook_url not configured — skipping Discord notification")
-        return
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post(url, json=payload)
-        if resp.status_code not in (200, 204):
-            logger.error("Discord webhook returned %s: %s", resp.status_code, resp.text[:200])
-
-
-def _embed(
-    *,
-    title: str,
-    description: str,
-    color: int,
-    fields: list[dict[str, object]] | None = None,
-    url: str = "",
-) -> dict[str, object]:
-    embed: dict[str, object] = {"title": title, "description": description, "color": color}
-    if fields:
-        embed["fields"] = fields
-    if url:
-        embed["url"] = url
-    return embed
 
 
 async def send_position_open(
@@ -73,9 +37,9 @@ async def send_position_open(
     direction: str = "long",
 ) -> None:
     """Notify: new paper position opened."""
-    direction_emoji = "📈" if direction == "long" else "📉"
+    direction_emoji = "\U0001f4c8" if direction == "long" else "\U0001f4c9"
     embed = _embed(
-        title=f"{direction_emoji} Paper Trader — Position Opened: {ticker}",
+        title=f"{direction_emoji} Paper Trader \u2014 Position Opened: {ticker}",
         description=f"New {direction} position opened via stonky-engine.",
         color=COLOR_GREEN,
         fields=[
@@ -102,10 +66,10 @@ async def send_position_close(
 ) -> None:
     """Notify: paper position closed."""
     win = r_multiple > 0
-    emoji = "✅" if win else "🛑"
+    emoji = "\u2705" if win else "\U0001f6d1"
     color = COLOR_GREEN if win else COLOR_RED
     embed = _embed(
-        title=f"{emoji} Paper Trader — Position Closed: {ticker}",
+        title=f"{emoji} Paper Trader \u2014 Position Closed: {ticker}",
         description=f"Exit reason: {exit_reason}.",
         color=color,
         fields=[
@@ -130,19 +94,19 @@ async def send_run_summary(
     """Mandatory per-run summary — sent every run including silent ones."""
     if status == "success":
         color = COLOR_GREEN
-        emoji = "📊"
+        emoji = "\U0001f4ca"
     elif status == "partial":
         color = COLOR_YELLOW
-        emoji = "⚠️"
+        emoji = "\u26a0\ufe0f"
     else:
         color = COLOR_RED
-        emoji = "❌"
+        emoji = "\u274c"
 
     description = (
         f"Opened: **{positions_opened}** | Closed: **{positions_closed}** | Status: **{status}**"
     )
     embed = _embed(
-        title=f"{emoji} Paper Trader — Run Summary",
+        title=f"{emoji} Paper Trader \u2014 Run Summary",
         description=description,
         color=color,
         fields=[
@@ -156,7 +120,7 @@ async def send_run_summary(
 async def send_anomaly(*, description: str, notion_url: str = "") -> None:
     """Notify: unexpected condition requiring board attention."""
     embed = _embed(
-        title="⚠️ Paper Trader — Anomaly Detected",
+        title="\u26a0\ufe0f Paper Trader \u2014 Anomaly Detected",
         description=description,
         color=COLOR_YELLOW,
         url=notion_url,
