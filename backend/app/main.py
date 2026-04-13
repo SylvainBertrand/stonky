@@ -17,6 +17,7 @@ from app.api.synthesis import router as synthesis_router
 from app.api.watchlist import router as watchlist_router
 from app.config import settings
 from app.paper_trader.router import router as paper_trader_router
+from app.portfolio_monitor.router import router as portfolio_monitor_router
 
 
 def _configure_logging() -> None:
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(synthesis_router, prefix="/api")
     app.include_router(pipeline_router, prefix="/api")
     app.include_router(paper_trader_router, prefix="/api")
+    app.include_router(portfolio_monitor_router, prefix="/api")
 
     return app
 
