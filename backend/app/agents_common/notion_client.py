@@ -431,6 +431,10 @@ async def write_execution_log(
     status: str,
     errors: list[str] | None = None,
     output_page_url: str = "",
+    input_tokens: int | None = None,
+    output_tokens: int | None = None,
+    total_tokens: int | None = None,
+    estimated_cost_usd: float | None = None,
 ) -> None:
     """Mandatory per-run entry in the Execution Log DB.
 
@@ -441,18 +445,46 @@ async def write_execution_log(
         status: "success" | "partial" | "failed"
         errors: List of error messages.
         output_page_url: URL of the output page created during this run.
+        input_tokens: Number of input tokens consumed (None = not measured).
+        output_tokens: Number of output tokens consumed (None = not measured).
+        total_tokens: Total tokens (input + output); derived automatically if None
+            and both input_tokens and output_tokens are provided.
+        estimated_cost_usd: Estimated cost in USD from the pricing table
+            (None = not measured). Pass 0.0 explicitly for LLM-free runs.
     """
     errors_text = "; ".join(errors) if errors else ""
-    await _create_page(
-        db_id=EXECUTION_LOG_DB,
-        properties={
-            "Run ID": _title(run_id),
-            "Agent": _text(agent),
-            "Timestamp": _date(datetime.now(UTC)),
-            "Model": _text(model),
-            "Status": _select(status),
-            "Output Page URL": _url(output_page_url) if output_page_url else {"url": None},
-            "Errors": _text(errors_text),
-        },
+
+    # Derive total_tokens from components if not explicitly supplied
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
+
+    properties: dict[str, Any] = {
+        "Run ID": _title(run_id),
+        "Agent": _text(agent),
+        "Timestamp": _date(datetime.now(UTC)),
+        "Model": _text(model),
+        "Status": _select(status),
+        "Output Page URL": _url(output_page_url) if output_page_url else {"url": None},
+        "Errors": _text(errors_text),
+    }
+
+    # Token fields — only include when a value is present (keeps null for
+    # legacy/unmeasured rows; pass 0 explicitly for LLM-free Stonky service runs).
+    if input_tokens is not None:
+        properties["Input Tokens"] = _number(input_tokens)
+    if output_tokens is not None:
+        properties["Output Tokens"] = _number(output_tokens)
+    if total_tokens is not None:
+        properties["Total Tokens"] = _number(total_tokens)
+    if estimated_cost_usd is not None:
+        properties["Estimated Cost USD"] = _number(round(estimated_cost_usd, 6))
+
+    await _create_page(db_id=EXECUTION_LOG_DB, properties=properties)
+    logger.info(
+        "write_execution_log: run=%s agent=%s status=%s tokens=%s cost=%s",
+        run_id,
+        agent,
+        status,
+        total_tokens,
+        estimated_cost_usd,
     )
-    logger.info("write_execution_log: run=%s agent=%s status=%s", run_id, agent, status)
