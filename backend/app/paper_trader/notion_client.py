@@ -57,7 +57,11 @@ async def write_execution_log(
     errors: list[str] | None = None,
     output_page_url: str = "",
 ) -> None:
-    """Write a paper-trader Execution Log entry (agent hardcoded to 'paper-trader')."""
+    """Write a paper-trader Execution Log entry (agent hardcoded to 'paper-trader').
+
+    Paper Trader is a deterministic Stonky service (no LLM calls). Token fields
+    are always written as 0 to distinguish these rows from unmeasured LLM rows.
+    """
     await _write_execution_log(
         run_id=run_id,
         agent="paper-trader",
@@ -65,6 +69,10 @@ async def write_execution_log(
         status=status,
         errors=errors,
         output_page_url=output_page_url,
+        input_tokens=0,
+        output_tokens=0,
+        total_tokens=0,
+        estimated_cost_usd=0.0,
     )
 
 

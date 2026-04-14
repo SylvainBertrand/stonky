@@ -287,7 +287,11 @@ async def run_portfolio_monitor() -> RunSummary:
 
 
 async def _write_log(*, run_id: str, status: str, errors: list[str], report_url: str) -> None:
-    """Write Execution Log row; errors here are logged but don't fail the run."""
+    """Write Execution Log row; errors here are logged but don't fail the run.
+
+    Portfolio Monitor is a deterministic Stonky service (no LLM calls). Token
+    fields are written as 0 to distinguish these rows from unmeasured LLM rows.
+    """
     try:
         await nc.write_execution_log(
             run_id=run_id,
@@ -296,6 +300,10 @@ async def _write_log(*, run_id: str, status: str, errors: list[str], report_url:
             status=status,
             errors=errors or None,
             output_page_url=report_url,
+            input_tokens=0,
+            output_tokens=0,
+            total_tokens=0,
+            estimated_cost_usd=0.0,
         )
     except Exception as exc:
         logger.error("portfolio_monitor: failed to write execution log: %s", exc)
