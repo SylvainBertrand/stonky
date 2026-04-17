@@ -156,9 +156,9 @@ async def _query(
 
 
 def _banner(title: str) -> None:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  {title}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
 
 def _check(label: str, value: Any, ok: bool) -> None:
@@ -314,9 +314,7 @@ async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str,
         f"  Ticker: {signal['ticker']}  Score: {signal['score']}  "
         f"Direction: {signal['direction']}  Timeframe: {signal['timeframe']}"
     )
-    print(
-        f"  Entry: {signal['entry_price']}  Stop: {signal['stop']}  " f"Target: {signal['target']}"
-    )
+    print(f"  Entry: {signal['entry_price']}  Stop: {signal['stop']}  Target: {signal['target']}")
 
     passed = True
     for field in REQUIRED_SIGNAL_FIELDS:
