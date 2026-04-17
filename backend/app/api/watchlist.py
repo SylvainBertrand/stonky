@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from pathlib import Path
 from typing import Annotated, Any
@@ -11,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.agents_common.notion_client import get_notion_watchlist
 from app.db.session import AsyncSessionLocal, get_session
 from app.ingestion.fetcher import fetch_and_store
 from app.ingestion.sa_import import import_sa_ratings, parse_sa_spreadsheet
@@ -30,6 +32,8 @@ from app.schemas.watchlist import (
     WatchlistRead,
     WatchlistUpdate,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/watchlists", tags=["watchlists"])
 
@@ -671,3 +675,135 @@ async def watchlist_status(
             )
 
     return entries
+
+
+# ---------------------------------------------------------------------------
+# Notion sync endpoint (TC-020)
+# Notion Watchlist DB is canonical; this endpoint populates/refreshes the
+# Stonky Postgres watchlist cache from Notion.
+# ---------------------------------------------------------------------------
+
+_NOTION_CACHE_WATCHLIST_NAME = "Notion Watchlist Cache"
+_NOTION_SYNC_PRIORITIES = ["core", "watching"]
+
+
+@router.post("/sync-from-notion", status_code=status.HTTP_200_OK)
+async def sync_watchlist_from_notion(session: SessionDep) -> dict[str, Any]:
+    """Sync the Stonky watchlist cache from the canonical Notion Watchlist DB.
+
+    Reads tickers where Active=true AND Priority IN (core, watching) from the
+    Notion Watchlist DB (TC-020). Creates or updates the 'Notion Watchlist
+    Cache' watchlist in Postgres (set as default). Adds new tickers, removes
+    tickers that are no longer in the filtered Notion set.
+
+    Returns a sync report: { watchlist_id, added, removed, unchanged, errors }.
+    """
+    # 1. Fetch canonical tickers from Notion
+    notion_entries: list[dict[str, Any]] = []
+    try:
+        notion_entries = await get_notion_watchlist(
+            active_only=True,
+            priorities=_NOTION_SYNC_PRIORITIES,
+        )
+    except Exception as exc:
+        logger.error("sync_watchlist_from_notion: Notion read failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Notion Watchlist DB read failed: {exc}",
+        )
+
+    notion_tickers: set[str] = {e["ticker"].upper() for e in notion_entries if e.get("ticker")}
+
+    # 2. Ensure the cache watchlist exists and is the default
+    result = await session.execute(
+        select(Watchlist).where(Watchlist.name == _NOTION_CACHE_WATCHLIST_NAME)
+    )
+    cache_wl = result.scalar_one_or_none()
+    if cache_wl is None:
+        # Clear old default if another watchlist holds it
+        old_defaults = await session.execute(
+            select(Watchlist).where(Watchlist.is_default.is_(True))
+        )
+        for old_wl in old_defaults.scalars().all():
+            old_wl.is_default = False
+        cache_wl = Watchlist(
+            name=_NOTION_CACHE_WATCHLIST_NAME,
+            description="Auto-synced from Notion Watchlist DB (TC-020). Do not edit manually.",
+            is_default=True,
+        )
+        session.add(cache_wl)
+        await session.flush()
+        logger.info("sync_watchlist_from_notion: created cache watchlist id=%d", cache_wl.id)
+    elif not cache_wl.is_default:
+        # Promote to default (harmless if already default)
+        old_defaults = await session.execute(
+            select(Watchlist).where(Watchlist.is_default.is_(True))
+        )
+        for old_wl in old_defaults.scalars().all():
+            old_wl.is_default = False
+        cache_wl.is_default = True
+
+    # 3. Load existing items in the cache watchlist
+    existing_items_result = await session.execute(
+        select(WatchlistItem)
+        .where(WatchlistItem.watchlist_id == cache_wl.id)
+        .options(selectinload(WatchlistItem.symbol))
+    )
+    existing_items = {
+        item.symbol.ticker.upper(): item for item in existing_items_result.scalars().all()
+    }
+    existing_tickers: set[str] = set(existing_items.keys())
+
+    to_add = notion_tickers - existing_tickers
+    to_remove = existing_tickers - notion_tickers
+
+    added: list[str] = []
+    removed: list[str] = []
+    errors: list[str] = []
+
+    # 4. Add new tickers
+    for ticker in sorted(to_add):
+        try:
+            sym_result = await session.execute(select(Symbol).where(Symbol.ticker == ticker))
+            symbol = sym_result.scalar_one_or_none()
+            if symbol is None:
+                symbol = Symbol(ticker=ticker, name=ticker)
+                session.add(symbol)
+                await session.flush()
+            item = WatchlistItem(watchlist_id=cache_wl.id, symbol_id=symbol.id)
+            session.add(item)
+            added.append(ticker)
+        except Exception as exc:
+            errors.append(f"add {ticker}: {exc}")
+            logger.warning("sync_watchlist_from_notion: failed to add %s: %s", ticker, exc)
+
+    # 5. Remove tickers no longer in Notion filtered set
+    for ticker in sorted(to_remove):
+        try:
+            item = existing_items[ticker]
+            await session.delete(item)
+            removed.append(ticker)
+        except Exception as exc:
+            errors.append(f"remove {ticker}: {exc}")
+            logger.warning("sync_watchlist_from_notion: failed to remove %s: %s", ticker, exc)
+
+    await session.commit()
+
+    unchanged = sorted(existing_tickers & notion_tickers)
+    logger.info(
+        "sync_watchlist_from_notion: added=%d removed=%d unchanged=%d errors=%d",
+        len(added),
+        len(removed),
+        len(unchanged),
+        len(errors),
+    )
+
+    return {
+        "watchlist_id": cache_wl.id,
+        "watchlist_name": cache_wl.name,
+        "notion_tickers_fetched": len(notion_tickers),
+        "added": sorted(added),
+        "removed": sorted(removed),
+        "unchanged": unchanged,
+        "errors": errors,
+    }

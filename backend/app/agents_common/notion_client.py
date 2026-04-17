@@ -8,6 +8,7 @@ Handles reads and writes to:
   - Paper Portfolio DB (collection://910c1cb0-65eb-4540-a0c3-7bdb20944939)
   - Trade Journal      (collection://d14fd908-48e4-475a-ab4e-f11bcc29fd0d)
   - Execution Log      (collection://b5adb864-bb3e-45a2-abfb-bd67e004c78d)
+  - Watchlist DB       (collection://3458f2ec-9644-8167-af1f-ebdf5115c1ef)  TC-020
 
 Extracted from paper_trader/notion_client.py and generalized to serve both
 paper_trader and portfolio_monitor. Key changes from paper_trader version:
@@ -20,6 +21,7 @@ References:
   - Brief: briefs/paper-trader.yaml v1.0.0
   - Brief: briefs/portfolio-monitor.yaml v2.0.0
   - Ticket: TC-008
+  - Ticket: TC-020 (Watchlist DB)
 """
 
 from __future__ import annotations
@@ -42,6 +44,8 @@ SIGNAL_REGISTRY_DB = "777fdeb7-8b1b-4d25-9f98-bee68e1a3c28"
 PAPER_PORTFOLIO_DB = "910c1cb0-65eb-4540-a0c3-7bdb20944939"
 TRADE_JOURNAL_DB = "d14fd908-48e4-475a-ab4e-f11bcc29fd0d"
 EXECUTION_LOG_DB = "b5adb864-bb3e-45a2-abfb-bd67e004c78d"
+# TC-020: canonical watchlist — Notion is source of truth; Stonky DB is cache
+WATCHLIST_DB = "3458f2ec-9644-8167-af1f-ebdf5115c1ef"
 
 
 def _get_client() -> AsyncClient:
@@ -489,3 +493,97 @@ async def write_execution_log(
         total_tokens,
         estimated_cost_usd,
     )
+
+
+# ---------------------------------------------------------------------------
+# Watchlist DB (TC-020)
+# Notion is canonical; Stonky Postgres watchlist is a cache synced from here.
+# ---------------------------------------------------------------------------
+
+
+def _parse_watchlist_entry(page: dict[str, Any]) -> dict[str, Any]:
+    """Extract ticker fields from a Notion Watchlist DB page."""
+    props = page.get("properties", {})
+
+    def _checkbox(key: str) -> bool:
+        try:
+            return bool(props[key]["checkbox"])
+        except (KeyError, TypeError):
+            return False
+
+    def _date_start(key: str) -> str:
+        try:
+            d = props[key]["date"]
+            return d["start"] if d else ""
+        except (KeyError, TypeError):
+            return ""
+
+    return {
+        "ticker": _read_title(page, "Ticker"),
+        "active": _checkbox("Active"),
+        "priority": _read_select(page, "Priority"),
+        "added_by": _read_select(page, "Added By"),
+        "added_date": _date_start("Added Date"),
+        "reason": _read_text(page, "Reason"),
+        "sector": _read_text(page, "Sector"),
+        "last_scanned": _date_start("Last Scanned"),
+        "notes": _read_text(page, "Notes"),
+        "notion_page_id": page.get("id", ""),
+    }
+
+
+async def get_notion_watchlist(
+    *,
+    active_only: bool = True,
+    priorities: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Read the canonical Watchlist DB from Notion.
+
+    Args:
+        active_only: If True (default), only return entries where Active=true.
+        priorities: Optional list of priority values to filter on (e.g.
+            ["core", "watching"]). None means all priorities.
+
+    Returns:
+        List of watchlist entry dicts with keys: ticker, active, priority,
+        added_by, added_date, reason, sector, last_scanned, notes,
+        notion_page_id.
+    """
+    filters: list[dict[str, Any]] = []
+    if active_only:
+        filters.append({"property": "Active", "checkbox": {"equals": True}})
+    if priorities:
+        filters.append(
+            {"or": [{"property": "Priority", "select": {"equals": p}} for p in priorities]}
+        )
+
+    filter_body: dict[str, Any] | None = None
+    if len(filters) == 1:
+        filter_body = filters[0]
+    elif len(filters) > 1:
+        filter_body = {"and": filters}
+
+    results = await _query_database(
+        db_id=WATCHLIST_DB,
+        filter_body=filter_body,
+        sorts=[{"property": "Ticker", "direction": "ascending"}],
+    )
+    entries = [_parse_watchlist_entry(p) for p in results]
+    logger.info(
+        "get_notion_watchlist: active_only=%s priorities=%s → %d entries",
+        active_only,
+        priorities,
+        len(entries),
+    )
+    return entries
+
+
+async def update_watchlist_last_scanned(
+    notion_page_id: str, scanned_at: datetime | None = None
+) -> None:
+    """Write Last Scanned timestamp for a watchlist entry after a TA scan."""
+    await _update_page(
+        page_id=notion_page_id,
+        properties={"Last Scanned": _date(scanned_at)},
+    )
+    logger.debug("update_watchlist_last_scanned: page=%s", notion_page_id)
