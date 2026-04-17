@@ -182,7 +182,7 @@ def _parse_signal(page: dict[str, Any]) -> dict[str, Any]:
         "agent": _text(page, "Agent"),
         "date": _date(page, "Date"),
         "score": _num(page, "Score"),
-        "entry_price": _num(page, "Entry Price"),
+        "entry_price": _num(page, "Entry"),
         "stop": _num(page, "Stop"),
         "target": _num(page, "Target"),
         "direction": _sel(page, "Direction"),
@@ -278,26 +278,73 @@ def _check(label: str, ok: bool, detail: str = "") -> None:
 
 
 def _check_prerequisites() -> None:
+    """Check TC-016 and TC-017 prerequisites.
+
+    TC-016 is a Notion-only schema change (no GitHub PR).  Verified by querying the
+    Signal Registry DB schema for the five new columns.
+    TC-017 is a trading_company repo PR — not stonky.
+    """
     _hdr("AC 1 — Prerequisites")
-    for ticket, expected_branch in [
-        ("TC-016", "feature/tc-016"),
-        ("TC-017", "feature/tc-017"),
-    ]:
-        try:
-            result = subprocess.run(
-                ["gh", "pr", "list", "--state", "merged", "--search", ticket, "--limit", "5"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            merged = ticket.lower() in result.stdout.lower()
-        except Exception as e:
-            merged = False
-            print(f"    gh CLI error for {ticket}: {e}")
-        _check(f"{ticket} merged to stonky main", merged, "gh pr list")
+
+    # TC-016: Notion-only — check Signal Registry schema directly
+    try:
+        import json as _json
+        import os as _os
+
+        api_key = _os.environ.get("NOTION_API_KEY", "") or _os.environ.get("NOTION_API_TOKEN", "")
+        r = subprocess.run(
+            [
+                "curl",
+                "-s",
+                "-H",
+                f"Authorization: Bearer {api_key}",
+                "-H",
+                "Notion-Version: 2022-06-28",
+                "https://api.notion.com/v1/databases/777fdeb7-8b1b-4d25-9f98-bee68e1a3c28",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        schema = _json.loads(r.stdout).get("properties", {})
+        tc016_done = all(f in schema for f in ("Entry", "Stop", "Target", "Direction", "Timeframe"))
+    except Exception as e:
+        tc016_done = False
+        print(f"    Notion schema check error for TC-016: {e}")
+    _check(
+        "TC-016 done (Signal Registry has Entry/Stop/Target/Direction/Timeframe)",
+        tc016_done,
+        "notion schema",
+    )
+
+    # TC-017: trading_company repo PR
+    try:
+        r2 = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "list",
+                "--repo",
+                "SylvainBertrand/trading_company",
+                "--state",
+                "merged",
+                "--search",
+                "TC-017",
+                "--limit",
+                "5",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        tc017_done = "tc-017" in r2.stdout.lower()
+    except Exception as e:
+        tc017_done = False
+        print(f"    gh CLI error for TC-017: {e}")
+    _check("TC-017 merged to trading_company main", tc017_done, "gh pr list")
 
     print()
-    print("  NOTE: If TC-016/TC-017 are not merged, live verification is blocked.")
+    print("  NOTE: If TC-016/TC-017 are not done, live verification is blocked.")
     print("        The observation harness (this script) is still usable for AC 3–6")
     print("        once prerequisites are met.")
 

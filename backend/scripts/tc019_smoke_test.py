@@ -172,24 +172,84 @@ def _check(label: str, value: Any, ok: bool) -> None:
 
 
 def phase_prereq() -> None:
-    """Check that TC-016 and TC-017 are merged via gh CLI (AC 1)."""
-    _banner("Prerequisites — TC-016 / TC-017 merged (AC 1)")
-    for ticket in ("TC-016", "TC-017"):
-        try:
-            result = subprocess.run(
-                ["gh", "pr", "list", "--state", "merged", "--search", ticket, "--limit", "5"],
-                capture_output=True,
-                text=True,
-                timeout=15,
-            )
-            merged = ticket.lower() in result.stdout.lower()
-        except FileNotFoundError:
-            print(f"  {WARN}  gh CLI not found — cannot auto-check {ticket}. Verify manually.")
-            continue
-        except Exception as e:
-            print(f"  {WARN}  gh CLI error for {ticket}: {e}")
-            continue
-        _check(f"{ticket} merged to stonky main", "yes" if merged else "no", merged)
+    """Check that TC-016 and TC-017 are done (AC 1).
+
+    TC-016 is a Notion-only schema change (no PR) — verified by checking that the
+    Signal Registry Notion DB contains the Timeframe property via gh/notion.
+    TC-017 is a trading_company repo PR — checked in SylvainBertrand/trading_company.
+    """
+    _banner("Prerequisites — TC-016 / TC-017 done (AC 1)")
+
+    # TC-016: Notion-only schema change — no GitHub PR exists.
+    # Verify the Timeframe column exists in Signal Registry by querying the DB schema.
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "api",
+                "https://api.notion.com/v1/databases/777fdeb7-8b1b-4d25-9f98-bee68e1a3c28",
+                "-H",
+                "Authorization: Bearer "
+                + (
+                    __import__("os").environ.get("NOTION_API_KEY", "")
+                    or __import__("os").environ.get("NOTION_API_TOKEN", "")
+                ),
+                "-H",
+                "Notion-Version: 2022-06-28",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        import json as _json
+
+        db_schema = _json.loads(result.stdout).get("properties", {})
+        tc016_done = all(
+            f in db_schema for f in ("Entry", "Stop", "Target", "Direction", "Timeframe")
+        )
+    except Exception as e:
+        print(f"  {WARN}  Could not verify TC-016 via Notion API: {e}. Verify manually.")
+        tc016_done = None
+    if tc016_done is not None:
+        _check(
+            "TC-016 done (Signal Registry has Entry/Stop/Target/Direction/Timeframe)",
+            "yes" if tc016_done else "no",
+            tc016_done,
+        )
+
+    # TC-017: trading_company repo PR — NOT stonky repo.
+    try:
+        result = subprocess.run(
+            [
+                "gh",
+                "pr",
+                "list",
+                "--repo",
+                "SylvainBertrand/trading_company",
+                "--state",
+                "merged",
+                "--search",
+                "TC-017",
+                "--limit",
+                "5",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+        tc017_merged = "tc-017" in result.stdout.lower()
+    except FileNotFoundError:
+        print(f"  {WARN}  gh CLI not found — cannot auto-check TC-017. Verify manually.")
+        tc017_merged = None
+    except Exception as e:
+        print(f"  {WARN}  gh CLI error for TC-017: {e}")
+        tc017_merged = None
+    if tc017_merged is not None:
+        _check(
+            "TC-017 merged to trading_company main",
+            "yes" if tc017_merged else "no",
+            tc017_merged,
+        )
 
     print()
     print("  If either prerequisite is NOT met, live smoke test cannot proceed.")
@@ -241,7 +301,7 @@ async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str,
         "agent": _read_text(page, "Agent"),
         "score": _read_number(page, "Score"),
         "board_decision": _read_select(page, "Board Decision"),
-        "entry_price": _read_number(page, "Entry Price"),
+        "entry_price": _read_number(page, "Entry"),
         "stop": _read_number(page, "Stop"),
         "target": _read_number(page, "Target"),
         "direction": _read_select(page, "Direction"),

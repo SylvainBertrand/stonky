@@ -205,10 +205,11 @@ def _parse_signal(page: dict[str, Any]) -> dict[str, Any]:
         "agent": _read_text(page, "Agent"),
         "date": _read_date_start(page, "Date"),
         "score": _read_number(page, "Score"),
-        "entry_price": _read_number(page, "Entry Price"),
+        "entry_price": _read_number(page, "Entry"),
         "stop": _read_number(page, "Stop"),
         "target": _read_number(page, "Target"),
         "direction": _read_select(page, "Direction") or "long",
+        "timeframe": _read_select(page, "Timeframe"),
         "thesis_id": _read_text(page, "Thesis ID"),
     }
 
