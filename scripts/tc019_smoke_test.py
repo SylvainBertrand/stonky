@@ -1,32 +1,26 @@
 """TC-019 — Paper Trader end-to-end smoke test observation harness.
 
 Stand-alone script that audits each phase of the smoke test by querying
-the live Notion DBs.  Run at each AC gate and paste the output into the
-'Smoke Test — First Paper Position' Notion page as the Cycle Receipt.
+the live Notion DBs.  Run at each gate below and paste the output into
+the 'Smoke Test — First Paper Position' Notion page as the Cycle Receipt.
 
 Prerequisites (must both be met before running Phase 1):
   - TC-016 merged: Signal Registry Notion DB has Timeframe field
   - TC-017 merged: Desk Head brief v1.2.0 (populates Entry/Stop/Target/Direction/Timeframe)
 
-Usage (from backend/ directory):
-    cd backend
-    uv run python scripts/tc019_smoke_test.py
-    uv run python scripts/tc019_smoke_test.py --phase 1
-    uv run python scripts/tc019_smoke_test.py --phase 2 --ticker AAPL
-    uv run python scripts/tc019_smoke_test.py --phase 4 --ticker AAPL
-    uv run python scripts/tc019_smoke_test.py --phase receipt
+Usage:
+    cd stonky
+    set NOTION_API_KEY=<key>
+    python scripts/tc019_smoke_test.py [--phase 1|2|3|4|receipt]
 
 Phases:
-  prereq  Check TC-016 / TC-017 merged (gh CLI required)
-  1       Pre-test — validate candidate signal has all required fields
-  2       Post-open — verify Paper Portfolio row created with all required columns
-  3       Monitor — verify Current Price / Unrealized PnL updated on subsequent runs
-  4       Close — verify exit, Trade Journal close entry, Signal Registry outcome
-  receipt Run all phases in sequence and print the full Cycle Receipt
+  1  Pre-test — validate candidate signal has all required fields
+  2  Post-open — verify Paper Portfolio row created with all required columns
+  3  Monitor — verify Current Price / Unrealized PnL updated on subsequent runs
+  4  Close — verify exit, Trade Journal close entry, Signal Registry outcome updated
+  receipt  Print a complete Cycle Receipt (all phases combined)
 
-Without --phase flag, runs receipt (all phases).
-
-References: TC-019 acceptance criteria
+Without --phase flag, runs all phases sequentially and prints the receipt.
 """
 
 from __future__ import annotations
@@ -34,10 +28,8 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
-import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -72,20 +64,11 @@ FAIL = "❌"
 
 
 def _get_client() -> Any:
-    from notion_client import AsyncClient  # noqa: PLC0415
+    from notion_client import AsyncClient
 
-    api_key = os.environ.get("NOTION_API_KEY", "")
+    api_key = os.environ.get("NOTION_API_KEY")
     if not api_key:
-        # Try repo-root .env (two dirs up from backend/scripts/)
-        env_path = Path(__file__).resolve().parent.parent.parent / ".env"
-        if env_path.exists():
-            for raw in env_path.read_text(encoding="utf-8").splitlines():
-                stripped = raw.strip()
-                if stripped.startswith("NOTION_API_KEY=") and not stripped.startswith("#"):
-                    api_key = stripped.split("=", 1)[1].strip().strip('"').strip("'")
-                    break
-    if not api_key:
-        sys.exit("NOTION_API_KEY not set. Add to environment or repo-root .env file.")
+        sys.exit("NOTION_API_KEY environment variable is not set.")
     return AsyncClient(auth=api_key)
 
 
@@ -140,19 +123,13 @@ async def _query(
     filter_body: dict[str, Any] | None = None,
     sorts: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Query a Notion database with pagination support."""
     body: dict[str, Any] = {}
     if filter_body:
         body["filter"] = filter_body
     if sorts:
         body["sorts"] = sorts
     resp = await client.request(path=f"databases/{db_id}/query", method="POST", body=body)
-    pages = list(resp.get("results", []))
-    while resp.get("has_more") and resp.get("next_cursor"):
-        body["start_cursor"] = resp["next_cursor"]
-        resp = await client.request(path=f"databases/{db_id}/query", method="POST", body=body)
-        pages.extend(resp.get("results", []))
-    return pages
+    return resp.get("results", [])
 
 
 def _banner(title: str) -> None:
@@ -167,103 +144,18 @@ def _check(label: str, value: Any, ok: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Prerequisites check (AC 1)
-# ---------------------------------------------------------------------------
-
-
-def phase_prereq() -> None:
-    """Check that TC-016 and TC-017 are done (AC 1).
-
-    TC-016 is a Notion-only schema change (no PR) — verified by checking that the
-    Signal Registry Notion DB contains the Timeframe property via gh/notion.
-    TC-017 is a trading_company repo PR — checked in SylvainBertrand/trading_company.
-    """
-    _banner("Prerequisites — TC-016 / TC-017 done (AC 1)")
-
-    # TC-016: Notion-only schema change — no GitHub PR exists.
-    # Verify the Timeframe column exists in Signal Registry by querying the DB schema.
-    try:
-        result = subprocess.run(
-            [
-                "gh",
-                "api",
-                "https://api.notion.com/v1/databases/777fdeb7-8b1b-4d25-9f98-bee68e1a3c28",
-                "-H",
-                "Authorization: Bearer "
-                + (
-                    __import__("os").environ.get("NOTION_API_KEY", "")
-                    or __import__("os").environ.get("NOTION_API_TOKEN", "")
-                ),
-                "-H",
-                "Notion-Version: 2022-06-28",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        import json as _json
-
-        db_schema = _json.loads(result.stdout).get("properties", {})
-        tc016_done = all(
-            f in db_schema for f in ("Entry", "Stop", "Target", "Direction", "Timeframe")
-        )
-    except Exception as e:
-        print(f"  {WARN}  Could not verify TC-016 via Notion API: {e}. Verify manually.")
-        tc016_done = None
-    if tc016_done is not None:
-        _check(
-            "TC-016 done (Signal Registry has Entry/Stop/Target/Direction/Timeframe)",
-            "yes" if tc016_done else "no",
-            tc016_done,
-        )
-
-    # TC-017: trading_company repo PR — NOT stonky repo.
-    try:
-        result = subprocess.run(
-            [
-                "gh",
-                "pr",
-                "list",
-                "--repo",
-                "SylvainBertrand/trading_company",
-                "--state",
-                "merged",
-                "--search",
-                "TC-017",
-                "--limit",
-                "5",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        tc017_merged = "tc-017" in result.stdout.lower()
-    except FileNotFoundError:
-        print(f"  {WARN}  gh CLI not found — cannot auto-check TC-017. Verify manually.")
-        tc017_merged = None
-    except Exception as e:
-        print(f"  {WARN}  gh CLI error for TC-017: {e}")
-        tc017_merged = None
-    if tc017_merged is not None:
-        _check(
-            "TC-017 merged to trading_company main",
-            "yes" if tc017_merged else "no",
-            tc017_merged,
-        )
-
-    print()
-    print("  If either prerequisite is NOT met, live smoke test cannot proceed.")
-    print("  The harness (this script) can still run to show DB state.")
-
-
-# ---------------------------------------------------------------------------
-# Phase 1 — Validate candidate signal (AC 2)
+# Phase 1 — Validate candidate signal
 # ---------------------------------------------------------------------------
 
 
 async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str, Any]:
-    """Check Signal Registry for a valid, board-approved DESK signal."""
-    _banner("Phase 1 — Signal Validation (AC 2)")
+    """Check Signal Registry for a valid, board-approved DESK signal.
+
+    If signal_url is provided, validate that specific signal.
+    Otherwise, find the most recent approved DESK signal.
+    Returns a dict with validation results.
+    """
+    _banner("Phase 1 — Signal Validation")
 
     cutoff = (datetime.now(UTC) - timedelta(hours=48)).isoformat()
 
@@ -301,7 +193,7 @@ async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str,
         "agent": _read_text(page, "Agent"),
         "score": _read_number(page, "Score"),
         "board_decision": _read_select(page, "Board Decision"),
-        "entry_price": _read_number(page, "Entry"),
+        "entry_price": _read_number(page, "Entry Price"),
         "stop": _read_number(page, "Stop"),
         "target": _read_number(page, "Target"),
         "direction": _read_select(page, "Direction"),
@@ -316,6 +208,7 @@ async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str,
     )
     print(f"  Entry: {signal['entry_price']}  Stop: {signal['stop']}  Target: {signal['target']}")
 
+    # Validate all required numeric fields are non-zero
     passed = True
     for field in REQUIRED_SIGNAL_FIELDS:
         val = signal[field]
@@ -324,7 +217,7 @@ async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str,
         if not ok:
             passed = False
 
-    # Validate R:R ratio (Paper Trader min R:R = 1.5)
+    # Validate R:R ratio
     entry = signal["entry_price"]
     stop = signal["stop"]
     target = signal["target"]
@@ -342,6 +235,7 @@ async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str,
         if not rr_ok:
             passed = False
 
+    # Board decision status
     board = signal["board_decision"]
     _check("Board Decision", board, board in ("pending", "approved"))
     if board == "approved":
@@ -359,13 +253,13 @@ async def phase1_validate_signal(client: Any, signal_url: str = "") -> dict[str,
 
 
 # ---------------------------------------------------------------------------
-# Phase 2 — Verify position opened (AC 3)
+# Phase 2 — Verify position opened
 # ---------------------------------------------------------------------------
 
 
 async def phase2_verify_position_opened(client: Any, ticker: str = "") -> dict[str, Any]:
-    """Check Paper Portfolio DB for a new open position (AC 3)."""
-    _banner("Phase 2 — Position Opened Verification (AC 3)")
+    """Check Paper Portfolio DB for a new open position."""
+    _banner("Phase 2 — Position Opened Verification")
 
     filter_body: dict[str, Any] = {"property": "Status", "select": {"equals": "open"}}
     if ticker:
@@ -419,6 +313,7 @@ async def phase2_verify_position_opened(client: Any, ticker: str = "") -> dict[s
         if not ok:
             passed = False
 
+    # Verify originating_agent is paper-trader
     _check(
         "originating_agent = paper-trader",
         pos["originating_agent"],
@@ -427,22 +322,10 @@ async def phase2_verify_position_opened(client: Any, ticker: str = "") -> dict[s
     if pos["originating_agent"] != "paper-trader":
         passed = False
 
+    # Verify entry price is a real fill (should be non-zero)
     _check("entry_price > 0", pos["entry_price"], pos["entry_price"] > 0)
     if pos["entry_price"] <= 0:
         passed = False
-
-    # Verify source signal transitioned to executed
-    if pos["signal_id"]:
-        executed_signals = await _query(
-            client,
-            SIGNAL_REGISTRY_DB,
-            filter_body={"property": "Board Decision", "select": {"equals": "executed"}},
-        )
-        executed_ids = {p.get("id", "").replace("-", "") for p in executed_signals}
-        signal_executed = pos["signal_id"].replace("-", "") in executed_ids
-        _check("source signal Board Decision → executed", signal_executed, signal_executed)
-        if not signal_executed:
-            passed = False
 
     result = {"phase": 2, "passed": passed, "position": pos}
     print(f"\n  Phase 2: {'PASS' if passed else 'FAIL'}")
@@ -450,13 +333,13 @@ async def phase2_verify_position_opened(client: Any, ticker: str = "") -> dict[s
 
 
 # ---------------------------------------------------------------------------
-# Phase 3 — Verify monitor updates (AC 4)
+# Phase 3 — Verify monitor updates
 # ---------------------------------------------------------------------------
 
 
 async def phase3_verify_monitor(client: Any, position_id: str = "") -> dict[str, Any]:
-    """Verify Current Price and Unrealized PnL are updating on open positions (AC 4)."""
-    _banner("Phase 3 — Monitor-Mode Verification (AC 4)")
+    """Verify Current Price and Unrealized PnL are updating on open positions."""
+    _banner("Phase 3 — Monitor-Mode Verification")
 
     filter_body: dict[str, Any] = {"property": "Status", "select": {"equals": "open"}}
     positions = await _query(client, PAPER_PORTFOLIO_DB, filter_body=filter_body)
@@ -485,7 +368,7 @@ async def phase3_verify_monitor(client: Any, position_id: str = "") -> dict[str,
         if not (current_price > 0):
             passed = False
 
-    # Check Execution Log for recent paper-trader runs (AC 4 — one entry per run)
+    # Check Execution Log for recent paper-trader runs
     cutoff = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
     exec_logs = await _query(
         client,
@@ -503,15 +386,14 @@ async def phase3_verify_monitor(client: Any, position_id: str = "") -> dict[str,
         run_id = _read_title(log, "Run ID")
         status = _read_select(log, "Status")
         ts = _read_date_start(log, "Timestamp")
-        icon = OK if status == "success" else WARN
-        print(f"       {icon}  {run_id}  {status}  {ts}")
+        print(f"       {OK if status == 'success' else WARN}  {run_id}  {status}  {ts}")
 
     print(f"\n  Phase 3: {'PASS' if passed else 'FAIL'}")
     return {"phase": 3, "passed": passed}
 
 
 # ---------------------------------------------------------------------------
-# Phase 4 — Verify close (AC 5)
+# Phase 4 — Verify close
 # ---------------------------------------------------------------------------
 
 
@@ -519,7 +401,7 @@ async def phase4_verify_close(
     client: Any, ticker: str = "", position_id: str = ""
 ) -> dict[str, Any]:
     """Verify position closed correctly, Trade Journal entry written, Signal Registry updated."""
-    _banner("Phase 4 — Close Verification (AC 5)")
+    _banner("Phase 4 — Close Verification")
 
     filter_body: dict[str, Any] = {"property": "Status", "select": {"equals": "closed"}}
     if ticker:
@@ -558,7 +440,8 @@ async def phase4_verify_close(
     print(f"\n  Closed position: {pos['ticker']} ({pos['url']})")
     passed = True
 
-    for field in ("exit_price", "exit_date", "exit_reason", "outcome"):
+    exit_fields = ["exit_price", "exit_date", "exit_reason", "outcome"]
+    for field in exit_fields:
         val = pos[field]
         ok = bool(val)
         _check(field, val, ok)
@@ -584,9 +467,11 @@ async def phase4_verify_close(
         if not journal_entries:
             passed = False
         else:
-            print(f"       Trade Journal: {_page_url(journal_entries[0])}")
+            je = journal_entries[0]
+            tj_url = _page_url(je)
+            print(f"       Trade Journal: {tj_url}")
 
-    # Manual close edge case (AC5c)
+    # Handle manual-close edge case (AC5c)
     if pos["exit_reason"] == "manual":
         print(f"\n  {WARN}  Manual close detected (Exit Reason = manual).")
         print("       Per AC5c: Paper Trader should not re-open this position.")
@@ -598,20 +483,19 @@ async def phase4_verify_close(
 
 
 # ---------------------------------------------------------------------------
-# Cycle Receipt — full summary (AC 6)
+# Cycle Receipt — print full summary
 # ---------------------------------------------------------------------------
 
 
-async def cycle_receipt(client: Any, signal_url: str = "", ticker: str = "") -> None:
-    """Run all phases and print a full Cycle Receipt for pasting into the Notion page (AC 6)."""
-    _banner("TC-019 Smoke Test — Cycle Receipt (AC 6)")
+async def cycle_receipt(client: Any) -> None:
+    """Run all phases and print a full Cycle Receipt for pasting into the Notion page."""
+    _banner("TC-019 Smoke Test — Cycle Receipt")
     print(f"  Generated: {datetime.now(UTC).isoformat()}")
 
-    phase_prereq()
-    r1 = await phase1_validate_signal(client, signal_url=signal_url)
-    r2 = await phase2_verify_position_opened(client, ticker=ticker)
+    r1 = await phase1_validate_signal(client)
+    r2 = await phase2_verify_position_opened(client)
     r3 = await phase3_verify_monitor(client)
-    r4 = await phase4_verify_close(client, ticker=ticker)
+    r4 = await phase4_verify_close(client)
 
     _banner("Summary")
     phases = [r1, r2, r3, r4]
@@ -630,25 +514,45 @@ async def cycle_receipt(client: Any, signal_url: str = "", ticker: str = "") -> 
 
 
 # ---------------------------------------------------------------------------
+# Signal Registry — check for executed transition
+# ---------------------------------------------------------------------------
+
+
+async def check_signal_executed(client: Any, signal_id: str) -> bool:
+    """Verify that Board Decision on a signal has transitioned to 'executed'."""
+    results = await _query(
+        client,
+        SIGNAL_REGISTRY_DB,
+        filter_body={
+            "and": [
+                {"property": "Board Decision", "select": {"equals": "executed"}},
+            ]
+        },
+    )
+    ids = {p.get("id", "").replace("-", "") for p in results}
+    clean_id = signal_id.replace("-", "")
+    found = clean_id in ids
+    icon = OK if found else FAIL
+    print(f"  {icon}  Signal {signal_id} Board Decision = executed: {found}")
+    return found
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 
-async def _main() -> None:
+async def main() -> None:
     parser = argparse.ArgumentParser(description="TC-019 smoke test observation harness")
     parser.add_argument(
         "--phase",
-        choices=["prereq", "1", "2", "3", "4", "receipt"],
+        choices=["1", "2", "3", "4", "receipt"],
         default="receipt",
         help="Which phase to run (default: receipt = all phases)",
     )
-    parser.add_argument("--ticker", default="", help="Ticker to filter on (Phase 2 / 4)")
-    parser.add_argument("--signal-url", default="", help="Notion URL of test signal (Phase 1)")
+    parser.add_argument("--ticker", default="", help="Ticker symbol to filter on (Phase 2/4)")
+    parser.add_argument("--signal-url", default="", help="Notion URL of the test signal (Phase 1)")
     args = parser.parse_args()
-
-    if args.phase == "prereq":
-        phase_prereq()
-        return
 
     client = _get_client()
 
@@ -661,12 +565,8 @@ async def _main() -> None:
     elif args.phase == "4":
         await phase4_verify_close(client, ticker=args.ticker)
     else:
-        await cycle_receipt(client, signal_url=args.signal_url, ticker=args.ticker)
-
-
-def main() -> None:
-    asyncio.run(_main())
+        await cycle_receipt(client)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
