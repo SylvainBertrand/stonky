@@ -99,11 +99,19 @@ stonky/
 │   └── app/
 │       ├── main.py          # FastAPI app factory + lifespan (scheduler start/stop)
 │       ├── config.py        # Pydantic settings
-│       ├── scheduler.py     # APScheduler jobs (nightly YOLO scan, data ingestion)
+│       ├── agents_common/   # Shared infra for TC agents (Notion client, Discord, pricing, scheduler)
 │       ├── analysis/        # Core TA pipeline (see below)
-│       ├── api/             # FastAPI routers: health, watchlist, scanner, patterns, stocks
+│       ├── api/             # FastAPI routers: health, watchlist, scanner, patterns, stocks,
+│       │                    #   backtests, forecasts, market, pipeline, synthesis,
+│       │                    #   paper-trader, portfolio-monitor
+│       ├── backtesting/     # Backtest engine: runner, strategies, parameter sweeps
 │       ├── ingestion/       # fetcher.py (yfinance), sa_import.py (SeekingAlpha xlsx)
+│       ├── llm/             # LLM provider abstraction (Ollama, Claude)
+│       ├── market/          # Market data: calendar, FRED, regime, sentiment, indicators
 │       ├── models/          # SQLAlchemy 2.0 models mirroring DB schema
+│       ├── paper_trader/    # Paper Trader service (engine, scheduler, Notion sync, Discord)
+│       ├── portfolio_monitor/ # Portfolio Monitor service (engine, runner, reports, andon)
+│       ├── scheduler/       # APScheduler job orchestration (OHLCV, pipeline, PT, PM)
 │       ├── schemas/         # Pydantic v2 request/response schemas
 │       ├── services/        # scoring.py (legacy; main scoring lives in analysis/)
 │       ├── tasks/           # Background task stubs
@@ -219,7 +227,6 @@ PostgreSQL 16 + TimescaleDB. Full DDL: `docs/V001__initial_schema.sql`.
 
 ## What NOT to Do
 
-- Don't implement backtesting or broad market analysis — P2/P3
 - Don't use Parabolic SAR, Williams %R, CCI, or PPO — explicitly excluded as redundant
 - Don't use Redux (Zustand) or Django (FastAPI) or InfluxDB (TimescaleDB)
 - Don't store SA rating data on `symbols` — it lives in `sa_ratings` with snapshot history
