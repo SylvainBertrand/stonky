@@ -235,7 +235,7 @@ async def write_signal_anomaly(*, description: str) -> dict[str, Any]:
         db_id=SIGNAL_REGISTRY_DB,
         properties={
             "Ticker": _title("HALT"),
-            "Agent": _text("portfolio-monitor"),
+            "Agent": _select("portfolio-monitor"),
             "Board Decision": _select("pending"),
             "Score": _number(10),
             "Date": _date(),
