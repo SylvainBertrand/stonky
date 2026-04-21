@@ -37,13 +37,13 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Database IDs (UUID part of collection:// URIs from the brief)
+# Database IDs (REST API database IDs — NOT collection:// URIs from briefs)
 # ---------------------------------------------------------------------------
 
-SIGNAL_REGISTRY_DB = "777fdeb7-8b1b-4d25-9f98-bee68e1a3c28"
-PAPER_PORTFOLIO_DB = "910c1cb0-65eb-4540-a0c3-7bdb20944939"
-TRADE_JOURNAL_DB = "d14fd908-48e4-475a-ab4e-f11bcc29fd0d"
-EXECUTION_LOG_DB = "b5adb864-bb3e-45a2-abfb-bd67e004c78d"
+SIGNAL_REGISTRY_DB = "d992894f-8b62-4afe-9fcb-ffbcc3b984c9"
+PAPER_PORTFOLIO_DB = "78bf3b6d-d969-4921-bdea-a4ba7291c721"
+TRADE_JOURNAL_DB = "f7179e76-8273-45aa-9f7b-65e0c730da3a"
+EXECUTION_LOG_DB = "f4a9540c-cd4b-4842-bd5d-a8b36c21a0d2"
 # TC-020: canonical watchlist — Notion is source of truth; Stonky DB is cache
 WATCHLIST_DB = "3458f2ec-9644-8167-af1f-ebdf5115c1ef"
 
@@ -51,7 +51,9 @@ WATCHLIST_DB = "3458f2ec-9644-8167-af1f-ebdf5115c1ef"
 def _get_client() -> AsyncClient:
     if not settings.notion_api_key:
         raise RuntimeError("NOTION_API_KEY is not configured.")
-    return AsyncClient(auth=settings.notion_api_key)
+    # Pin to 2022-06-28 — notion-client 2.7.0 defaults to 2025-09-03 which
+    # returns "Invalid request URL" for POST /databases/{id}/query.
+    return AsyncClient(auth=settings.notion_api_key, notion_version="2022-06-28")
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +192,7 @@ async def get_approved_signals() -> list[dict[str, Any]]:
         filter_body={
             "and": [
                 {"property": "Board Decision", "select": {"equals": "approved"}},
-                {"property": "Agent", "rich_text": {"does_not_equal": "paper-trader"}},
+                {"property": "Agent", "select": {"does_not_equal": "paper-trader"}},
                 {"property": "Date", "date": {"on_or_after": cutoff}},
             ]
         },
@@ -251,7 +253,7 @@ async def get_active_halt_signals() -> list[dict[str, Any]]:
         filter_body={
             "and": [
                 {"property": "Board Decision", "select": {"equals": "pending"}},
-                {"property": "Agent", "rich_text": {"equals": "portfolio-monitor"}},
+                {"property": "Agent", "select": {"equals": "portfolio-monitor"}},
             ]
         },
     )
@@ -287,7 +289,7 @@ def _parse_position(page: dict[str, Any]) -> dict[str, Any]:
         "entry_date": _read_date_start(page, "Entry Date"),
         "signal_id": _read_text(page, "Signal ID"),
         "thesis_id": _read_text(page, "Thesis ID"),
-        "originating_agent": _read_text(page, "Originating Agent"),
+        "originating_agent": _read_select(page, "Originating Agent"),
         "sector": _read_text(page, "Sector"),
         "industry": _read_text(page, "Industry"),
         "current_price": _read_number(page, "Current Price"),
@@ -321,7 +323,7 @@ async def create_portfolio_position(
             "Entry Date": _date(now),
             "Signal ID": _text(signal_id),
             "Thesis ID": _text(thesis_id),
-            "Originating Agent": _text("paper-trader"),
+            "Originating Agent": _select("paper-trader"),
             "Unrealized PnL": _number(0.0),
             "Current Price": _number(entry_price),
         },
@@ -375,7 +377,8 @@ async def create_trade_journal_open(
     page = await _create_page(
         db_id=TRADE_JOURNAL_DB,
         properties={
-            "Ticker": _title(ticker),
+            "Title": _title(f"{ticker} — open"),
+            "Ticker": _text(ticker),
             "Event": _select("position-open"),
             "Signal ID": _text(signal_id),
             "Entry Price": _number(entry_price),
@@ -407,7 +410,8 @@ async def create_trade_journal_close(
     page = await _create_page(
         db_id=TRADE_JOURNAL_DB,
         properties={
-            "Ticker": _title(ticker),
+            "Title": _title(f"{ticker} — close"),
+            "Ticker": _text(ticker),
             "Event": _select("position-close"),
             "Signal ID": _text(signal_id),
             "Exit Price": _number(exit_price),
@@ -458,6 +462,9 @@ async def write_execution_log(
             (None = not measured). Pass 0.0 explicitly for LLM-free runs.
     """
     errors_text = "; ".join(errors) if errors else ""
+    # Notion rich_text limit is 2000 characters
+    if len(errors_text) > 2000:
+        errors_text = errors_text[:1997] + "..."
 
     # Derive total_tokens from components if not explicitly supplied
     if total_tokens is None and input_tokens is not None and output_tokens is not None:
@@ -465,7 +472,7 @@ async def write_execution_log(
 
     properties: dict[str, Any] = {
         "Run ID": _title(run_id),
-        "Agent": _text(agent),
+        "Agent": _select(agent),
         "Timestamp": _date(datetime.now(UTC)),
         "Model": _text(model),
         "Status": _select(status),
