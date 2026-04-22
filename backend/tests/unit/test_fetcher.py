@@ -198,7 +198,7 @@ def test_batch_download_sync_multi_ticker(monkeypatch: pytest.MonkeyPatch) -> No
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ensure_symbols_creates_missing(db_session: "AsyncSession") -> None:
+async def test_ensure_symbols_creates_missing(db_session: AsyncSession) -> None:
     """ensure_symbols creates new Symbol records for unknown tickers."""
     from app.ingestion.fetcher import ensure_symbols
 
@@ -214,7 +214,7 @@ async def test_ensure_symbols_creates_missing(db_session: "AsyncSession") -> Non
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ensure_symbols_idempotent(db_session: "AsyncSession") -> None:
+async def test_ensure_symbols_idempotent(db_session: AsyncSession) -> None:
     """Calling ensure_symbols twice with overlapping tickers is safe."""
     from app.ingestion.fetcher import ensure_symbols
 
@@ -230,7 +230,7 @@ async def test_ensure_symbols_idempotent(db_session: "AsyncSession") -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ensure_symbols_normalizes_case(db_session: "AsyncSession") -> None:
+async def test_ensure_symbols_normalizes_case(db_session: AsyncSession) -> None:
     """Ticker case is normalized to uppercase."""
     from app.ingestion.fetcher import ensure_symbols
 
@@ -241,7 +241,7 @@ async def test_ensure_symbols_normalizes_case(db_session: "AsyncSession") -> Non
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_ensure_symbols_deduplicates_input(db_session: "AsyncSession") -> None:
+async def test_ensure_symbols_deduplicates_input(db_session: AsyncSession) -> None:
     """Duplicate tickers in input don't cause errors."""
     from app.ingestion.fetcher import ensure_symbols
 
