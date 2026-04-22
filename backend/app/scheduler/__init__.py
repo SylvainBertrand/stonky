@@ -19,28 +19,53 @@ logger = logging.getLogger(__name__)
 
 
 async def daily_ohlcv_refresh() -> None:
-    """Fetch incremental OHLCV for every active symbol across all watchlists."""
+    """Fetch incremental OHLCV for every active symbol that has stored data.
+
+    Covers watchlist symbols (core universe) plus any symbols hydrated via
+    prescore (screener tickers auto-registered by TC-SWE-105).  Only symbols
+    that already have at least one OHLCV bar are refreshed — this prevents
+    unbounded growth from stale/typo symbols.
+    """
     from sqlalchemy import select
 
     from app.db.session import AsyncSessionLocal
     from app.ingestion.fetcher import fetch_and_store
+    from app.models.ohlcv import OHLCV
     from app.models.symbols import Symbol
     from app.models.watchlists import WatchlistItem
 
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
+        # Core: watchlist tickers (always refreshed)
+        wl_result = await session.execute(
             select(Symbol.ticker)
             .join(WatchlistItem, WatchlistItem.symbol_id == Symbol.id)
             .where(Symbol.is_active.is_(True))
             .distinct()
         )
-        tickers = list(result.scalars().all())
+        watchlist_tickers = set(wl_result.scalars().all())
+
+        # Extended: non-watchlist symbols that have stored OHLCV data
+        # (hydrated via prescore — screener tickers)
+        hydrated_result = await session.execute(
+            select(Symbol.ticker)
+            .where(Symbol.is_active.is_(True))
+            .where(Symbol.id.in_(select(OHLCV.symbol_id).distinct()))
+            .distinct()
+        )
+        hydrated_tickers = set(hydrated_result.scalars().all())
+
+        tickers = sorted(watchlist_tickers | hydrated_tickers)
 
     if not tickers:
-        logger.info("daily_ohlcv_refresh: no active watchlist symbols, skipping")
+        logger.info("daily_ohlcv_refresh: no active symbols with data, skipping")
         return
 
-    logger.info("daily_ohlcv_refresh: refreshing %d tickers", len(tickers))
+    logger.info(
+        "daily_ohlcv_refresh: refreshing %d tickers (%d watchlist, %d extended)",
+        len(tickers),
+        len(watchlist_tickers),
+        len(hydrated_tickers - watchlist_tickers),
+    )
     async with AsyncSessionLocal() as session:
         results = await fetch_and_store(session, tickers, incremental=True)
         await session.commit()
@@ -51,13 +76,14 @@ async def daily_ohlcv_refresh() -> None:
         results["failed"],
     )
 
-    # Also fetch 1H intraday for all watchlist symbols
+    # Also fetch 1H intraday for watchlist symbols only (smaller set, more data)
     from app.models.enums import TimeframeEnum
 
-    logger.info("daily_ohlcv_refresh: fetching 1H intraday for %d tickers", len(tickers))
+    wl_list = sorted(watchlist_tickers)
+    logger.info("daily_ohlcv_refresh: fetching 1H intraday for %d watchlist tickers", len(wl_list))
     async with AsyncSessionLocal() as session:
         results_1h = await fetch_and_store(
-            session, tickers, timeframe=TimeframeEnum.H1, incremental=True
+            session, wl_list, timeframe=TimeframeEnum.H1, incremental=True
         )
         await session.commit()
     logger.info(

@@ -14,7 +14,6 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.analysis.pipeline import fetch_ohlcv_for_symbol, run_analysis_for_ticker
@@ -23,8 +22,8 @@ from app.api.ta_service import (
     build_scored_ticker,
 )
 from app.db.session import get_session
+from app.ingestion.fetcher import batch_backfill_ohlcv, ensure_symbols
 from app.models.enums import TimeframeEnum
-from app.models.symbols import Symbol
 from app.schemas.ta import (
     DedupStatus,
     FilteredTicker,
@@ -53,15 +52,27 @@ async def prescore(body: PrescoreRequest, db: SessionDep) -> PrescoreResponse:
     t0 = time.monotonic()
     scan_ts = datetime.now(UTC).isoformat()
 
-    # Resolve ticker symbols to (symbol_id, ticker) pairs
-    symbol_rows = (
-        (await db.execute(select(Symbol).where(Symbol.ticker.in_(body.tickers)))).scalars().all()
-    )
+    # Auto-create Symbol records for unknown tickers (concurrency-safe upsert).
+    # This ensures screener tickers not on the watchlist get registered.
+    symbol_map = await ensure_symbols(db, body.tickers)
+    await db.commit()
 
-    symbol_map: dict[str, int] = {s.ticker: s.id for s in symbol_rows}
-    missing = [t for t in body.tickers if t not in symbol_map]
-    if missing:
-        log.warning("Tickers not in DB (skipped): %s", missing)
+    # Batch-hydrate OHLCV for symbols that have never been fetched.
+    # Uses yf.download batch API to stay within caller timeout (~30s).
+    backfill_stats = await batch_backfill_ohlcv(
+        db, symbol_map, TimeframeEnum.D1, period="1y"
+    )
+    await db.commit()
+
+    if backfill_stats["hydrated"] > 0:
+        log.info(
+            "prescore: hydrated %d new tickers (%d failed, %d already cached)",
+            backfill_stats["hydrated"],
+            backfill_stats["failed"],
+            backfill_stats["skipped"],
+        )
+
+    missing = [t.upper() for t in body.tickers if t.upper() not in symbol_map]
 
     # Batch dedup query (single Notion call for all tickers)
     dedup_map = await batch_dedup_check(body.tickers, body.dedup_lookback_hours)
@@ -72,11 +83,12 @@ async def prescore(body: PrescoreRequest, db: SessionDep) -> PrescoreResponse:
     tickers_filtered_dedup = 0
 
     for ticker in body.tickers:
-        if ticker not in symbol_map:
+        upper_ticker = ticker.upper()
+        if upper_ticker not in symbol_map:
             filtered_out.append(FilteredTicker(ticker=ticker, reason="ticker not in Stonky DB"))
             continue
 
-        symbol_id = symbol_map[ticker]
+        symbol_id = symbol_map[upper_ticker]
 
         # Run analysis
         result = await run_analysis_for_ticker(symbol_id, ticker, db, TimeframeEnum.D1)

@@ -179,6 +179,161 @@ async def _latest_bar(
     return result.scalar_one_or_none()
 
 
+async def ensure_symbols(
+    session: AsyncSession,
+    tickers: list[str],
+) -> dict[str, int]:
+    """Bulk-create Symbol records for unknown tickers (concurrency-safe).
+
+    Uses INSERT ... ON CONFLICT DO NOTHING to handle concurrent calls.
+    Returns a mapping of uppercase ticker → symbol_id for ALL requested tickers
+    (both pre-existing and newly created).
+    """
+    upper_tickers = list({t.upper() for t in tickers})
+    if not upper_tickers:
+        return {}
+
+    # Find existing symbols
+    existing = (
+        await session.execute(
+            select(Symbol.ticker, Symbol.id).where(Symbol.ticker.in_(upper_tickers))
+        )
+    ).all()
+    existing_map = {row[0]: row[1] for row in existing}
+
+    missing = [t for t in upper_tickers if t not in existing_map]
+    if missing:
+        stmt = (
+            pg_insert(Symbol)
+            .values([{"ticker": t, "asset_type": "stock"} for t in missing])
+            .on_conflict_do_nothing(index_elements=["ticker"])
+        )
+        await session.execute(stmt)
+        await session.flush()
+
+        # Re-query to pick up IDs (includes rows created by concurrent callers)
+        new_rows = (
+            await session.execute(
+                select(Symbol.ticker, Symbol.id).where(Symbol.ticker.in_(missing))
+            )
+        ).all()
+        for row in new_rows:
+            existing_map[row[0]] = row[1]
+
+        logger.info("ensure_symbols: created %d new symbol(s)", len(missing))
+
+    return existing_map
+
+
+def _batch_download_sync(
+    tickers: list[str],
+    period: str,
+    interval: str,
+) -> dict[str, pd.DataFrame]:
+    """Blocking batch download via yf.download — run via run_in_executor.
+
+    Returns a dict of ticker → normalized DataFrame.
+    """
+    if not tickers:
+        return {}
+
+    raw = yf.download(
+        tickers,
+        period=period,
+        interval=interval,
+        group_by="ticker",
+        auto_adjust=True,
+        threads=True,
+        progress=False,
+    )
+
+    result: dict[str, pd.DataFrame] = {}
+
+    if len(tickers) == 1:
+        # yf.download returns a simple DataFrame for a single ticker
+        ticker = tickers[0]
+        df = _normalize_df(raw)
+        if not df.empty:
+            result[ticker] = df
+    else:
+        # Multi-ticker: columns are MultiIndex (ticker, field)
+        for ticker in tickers:
+            try:
+                ticker_df = raw[ticker].dropna(how="all")
+                df = _normalize_df(ticker_df)
+                if not df.empty:
+                    result[ticker] = df
+            except (KeyError, TypeError):
+                logger.warning("batch_download: no data for %s", ticker)
+
+    return result
+
+
+async def batch_backfill_ohlcv(
+    session: AsyncSession,
+    symbol_map: dict[str, int],
+    timeframe: TimeframeEnum = TimeframeEnum.D1,
+    period: str = "1y",
+) -> dict[str, Any]:
+    """Batch-fetch OHLCV for symbols that have no stored data.
+
+    Uses yf.download for efficient multi-ticker download.
+    Only fetches for symbols with zero existing bars (first-time hydration).
+
+    Returns {hydrated: int, failed: int, skipped: int}.
+    """
+    if not symbol_map:
+        return {"hydrated": 0, "failed": 0, "skipped": 0}
+
+    # Find which symbols already have OHLCV data
+    needs_hydration: list[str] = []
+    for ticker, symbol_id in symbol_map.items():
+        latest = await _latest_bar(session, symbol_id, timeframe)
+        if latest is None:
+            needs_hydration.append(ticker)
+
+    if not needs_hydration:
+        return {"hydrated": 0, "failed": 0, "skipped": len(symbol_map)}
+
+    logger.info(
+        "batch_backfill_ohlcv: hydrating %d/%d tickers (period=%s)",
+        len(needs_hydration),
+        len(symbol_map),
+        period,
+    )
+
+    # Batch download (runs in executor to avoid blocking the event loop)
+    interval = _YF_INTERVAL[timeframe]
+    loop = asyncio.get_event_loop()
+    fn = functools.partial(_batch_download_sync, needs_hydration, period, interval)
+    downloaded = await loop.run_in_executor(None, fn)
+
+    # Store results
+    hydrated = 0
+    failed = 0
+    for ticker in needs_hydration:
+        symbol_id = symbol_map[ticker]
+        df = downloaded.get(ticker)
+        if df is None or df.empty:
+            failed += 1
+            logger.warning("batch_backfill_ohlcv: no data for %s", ticker)
+            continue
+
+        try:
+            bars = await store_ohlcv(session, symbol_id, df, timeframe)
+            hydrated += 1
+            logger.info("batch_backfill_ohlcv: stored %d bars for %s", bars, ticker)
+        except Exception as exc:
+            failed += 1
+            logger.error("batch_backfill_ohlcv: store failed for %s: %s", ticker, exc)
+
+    return {
+        "hydrated": hydrated,
+        "failed": failed,
+        "skipped": len(symbol_map) - len(needs_hydration),
+    }
+
+
 async def fetch_and_store(
     session: AsyncSession,
     tickers: list[str],
