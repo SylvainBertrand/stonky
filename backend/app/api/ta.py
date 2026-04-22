@@ -59,9 +59,7 @@ async def prescore(body: PrescoreRequest, db: SessionDep) -> PrescoreResponse:
 
     # Batch-hydrate OHLCV for symbols that have never been fetched.
     # Uses yf.download batch API to stay within caller timeout (~30s).
-    backfill_stats = await batch_backfill_ohlcv(
-        db, symbol_map, TimeframeEnum.D1, period="1y"
-    )
+    backfill_stats = await batch_backfill_ohlcv(db, symbol_map, TimeframeEnum.D1, period="1y")
     await db.commit()
 
     if backfill_stats["hydrated"] > 0:
