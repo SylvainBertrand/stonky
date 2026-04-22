@@ -132,3 +132,119 @@ def test_d1_interval_is_1d() -> None:
 @pytest.mark.unit
 def test_d1_backfill_period_is_5y() -> None:
     assert _BACKFILL_PERIOD[TimeframeEnum.D1] == "5y"
+
+
+# ---------------------------------------------------------------------------
+# _batch_download_sync
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_batch_download_sync_empty_tickers() -> None:
+    from app.ingestion.fetcher import _batch_download_sync
+
+    result = _batch_download_sync([], "1y", "1d")
+    assert result == {}
+
+
+@pytest.mark.unit
+def test_batch_download_sync_single_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Single-ticker download returns a flat DataFrame (not MultiIndex)."""
+    from app.ingestion.fetcher import _batch_download_sync
+
+    raw = _make_raw_daily(10)
+    monkeypatch.setattr("app.ingestion.fetcher.yf.download", lambda *a, **kw: raw)
+
+    result = _batch_download_sync(["AAPL"], "1y", "1d")
+    assert "AAPL" in result
+    assert len(result["AAPL"]) == 10
+
+
+@pytest.mark.unit
+def test_batch_download_sync_multi_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Multi-ticker download returns a MultiIndex DataFrame."""
+    from app.ingestion.fetcher import _batch_download_sync
+
+    idx = pd.date_range("2024-01-01", periods=5, freq="D")
+    arrays = {
+        ("AAPL", "Open"): [100.0] * 5,
+        ("AAPL", "High"): [105.0] * 5,
+        ("AAPL", "Low"): [98.0] * 5,
+        ("AAPL", "Close"): [103.0] * 5,
+        ("AAPL", "Volume"): [1_000_000] * 5,
+        ("NVDA", "Open"): [200.0] * 5,
+        ("NVDA", "High"): [210.0] * 5,
+        ("NVDA", "Low"): [195.0] * 5,
+        ("NVDA", "Close"): [205.0] * 5,
+        ("NVDA", "Volume"): [2_000_000] * 5,
+    }
+    multi_df = pd.DataFrame(arrays, index=idx)
+    multi_df.index.name = "Date"
+    multi_df.columns = pd.MultiIndex.from_tuples(multi_df.columns)
+
+    monkeypatch.setattr("app.ingestion.fetcher.yf.download", lambda *a, **kw: multi_df)
+
+    result = _batch_download_sync(["AAPL", "NVDA"], "1y", "1d")
+    assert "AAPL" in result
+    assert "NVDA" in result
+    assert len(result["AAPL"]) == 5
+    assert len(result["NVDA"]) == 5
+
+
+# ---------------------------------------------------------------------------
+# ensure_symbols
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_ensure_symbols_creates_missing(db_session: AsyncSession) -> None:
+    """ensure_symbols creates new Symbol records for unknown tickers."""
+    from app.ingestion.fetcher import ensure_symbols
+
+    result = await ensure_symbols(db_session, ["AAPL", "NVDA", "TSLA"])
+    await db_session.commit()
+
+    assert len(result) == 3
+    assert "AAPL" in result
+    assert "NVDA" in result
+    assert "TSLA" in result
+    assert all(isinstance(v, int) for v in result.values())
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_ensure_symbols_idempotent(db_session: AsyncSession) -> None:
+    """Calling ensure_symbols twice with overlapping tickers is safe."""
+    from app.ingestion.fetcher import ensure_symbols
+
+    result1 = await ensure_symbols(db_session, ["AAPL", "NVDA"])
+    await db_session.flush()
+    result2 = await ensure_symbols(db_session, ["NVDA", "TSLA"])
+    await db_session.flush()
+
+    # NVDA should have the same ID in both calls
+    assert result1["NVDA"] == result2["NVDA"]
+    assert "TSLA" in result2
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_ensure_symbols_normalizes_case(db_session: AsyncSession) -> None:
+    """Ticker case is normalized to uppercase."""
+    from app.ingestion.fetcher import ensure_symbols
+
+    result = await ensure_symbols(db_session, ["aapl", "Nvda"])
+    assert "AAPL" in result
+    assert "NVDA" in result
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_ensure_symbols_deduplicates_input(db_session: AsyncSession) -> None:
+    """Duplicate tickers in input don't cause errors."""
+    from app.ingestion.fetcher import ensure_symbols
+
+    result = await ensure_symbols(db_session, ["AAPL", "aapl", "AAPL"])
+    assert len(result) == 1
+    assert "AAPL" in result
