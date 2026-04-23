@@ -23,6 +23,7 @@ import pytest
 from app.paper_trader.engine import (
     Direction,
     ExitReason,
+    cap_position_size,
     compute_pnl,
     compute_position_size,
     compute_r_multiple,
@@ -290,3 +291,48 @@ class TestComputeRMultiple:
         # stop == entry for long → risk_per_share=0
         r = compute_r_multiple(Direction.LONG, entry_price=100.0, exit_price=110.0, stop=100.0)
         assert r == pytest.approx(0.0, abs=1e-4)
+
+
+# ---------------------------------------------------------------------------
+# cap_position_size — cash-constrained sizing (TC-SWE-110)
+# ---------------------------------------------------------------------------
+
+
+class TestCapPositionSize:
+    def test_cash_limits_reduce_size(self) -> None:
+        """When cash can only buy fewer shares than risk model suggests, cap to cash."""
+        # risk_based_size=60 shares, but cash=$5000, entry=$100 → can only afford 50
+        result = cap_position_size(risk_based_size=60.0, cash_balance=5000.0, entry_price=100.0)
+        assert result == 50
+
+    def test_risk_size_smaller_than_cash_allows(self) -> None:
+        """When risk-based size already fits within cash, use risk-based size."""
+        # risk_based_size=30, cash=$30000, entry=$100 → cash allows 300, risk says 30
+        result = cap_position_size(risk_based_size=30.0, cash_balance=30000.0, entry_price=100.0)
+        assert result == 30
+
+    def test_insufficient_cash_returns_zero(self) -> None:
+        """When cash < entry_price (can't afford 1 share), return 0."""
+        result = cap_position_size(risk_based_size=60.0, cash_balance=50.0, entry_price=100.0)
+        assert result == 0
+
+    def test_exact_cash_for_one_share(self) -> None:
+        """When cash exactly equals entry_price, can afford exactly 1 share."""
+        result = cap_position_size(risk_based_size=60.0, cash_balance=100.0, entry_price=100.0)
+        assert result == 1
+
+    def test_zero_entry_price_returns_zero(self) -> None:
+        """Guard against division by zero with entry_price=0."""
+        result = cap_position_size(risk_based_size=60.0, cash_balance=5000.0, entry_price=0.0)
+        assert result == 0
+
+    def test_fractional_shares_floored(self) -> None:
+        """Cash allows 5.7 shares → floor to 5 (no fractional shares)."""
+        # cash=$570, entry=$100 → 5.7 → 5
+        result = cap_position_size(risk_based_size=60.0, cash_balance=570.0, entry_price=100.0)
+        assert result == 5
+
+    def test_returns_int_type(self) -> None:
+        """Return type must be int (whole shares only)."""
+        result = cap_position_size(risk_based_size=30.0, cash_balance=30000.0, entry_price=100.0)
+        assert isinstance(result, int)

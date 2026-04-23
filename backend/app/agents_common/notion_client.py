@@ -46,6 +46,8 @@ TRADE_JOURNAL_DB = "f7179e76-8273-45aa-9f7b-65e0c730da3a"
 EXECUTION_LOG_DB = "f4a9540c-cd4b-4842-bd5d-a8b36c21a0d2"
 # TC-020: canonical watchlist — Notion is source of truth; Stonky DB is cache
 WATCHLIST_DB = "3458f2ec-9644-8167-af1f-ebdf5115c1ef"
+# TC-SWE-110: portfolio-level state — single-row DB tracking cash/equity
+PORTFOLIO_STATE_DB = "34b8f2ec-9644-8133-a195-cafc8ff5a516"
 
 
 def _get_client() -> AsyncClient:
@@ -594,3 +596,69 @@ async def update_watchlist_last_scanned(
         properties={"Last Scanned": _date(scanned_at)},
     )
     logger.debug("update_watchlist_last_scanned: page=%s", notion_page_id)
+
+
+# ---------------------------------------------------------------------------
+# Portfolio State DB (TC-SWE-110)
+# Single-row database tracking portfolio-level financial state.
+# ---------------------------------------------------------------------------
+
+
+async def get_portfolio_state() -> dict[str, Any]:
+    """Read the single "current" row from Portfolio State DB.
+
+    Returns dict with keys: page_id, cash_balance, equity,
+    initial_capital, reserved_short_collateral, last_updated, notes.
+
+    Raises RuntimeError if the DB has no rows.
+    """
+    results = await _query_database(
+        db_id=PORTFOLIO_STATE_DB,
+        filter_body={"property": "Name", "title": {"equals": "current"}},
+    )
+    if not results:
+        raise RuntimeError("Portfolio State DB has no 'current' row")
+
+    page = results[0]
+    state = {
+        "page_id": page["id"],
+        "cash_balance": _read_number(page, "cash_balance"),
+        "equity": _read_number(page, "equity"),
+        "initial_capital": _read_number(page, "initial_capital"),
+        "reserved_short_collateral": _read_number(page, "reserved_short_collateral"),
+        "last_updated": _read_date_start(page, "last_updated"),
+        "notes": _read_text(page, "notes"),
+    }
+    logger.info(
+        "get_portfolio_state: cash=%.2f equity=%.2f",
+        state["cash_balance"],
+        state["equity"],
+    )
+    return state
+
+
+async def update_portfolio_state(
+    *,
+    page_id: str,
+    cash_balance: float,
+    equity: float,
+    reserved_short_collateral: float | None = None,
+    notes: str | None = None,
+) -> None:
+    """Update the portfolio-state row with new cash/equity values."""
+    properties: dict[str, Any] = {
+        "cash_balance": _number(cash_balance),
+        "equity": _number(equity),
+        "last_updated": _date(),
+    }
+    if reserved_short_collateral is not None:
+        properties["reserved_short_collateral"] = _number(reserved_short_collateral)
+    if notes is not None:
+        properties["notes"] = _text(notes)
+
+    await _update_page(page_id=page_id, properties=properties)
+    logger.info(
+        "update_portfolio_state: cash=%.2f equity=%.2f",
+        cash_balance,
+        equity,
+    )

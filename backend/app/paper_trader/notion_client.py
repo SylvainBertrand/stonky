@@ -17,6 +17,7 @@ from __future__ import annotations
 from app.agents_common.notion_client import (
     EXECUTION_LOG_DB,
     PAPER_PORTFOLIO_DB,
+    PORTFOLIO_STATE_DB,
     SIGNAL_REGISTRY_DB,
     TRADE_JOURNAL_DB,
     _create_page,
@@ -43,7 +44,9 @@ from app.agents_common.notion_client import (
     create_trade_journal_open,
     get_approved_signals,
     get_open_positions,
+    get_portfolio_state,
     mark_signal_executed,
+    update_portfolio_state,
 )
 from app.agents_common.notion_client import (
     write_execution_log as _write_execution_log,
@@ -79,6 +82,7 @@ async def write_execution_log(
 __all__ = [
     "EXECUTION_LOG_DB",
     "PAPER_PORTFOLIO_DB",
+    "PORTFOLIO_STATE_DB",
     "SIGNAL_REGISTRY_DB",
     "TRADE_JOURNAL_DB",
     "_create_page",
@@ -105,6 +109,8 @@ __all__ = [
     "create_trade_journal_open",
     "get_approved_signals",
     "get_open_positions",
+    "get_portfolio_state",
     "mark_signal_executed",
+    "update_portfolio_state",
     "write_execution_log",
 ]

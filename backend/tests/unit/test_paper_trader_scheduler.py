@@ -525,3 +525,355 @@ async def test_short_target_hit_pnl_is_positive() -> None:
     assert kwargs["exit_reason"] == "target-hit"
     assert kwargs["realized_pnl"] > 0  # win
     assert kwargs["r_multiple"] == pytest.approx(1.5, abs=1e-4)  # (100-85)/10
+
+
+# ---------------------------------------------------------------------------
+# TC-SWE-110 — Capital-constrained position sizing
+# ---------------------------------------------------------------------------
+
+
+def _make_portfolio_state(
+    cash_balance: float = 30_000.0,
+    equity: float = 30_000.0,
+    page_id: str = "state-page-001",
+) -> dict:
+    return {
+        "page_id": page_id,
+        "cash_balance": cash_balance,
+        "equity": equity,
+        "initial_capital": 30_000.0,
+        "reserved_short_collateral": 0.0,
+        "last_updated": "2026-04-23T12:00:00Z",
+        "notes": "",
+    }
+
+
+@pytest.mark.asyncio
+async def test_under_capitalized_trade_skipped() -> None:
+    """Trade skipped when cash_balance < entry_price (can't afford 1 share)."""
+    signal = _make_signal(ticker="AMZN", stop=180.0, target=230.0)
+    price = _price_quote(price=200.0)
+    # Only $150 cash — can't afford $200 entry
+    state = _make_portfolio_state(cash_balance=150.0, equity=150.0)
+
+    mock_create = AsyncMock()
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.update_portfolio_state",
+            mock_update_state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.write_execution_log", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.disc.send_run_summary", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 0
+    assert skipped == 1
+    mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cash_capped_sizing() -> None:
+    """Position size reduced to what cash allows, not risk-based full size."""
+    # risk model: $30k equity × 1% = $300 risk / ($100 - $95) = 60 shares
+    # but only $5000 cash → floor(5000/100) = 50 shares
+    signal = _make_signal(ticker="TSLA", stop=95.0, target=125.0)
+    price = _price_quote(price=100.0)
+    state = _make_portfolio_state(cash_balance=5000.0, equity=30_000.0)
+
+    mock_create = AsyncMock(return_value={"id": "pos-new", "url": "https://notion.so/pos-new"})
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 1
+    # Size should be 50 (cash-capped), not 60 (risk-based)
+    create_kwargs = mock_create.call_args.kwargs
+    assert create_kwargs["size"] == 50
+
+
+@pytest.mark.asyncio
+async def test_sequential_draw_down() -> None:
+    """Second signal sees reduced cash from first signal in same run."""
+    sig1 = _make_signal(ticker="AAPL", signal_id="sig-001", stop=95.0, target=125.0)
+    sig2 = _make_signal(ticker="MSFT", signal_id="sig-002", stop=95.0, target=125.0)
+    price = _price_quote(price=100.0)
+    # $10,000 cash: first trade buys 60 shares @ $100 = $6000; second has $4000 left → 40 shares
+    state = _make_portfolio_state(cash_balance=10_000.0, equity=30_000.0)
+
+    create_calls = []
+    mock_create = AsyncMock(
+        side_effect=lambda **kw: (
+            create_calls.append(kw),
+            {"id": f"pos-{len(create_calls)}", "url": f"https://notion.so/pos-{len(create_calls)}"},
+        )[1]
+    )
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[sig1, sig2],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 2
+    # First trade: risk says 60, cash($10k) says 100 → takes 60
+    assert create_calls[0]["size"] == 60
+    # Second trade: cash left = 10000 - (60*100) = 4000; risk says 60, cash says 40 → takes 40
+    assert create_calls[1]["size"] == 40
+
+
+@pytest.mark.asyncio
+async def test_idempotent_re_dispatch_same_signal() -> None:
+    """Same signal_id not opened twice (idempotency guard)."""
+    signal = _make_signal(ticker="NVDA", signal_id="sig-dup")
+    # Existing position already opened for this signal_id
+    existing = _make_position(ticker="NVDA")
+    existing["signal_id"] = "sig-dup"
+
+    state = _make_portfolio_state()
+    mock_create = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[existing],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.write_execution_log", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.disc.send_run_summary", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 0
+    assert skipped == 1
+    mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_short_signal_skipped() -> None:
+    """Short signals are skipped with logged note (TC-SWE-110 carve-out)."""
+    signal = _make_signal(ticker="SPY", direction="short", stop=110.0, target=80.0)
+    state = _make_portfolio_state()
+    mock_create = AsyncMock()
+    mock_price = AsyncMock(return_value=_price_quote(price=100.0))
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.write_execution_log", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.disc.send_run_summary", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.get_current_price", mock_price),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 0
+    assert skipped == 1
+    mock_create.assert_not_called()
+    # Price should NOT be fetched — short signals skipped before price lookup
+    mock_price.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_portfolio_state_updated_on_open() -> None:
+    """Cash debited and portfolio-state updated after position open."""
+    signal = _make_signal(ticker="META", stop=95.0, target=125.0)
+    price = _price_quote(price=100.0)
+    state = _make_portfolio_state(cash_balance=30_000.0, equity=30_000.0)
+
+    mock_create = AsyncMock(return_value={"id": "pos-1", "url": "https://notion.so/pos-1"})
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 1
+    # size = (30000 * 0.01) / (100-95) = 300/5 = 60 shares
+    # cash = 30000 - (60 * 100) = 24000
+    mock_update_state.assert_called()
+    update_kwargs = mock_update_state.call_args.kwargs
+    assert update_kwargs["cash_balance"] == pytest.approx(24_000.0, abs=1.0)
+
+
+@pytest.mark.asyncio
+async def test_portfolio_state_updated_on_close() -> None:
+    """Cash credited and portfolio-state updated after position close."""
+    position = _make_position(ticker="AAPL", entry_price=100.0, stop=90.0, target=125.0, size=30.0)
+    price = _price_quote(price=125.0)  # target hit
+    state = _make_portfolio_state(cash_balance=27_000.0, equity=30_000.0)
+
+    mock_close = AsyncMock()
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[position],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.close_portfolio_position", mock_close),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_close", mock_journal),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_close", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _sweep_exits
+
+        closed, _, errors = await _sweep_exits("run-test")
+
+    assert closed == 1
+    # Cash should be credited: 27000 + (30 * 125) = 30750
+    mock_update_state.assert_called()
+    update_kwargs = mock_update_state.call_args.kwargs
+    assert update_kwargs["cash_balance"] == pytest.approx(30_750.0, abs=1.0)
