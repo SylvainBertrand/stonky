@@ -28,6 +28,7 @@ from app.paper_trader import discord as disc
 from app.paper_trader import notion_client as nc
 from app.paper_trader.engine import (
     Direction,
+    cap_position_size,
     compute_pnl,
     compute_position_size,
     compute_r_multiple,
@@ -158,11 +159,22 @@ async def run_paper_trader() -> RunResult:
 async def _sweep_exits(run_id: str) -> tuple[int, str, list[str]]:
     """Fetch open positions and close any that have hit stop or target.
 
+    Reads portfolio state, credits cash on each close, and updates the
+    portfolio-state row in Notion.
+
     Returns (closed_count, last_notion_url, errors).
     """
     closed = 0
     last_url = ""
     errors: list[str] = []
+
+    try:
+        portfolio_state = await nc.get_portfolio_state()
+    except Exception as exc:
+        logger.warning("_sweep_exits: portfolio state unavailable: %s", exc)
+        portfolio_state = None
+
+    cash_balance = portfolio_state["cash_balance"] if portfolio_state else 0.0
 
     try:
         positions = await nc.get_open_positions()
@@ -230,6 +242,20 @@ async def _sweep_exits(run_id: str) -> tuple[int, str, list[str]]:
             errors.append(f"close_position_error: {ticker}: {exc}")
             continue
 
+        # Update portfolio state — credit cash from sale proceeds (long only)
+        if portfolio_state and direction == Direction.LONG:
+            cash_balance += size * exit_price
+            # Recompute equity (simplified: just add realized P&L)
+            equity = cash_balance + portfolio_state["reserved_short_collateral"]
+            try:
+                await nc.update_portfolio_state(
+                    page_id=portfolio_state["page_id"],
+                    cash_balance=round(cash_balance, 2),
+                    equity=round(equity, 2),
+                )
+            except Exception as exc:
+                errors.append(f"portfolio_state_update_error: {ticker}: {exc}")
+
         # Discord notification
         try:
             await disc.send_position_close(
@@ -263,6 +289,10 @@ async def _sweep_exits(run_id: str) -> tuple[int, str, list[str]]:
 async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
     """Process approved signals and open new positions.
 
+    Reads portfolio state for cash-constrained sizing (TC-SWE-110).
+    Processes signals sequentially — each signal sees the cash_balance
+    left by prior signals in the same run.
+
     Returns (opened_count, last_notion_url, errors, skipped_count).
     """
     opened = 0
@@ -284,6 +314,23 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
         return 0, "", errors, 0
 
     open_tickers = {p["ticker"].upper() for p in open_positions}
+    # TC-SWE-110: signal_id idempotency guard
+    open_signal_ids = {p.get("signal_id", "") for p in open_positions} - {""}
+
+    # TC-SWE-110: read portfolio state for cash-constrained sizing
+    try:
+        portfolio_state = await nc.get_portfolio_state()
+    except Exception as exc:
+        errors.append(f"get_portfolio_state failed: {exc}")
+        # Fall back to config if portfolio state unavailable
+        portfolio_state = None
+
+    if portfolio_state:
+        cash_balance = portfolio_state["cash_balance"]
+        equity = portfolio_state["equity"]
+    else:
+        cash_balance = settings.paper_trader_portfolio_value
+        equity = settings.paper_trader_portfolio_value
 
     for signal in signals:
         ticker = signal["ticker"].upper()
@@ -293,9 +340,29 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
         target = signal["target"]
         thesis_id = signal.get("thesis_id", "")
 
+        # TC-SWE-110: short signal carve-out — skip until short-side ticket lands
+        if direction == Direction.SHORT:
+            logger.info(
+                "_process_signals: skipping %s — short-side cash constraints "
+                "not yet implemented (TC-SWE-110)",
+                ticker,
+            )
+            skipped += 1
+            continue
+
         # Skip if already have an open position in this ticker (AC #4)
         if ticker in open_tickers:
             logger.info("_process_signals: skipping %s — already has open position", ticker)
+            skipped += 1
+            continue
+
+        # TC-SWE-110: signal_id idempotency — never open same signal twice
+        if signal_id in open_signal_ids:
+            logger.info(
+                "_process_signals: skipping %s — signal %s already has open position",
+                ticker,
+                signal_id,
+            )
             skipped += 1
             continue
 
@@ -330,24 +397,41 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
             skipped += 1
             continue
 
-        # Position sizing (AC #4)
-        size = compute_position_size(
-            portfolio_value=settings.paper_trader_portfolio_value,
+        # Position sizing — risk-based then cash-capped (TC-SWE-110)
+        risk_based_size = compute_position_size(
+            portfolio_value=equity,
             risk_pct=settings.paper_trader_risk_pct,
             entry=entry_price,
             stop=stop,
             direction=direction,
         )
-        if size <= 0:
+        if risk_based_size <= 0:
             logger.warning(
-                "_process_signals: skipping %s — computed size=%.4f (zero or negative)",
+                "_process_signals: skipping %s — computed risk_based_size=%.4f",
                 ticker,
-                size,
+                risk_based_size,
             )
             skipped += 1
             continue
 
-        risk_amount = settings.paper_trader_portfolio_value * settings.paper_trader_risk_pct
+        # TC-SWE-110: cap by available cash (no leverage for longs)
+        size = cap_position_size(
+            risk_based_size=risk_based_size,
+            cash_balance=cash_balance,
+            entry_price=entry_price,
+        )
+        if size < 1:
+            logger.info(
+                "_process_signals: skipping %s — insufficient cash (%.2f) "
+                "for entry @ %.2f",
+                ticker,
+                cash_balance,
+                entry_price,
+            )
+            skipped += 1
+            continue
+
+        risk_amount = equity * settings.paper_trader_risk_pct
 
         # Write to Notion
         try:
@@ -381,6 +465,18 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
             errors.append(f"open_position_error: {ticker}: {exc}")
             continue
 
+        # TC-SWE-110: debit cash and update portfolio state
+        cash_balance -= size * entry_price
+        if portfolio_state:
+            try:
+                await nc.update_portfolio_state(
+                    page_id=portfolio_state["page_id"],
+                    cash_balance=round(cash_balance, 2),
+                    equity=round(equity, 2),
+                )
+            except Exception as exc:
+                errors.append(f"portfolio_state_update_error: {ticker}: {exc}")
+
         # Discord notification
         try:
             await disc.send_position_open(
@@ -397,13 +493,15 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
             logger.warning("discord position_open failed for %s: %s", ticker, exc)
 
         open_tickers.add(ticker)
+        open_signal_ids.add(signal_id)
         opened += 1
         logger.info(
-            "_process_signals: opened %s @ %.4f size=%.2f rr=%.2f",
+            "_process_signals: opened %s @ %.4f size=%d rr=%.2f cash_remaining=%.2f",
             ticker,
             entry_price,
             size,
             rr_ratio,
+            cash_balance,
         )
 
     return opened, last_url, errors, skipped

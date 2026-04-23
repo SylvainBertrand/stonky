@@ -91,6 +91,27 @@ def compute_position_size(
     return max(0.0, size)
 
 
+def cap_position_size(
+    risk_based_size: float,
+    cash_balance: float,
+    entry_price: float,
+) -> int:
+    """Cap position size by available cash (no leverage for longs).
+
+    Returns the smaller of:
+      - risk_based_size (floored to int)
+      - floor(cash_balance / entry_price)
+
+    Returns 0 when entry_price <= 0 or cash cannot buy a single share.
+    """
+    if entry_price <= 0:
+        return 0
+    cash_allowed = int(cash_balance / entry_price)
+    if cash_allowed < 1:
+        return 0
+    return min(int(risk_based_size), cash_allowed)
+
+
 def evaluate_exit(
     current_price: float,
     entry_price: float,
