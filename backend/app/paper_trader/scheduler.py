@@ -422,8 +422,7 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
         )
         if size < 1:
             logger.info(
-                "_process_signals: skipping %s — insufficient cash (%.2f) "
-                "for entry @ %.2f",
+                "_process_signals: skipping %s — insufficient cash (%.2f) for entry @ %.2f",
                 ticker,
                 cash_balance,
                 entry_price,

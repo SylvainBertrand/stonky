@@ -606,12 +606,8 @@ async def test_cash_capped_sizing() -> None:
     price = _price_quote(price=100.0)
     state = _make_portfolio_state(cash_balance=5000.0, equity=30_000.0)
 
-    mock_create = AsyncMock(
-        return_value={"id": "pos-new", "url": "https://notion.so/pos-new"}
-    )
-    mock_journal = AsyncMock(
-        return_value={"id": "j1", "url": "https://notion.so/j1"}
-    )
+    mock_create = AsyncMock(return_value={"id": "pos-new", "url": "https://notion.so/pos-new"})
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
     mock_update_state = AsyncMock()
 
     with (
@@ -667,9 +663,7 @@ async def test_sequential_draw_down() -> None:
             {"id": f"pos-{len(create_calls)}", "url": f"https://notion.so/pos-{len(create_calls)}"},
         )[1]
     )
-    mock_journal = AsyncMock(
-        return_value={"id": "j1", "url": "https://notion.so/j1"}
-    )
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
     mock_update_state = AsyncMock()
 
     with (
@@ -799,12 +793,8 @@ async def test_portfolio_state_updated_on_open() -> None:
     price = _price_quote(price=100.0)
     state = _make_portfolio_state(cash_balance=30_000.0, equity=30_000.0)
 
-    mock_create = AsyncMock(
-        return_value={"id": "pos-1", "url": "https://notion.so/pos-1"}
-    )
-    mock_journal = AsyncMock(
-        return_value={"id": "j1", "url": "https://notion.so/j1"}
-    )
+    mock_create = AsyncMock(return_value={"id": "pos-1", "url": "https://notion.so/pos-1"})
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
     mock_update_state = AsyncMock()
 
     with (
@@ -849,16 +839,12 @@ async def test_portfolio_state_updated_on_open() -> None:
 @pytest.mark.asyncio
 async def test_portfolio_state_updated_on_close() -> None:
     """Cash credited and portfolio-state updated after position close."""
-    position = _make_position(
-        ticker="AAPL", entry_price=100.0, stop=90.0, target=125.0, size=30.0
-    )
+    position = _make_position(ticker="AAPL", entry_price=100.0, stop=90.0, target=125.0, size=30.0)
     price = _price_quote(price=125.0)  # target hit
     state = _make_portfolio_state(cash_balance=27_000.0, equity=30_000.0)
 
     mock_close = AsyncMock()
-    mock_journal = AsyncMock(
-        return_value={"id": "j1", "url": "https://notion.so/j1"}
-    )
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
     mock_update_state = AsyncMock()
 
     with (
