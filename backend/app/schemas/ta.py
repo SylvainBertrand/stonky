@@ -95,6 +95,23 @@ class PrescoreMetadata(BaseModel):
     tickers_above_threshold: int
     tickers_filtered_dedup: int
     stonky_pipeline_latency_ms: int
+    # TC-SWE-102: Diagnostic fields for screener-universe debugging
+    symbols_resolved: int = 0
+    filter_reasons: dict[str, int] = Field(default_factory=dict)
+    backfill_stats: dict[str, int] = Field(default_factory=dict)
+
+
+class HydrateRequest(BaseModel):
+    """Request body for the async pre-warm endpoint."""
+
+    tickers: list[str] = Field(..., min_length=1, max_length=200)
+
+
+class HydrateResponse(BaseModel):
+    """Immediate acknowledgement from the hydrate endpoint."""
+
+    status: str = "queued"
+    tickers_submitted: int
 
 
 class PrescoreResponse(BaseModel):

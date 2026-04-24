@@ -547,3 +547,106 @@ class TestBatchDedupCheck:
             result = await batch_dedup_check(["NVDA"], 24)
 
         assert result["NVDA"].filing_recommended is True
+
+
+# ---------------------------------------------------------------------------
+# Filter reason classification (TC-SWE-102)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestClassifyFilterReason:
+    def test_not_in_db(self) -> None:
+        from app.api.ta import _classify_filter_reason
+
+        assert _classify_filter_reason("ticker not in Stonky DB") == "not_in_db"
+
+    def test_insufficient_ohlcv(self) -> None:
+        from app.api.ta import _classify_filter_reason
+
+        assert _classify_filter_reason("insufficient OHLCV data") == "insufficient_ohlcv"
+
+    def test_ohlcv_fetch_failed(self) -> None:
+        from app.api.ta import _classify_filter_reason
+
+        assert _classify_filter_reason("OHLCV fetch failed") == "ohlcv_fetch_failed"
+
+    def test_below_threshold(self) -> None:
+        from app.api.ta import _classify_filter_reason
+
+        assert (
+            _classify_filter_reason("composite_score 3.2 below threshold 4.5") == "below_threshold"
+        )
+
+    def test_dedup(self) -> None:
+        from app.api.ta import _classify_filter_reason
+
+        assert _classify_filter_reason("dedup filtered") == "dedup"
+        assert _classify_filter_reason("dedup: delta 0.5 below 1.0") == "dedup"
+
+    def test_unknown_passes_through(self) -> None:
+        from app.api.ta import _classify_filter_reason
+
+        assert _classify_filter_reason("some other reason") == "some other reason"
+
+
+@pytest.mark.unit
+class TestPrescoreMetadataDiagnostics:
+    """Verify PrescoreMetadata includes TC-SWE-102 diagnostic fields."""
+
+    def test_filter_reasons_schema(self) -> None:
+        from app.schemas.ta import PrescoreMetadata
+
+        meta = PrescoreMetadata(
+            tickers_input=10,
+            tickers_scored=8,
+            tickers_above_threshold=3,
+            tickers_filtered_dedup=2,
+            stonky_pipeline_latency_ms=500,
+            symbols_resolved=10,
+            filter_reasons={"not_in_db": 0, "insufficient_ohlcv": 2, "below_threshold": 3},
+            backfill_stats={"hydrated": 5, "failed": 1, "skipped": 4},
+        )
+        assert meta.symbols_resolved == 10
+        assert meta.filter_reasons["insufficient_ohlcv"] == 2
+        assert meta.backfill_stats["hydrated"] == 5
+
+    def test_defaults_when_omitted(self) -> None:
+        from app.schemas.ta import PrescoreMetadata
+
+        meta = PrescoreMetadata(
+            tickers_input=5,
+            tickers_scored=5,
+            tickers_above_threshold=2,
+            tickers_filtered_dedup=0,
+            stonky_pipeline_latency_ms=100,
+        )
+        assert meta.symbols_resolved == 0
+        assert meta.filter_reasons == {}
+        assert meta.backfill_stats == {}
+
+
+@pytest.mark.unit
+class TestHydrateSchemas:
+    """Verify hydrate request/response schemas."""
+
+    def test_hydrate_request_valid(self) -> None:
+        from app.schemas.ta import HydrateRequest
+
+        req = HydrateRequest(tickers=["AAPL", "NVDA"])
+        assert len(req.tickers) == 2
+
+    def test_hydrate_request_rejects_empty(self) -> None:
+        from pydantic import ValidationError
+
+        from app.schemas.ta import HydrateRequest
+
+        with pytest.raises(ValidationError):
+            HydrateRequest(tickers=[])
+
+    def test_hydrate_response(self) -> None:
+        from app.schemas.ta import HydrateResponse
+
+        resp = HydrateResponse(tickers_submitted=10)
+        assert resp.status == "queued"
+        assert resp.tickers_submitted == 10
