@@ -746,12 +746,16 @@ async def test_idempotent_re_dispatch_same_signal() -> None:
 
 
 @pytest.mark.asyncio
-async def test_short_signal_skipped() -> None:
-    """Short signals are skipped with logged note (TC-SWE-110 carve-out)."""
+async def test_short_signal_opens_with_collateral() -> None:
+    """Short signal opens, debits cash, reserves collateral (TC-SWE-116)."""
     signal = _make_signal(ticker="SPY", direction="short", stop=110.0, target=80.0)
-    state = _make_portfolio_state()
-    mock_create = AsyncMock()
-    mock_price = AsyncMock(return_value=_price_quote(price=100.0))
+    price = _price_quote(price=100.0)
+    # $30k cash, $30k equity, 0 collateral
+    state = _make_portfolio_state(cash_balance=30_000.0, equity=30_000.0)
+
+    mock_create = AsyncMock(return_value={"id": "pos-short", "url": "https://notion.so/pos-short"})
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
+    mock_update_state = AsyncMock()
 
     with (
         patch(
@@ -765,25 +769,39 @@ async def test_short_signal_skipped() -> None:
             return_value=[],
         ),
         patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
             "app.paper_trader.scheduler.nc.get_portfolio_state",
             new_callable=AsyncMock,
             return_value=state,
         ),
         patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
-        patch("app.paper_trader.scheduler.nc.update_portfolio_state", new_callable=AsyncMock),
-        patch("app.paper_trader.scheduler.nc.write_execution_log", new_callable=AsyncMock),
-        patch("app.paper_trader.scheduler.disc.send_run_summary", new_callable=AsyncMock),
-        patch("app.paper_trader.scheduler.get_current_price", mock_price),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
     ):
         from app.paper_trader.scheduler import _process_signals
 
         opened, _, errors, skipped = await _process_signals("run-test")
 
-    assert opened == 0
-    assert skipped == 1
-    mock_create.assert_not_called()
-    # Price should NOT be fetched — short signals skipped before price lookup
-    mock_price.assert_not_called()
+    assert opened == 1
+    assert skipped == 0
+    # size = (30000 * 0.01) / (110-100) = 300/10 = 30 shares
+    create_kwargs = mock_create.call_args.kwargs
+    assert create_kwargs["size"] == 30
+    assert create_kwargs["direction"] == "short"
+
+    # Portfolio state: cash debited, collateral reserved
+    mock_update_state.assert_called()
+    update_kwargs = mock_update_state.call_args.kwargs
+    # cash = 30000 - (30 * 100) = 27000
+    assert update_kwargs["cash_balance"] == pytest.approx(27_000.0, abs=1.0)
+    # reserved_short_collateral = 0 + (30 * 100) = 3000
+    assert update_kwargs["reserved_short_collateral"] == pytest.approx(3_000.0, abs=1.0)
 
 
 @pytest.mark.asyncio
@@ -877,3 +895,229 @@ async def test_portfolio_state_updated_on_close() -> None:
     mock_update_state.assert_called()
     update_kwargs = mock_update_state.call_args.kwargs
     assert update_kwargs["cash_balance"] == pytest.approx(30_750.0, abs=1.0)
+
+
+# ---------------------------------------------------------------------------
+# TC-SWE-116 — Short-side capital-constrained sizing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_short_skip_insufficient_cash() -> None:
+    """Short signal skipped when cash_balance < size × entry_price."""
+    signal = _make_signal(ticker="SPY", direction="short", stop=110.0, target=80.0)
+    price = _price_quote(price=100.0)
+    # Only $50 cash — can't afford $100 entry × any shares
+    state = _make_portfolio_state(cash_balance=50.0, equity=50.0)
+
+    mock_create = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 0
+    assert skipped == 1
+    mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_short_close_profit_releases_collateral() -> None:
+    """Short close at profit: collateral released, cash credited with P&L."""
+    position = _make_position(
+        ticker="SPY",
+        entry_price=100.0,
+        stop=110.0,
+        target=85.0,
+        direction="short",
+        size=30.0,
+    )
+    price = _price_quote(price=85.0)  # target hit → profit
+    # Starting state: $27k cash (after reserving $3k), $3k collateral
+    state = _make_portfolio_state(cash_balance=27_000.0, equity=30_000.0)
+    state["reserved_short_collateral"] = 3_000.0
+
+    mock_close = AsyncMock()
+    mock_journal = AsyncMock(return_value={"id": "j5", "url": "https://notion.so/j5"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[position],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.close_portfolio_position", mock_close),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_close", mock_journal),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_close", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _sweep_exits
+
+        closed, _, errors = await _sweep_exits("run-short-close")
+
+    assert closed == 1
+    mock_update_state.assert_called()
+    update_kwargs = mock_update_state.call_args.kwargs
+    # reserved_amount = 30 * 100 = 3000
+    # realized_pnl = 30 * (100 - 85) = 450
+    # cash = 27000 + 3000 + 450 = 30450
+    assert update_kwargs["cash_balance"] == pytest.approx(30_450.0, abs=1.0)
+    # collateral = 3000 - 3000 = 0
+    assert update_kwargs["reserved_short_collateral"] == pytest.approx(0.0, abs=1.0)
+
+
+@pytest.mark.asyncio
+async def test_short_close_loss_releases_collateral() -> None:
+    """Short close at loss: collateral released, cash reduced by loss."""
+    position = _make_position(
+        ticker="SPY",
+        entry_price=100.0,
+        stop=110.0,
+        target=85.0,
+        direction="short",
+        size=30.0,
+    )
+    price = _price_quote(price=110.0)  # stop hit → loss
+    state = _make_portfolio_state(cash_balance=27_000.0, equity=30_000.0)
+    state["reserved_short_collateral"] = 3_000.0
+
+    mock_close = AsyncMock()
+    mock_journal = AsyncMock(return_value={"id": "j6", "url": "https://notion.so/j6"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[position],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.close_portfolio_position", mock_close),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_close", mock_journal),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_close", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _sweep_exits
+
+        closed, _, errors = await _sweep_exits("run-short-loss")
+
+    assert closed == 1
+    mock_update_state.assert_called()
+    update_kwargs = mock_update_state.call_args.kwargs
+    # reserved_amount = 30 * 100 = 3000
+    # realized_pnl = 30 * (100 - 110) = -300
+    # cash = 27000 + 3000 + (-300) = 29700
+    assert update_kwargs["cash_balance"] == pytest.approx(29_700.0, abs=1.0)
+    # collateral = 3000 - 3000 = 0
+    assert update_kwargs["reserved_short_collateral"] == pytest.approx(0.0, abs=1.0)
+
+
+@pytest.mark.asyncio
+async def test_sequential_short_opens_draw_down() -> None:
+    """Two short opens in one run: second sees reduced cash and increased collateral."""
+    sig1 = _make_signal(
+        ticker="SPY", signal_id="sig-s1", direction="short", stop=110.0, target=80.0
+    )
+    sig2 = _make_signal(
+        ticker="QQQ", signal_id="sig-s2", direction="short", stop=110.0, target=80.0
+    )
+    price = _price_quote(price=100.0)
+    state = _make_portfolio_state(cash_balance=10_000.0, equity=30_000.0)
+
+    create_calls = []
+    mock_create = AsyncMock(
+        side_effect=lambda **kw: (
+            create_calls.append(kw),
+            {"id": f"pos-{len(create_calls)}", "url": f"https://notion.so/pos-{len(create_calls)}"},
+        )[1]
+    )
+    mock_journal = AsyncMock(return_value={"id": "j1", "url": "https://notion.so/j1"})
+    update_state_calls = []
+    mock_update_state = AsyncMock(side_effect=lambda **kw: update_state_calls.append(kw))
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[sig1, sig2],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 2
+    # First short: risk = 300/10 = 30 shares, cash allows 100 → 30
+    # notional = 30 * 100 = 3000; cash left = 10000 - 3000 = 7000
+    assert create_calls[0]["size"] == 30
+    # Second short: risk still 30, cash(7000) allows 70 → 30
+    # notional = 30 * 100 = 3000; cash left = 7000 - 3000 = 4000
+    assert create_calls[1]["size"] == 30
+    # Final state update: cash = 4000, collateral = 6000
+    assert len(update_state_calls) == 2
+    assert update_state_calls[1]["cash_balance"] == pytest.approx(4_000.0, abs=1.0)
+    assert update_state_calls[1]["reserved_short_collateral"] == pytest.approx(6_000.0, abs=1.0)

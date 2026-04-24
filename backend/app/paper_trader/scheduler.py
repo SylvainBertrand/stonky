@@ -175,6 +175,10 @@ async def _sweep_exits(run_id: str) -> tuple[int, str, list[str]]:
         portfolio_state = None
 
     cash_balance = portfolio_state["cash_balance"] if portfolio_state else 0.0
+    equity = portfolio_state["equity"] if portfolio_state else 0.0
+    reserved_short_collateral = (
+        portfolio_state.get("reserved_short_collateral", 0.0) if portfolio_state else 0.0
+    )
 
     try:
         positions = await nc.get_open_positions()
@@ -242,16 +246,23 @@ async def _sweep_exits(run_id: str) -> tuple[int, str, list[str]]:
             errors.append(f"close_position_error: {ticker}: {exc}")
             continue
 
-        # Update portfolio state — credit cash from sale proceeds (long only)
-        if portfolio_state and direction == Direction.LONG:
-            cash_balance += size * exit_price
-            # Recompute equity (simplified: just add realized P&L)
-            equity = cash_balance + portfolio_state["reserved_short_collateral"]
+        # Update portfolio state — credit cash from close proceeds
+        if portfolio_state:
+            if direction == Direction.LONG:
+                cash_balance += size * exit_price
+            else:
+                # Short close: release collateral, credit/debit by realized P&L
+                collateral_amount = size * entry_price
+                reserved_short_collateral -= collateral_amount
+                cash_balance += collateral_amount + realized_pnl
+            # Equity tracks cash + collateral (open long market value not tracked)
+            equity += realized_pnl
             try:
                 await nc.update_portfolio_state(
                     page_id=portfolio_state["page_id"],
                     cash_balance=round(cash_balance, 2),
                     equity=round(equity, 2),
+                    reserved_short_collateral=round(reserved_short_collateral, 2),
                 )
             except Exception as exc:
                 errors.append(f"portfolio_state_update_error: {ticker}: {exc}")
@@ -328,9 +339,11 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
     if portfolio_state:
         cash_balance = portfolio_state["cash_balance"]
         equity = portfolio_state["equity"]
+        reserved_short_collateral = portfolio_state.get("reserved_short_collateral", 0.0)
     else:
         cash_balance = settings.paper_trader_portfolio_value
         equity = settings.paper_trader_portfolio_value
+        reserved_short_collateral = 0.0
 
     for signal in signals:
         ticker = signal["ticker"].upper()
@@ -340,11 +353,11 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
         target = signal["target"]
         thesis_id = signal.get("thesis_id", "")
 
-        # TC-SWE-110: short signal carve-out — skip until short-side ticket lands
-        if direction == Direction.SHORT:
+        # TC-SWE-116: short signals require portfolio_state for collateral tracking
+        if direction == Direction.SHORT and portfolio_state is None:
             logger.info(
-                "_process_signals: skipping %s — short-side cash constraints "
-                "not yet implemented (TC-SWE-110)",
+                "_process_signals: skipping short %s — portfolio state unavailable, "
+                "cannot track collateral",
                 ticker,
             )
             skipped += 1
@@ -464,14 +477,18 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
             errors.append(f"open_position_error: {ticker}: {exc}")
             continue
 
-        # TC-SWE-110: debit cash and update portfolio state
-        cash_balance -= size * entry_price
+        # TC-SWE-110/116: debit cash and update portfolio state
+        notional = size * entry_price
+        cash_balance -= notional
+        if direction == Direction.SHORT:
+            reserved_short_collateral += notional
         if portfolio_state:
             try:
                 await nc.update_portfolio_state(
                     page_id=portfolio_state["page_id"],
                     cash_balance=round(cash_balance, 2),
                     equity=round(equity, 2),
+                    reserved_short_collateral=round(reserved_short_collateral, 2),
                 )
             except Exception as exc:
                 errors.append(f"portfolio_state_update_error: {ticker}: {exc}")
