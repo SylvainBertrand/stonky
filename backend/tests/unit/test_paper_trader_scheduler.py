@@ -647,6 +647,67 @@ async def test_cash_capped_sizing() -> None:
     assert create_kwargs["size"] == 50
 
 
+# ── TC-SWE-142: mark_signal_executed failure handling ─────────────────
+
+
+@pytest.mark.asyncio
+async def test_mark_executed_failure_still_opens_position() -> None:
+    """If mark_signal_executed fails, position is still counted as opened."""
+    signal = _make_signal(ticker="AAPL", stop=95.0, target=125.0)
+    price = _price_quote(price=100.0)
+    state = _make_portfolio_state(cash_balance=30_000.0, equity=30_000.0)
+
+    mock_create = AsyncMock(
+        return_value={"id": "pos-new", "url": "https://notion.so/pos-new"}
+    )
+    mock_journal = AsyncMock(
+        return_value={"id": "j1", "url": "https://notion.so/j1"}
+    )
+    mock_mark = AsyncMock(side_effect=Exception("Notion API timeout"))
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", mock_mark),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    # Position should still be counted as opened
+    assert opened == 1
+    mock_create.assert_called_once()
+    mock_journal.assert_called_once()
+    # Cash should be debited (position was created)
+    mock_update_state.assert_called_once()
+    # Error should be recorded with specific prefix
+    assert any("mark_executed_error" in e for e in errors)
+    assert any("Notion API timeout" in e for e in errors)
+
+
 @pytest.mark.asyncio
 async def test_sequential_draw_down() -> None:
     """Second signal sees reduced cash from first signal in same run."""

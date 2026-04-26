@@ -471,11 +471,25 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
                 direction=direction.value,
                 portfolio_page_url=portfolio_entry["url"],
             )
-            await nc.mark_signal_executed(signal_id)
             last_url = journal_entry["url"]
         except Exception as exc:
             errors.append(f"open_position_error: {ticker}: {exc}")
             continue
+
+        # TC-SWE-142: mark signal executed in its own try-except — position
+        # and journal already persisted, so a failure here must not skip the
+        # cash debit or position tracking.
+        try:
+            await nc.mark_signal_executed(signal_id)
+        except Exception as exc:
+            errors.append(f"mark_executed_error: {ticker}: signal {signal_id}: {exc}")
+            logger.error(
+                "mark_signal_executed failed for %s (signal %s) — position "
+                "was created but Signal Registry not updated: %s",
+                ticker,
+                signal_id,
+                exc,
+            )
 
         # TC-SWE-110/116: debit cash and update portfolio state
         notional = size * entry_price
