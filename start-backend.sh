@@ -42,4 +42,4 @@ echo "Running ruff check..."
 uv run ruff check app/ --fix || true
 
 echo "Starting backend..."
-exec uv run uvicorn app.main:app --reload
+exec uv run uvicorn app.main:app --reload --port "${PORT:-8080}"

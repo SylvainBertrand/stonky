@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://stonky:changeme@localhost:5432/stonky"
 
     # FastAPI
+    port: int = 8080
     debug: bool = False
     cors_origins: list[str] = ["http://localhost:5173"]
 
