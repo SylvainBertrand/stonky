@@ -294,7 +294,7 @@ async def batch_dedup_check(
         _get_client,
         _page_url,
         _read_number,
-        _read_title,
+        _read_text,
     )
 
     cutoff = (datetime.now(UTC) - timedelta(hours=lookback_hours)).isoformat()
@@ -322,7 +322,7 @@ async def batch_dedup_check(
     # Index by ticker (keep most recent per ticker)
     by_ticker: dict[str, dict[str, Any]] = {}
     for page in existing_signals:
-        ticker = _read_title(page, "Ticker")
+        ticker = _read_text(page, "Ticker")
         if ticker and ticker not in by_ticker:
             by_ticker[ticker] = {
                 "url": _page_url(page),
