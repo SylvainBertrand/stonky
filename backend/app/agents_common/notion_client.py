@@ -149,17 +149,29 @@ async def _query_database(
     sorts: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     client = _get_client()
-    body: dict[str, Any] = {}
+    base_body: dict[str, Any] = {"page_size": 100}
     if filter_body:
-        body["filter"] = filter_body
+        base_body["filter"] = filter_body
     if sorts:
-        body["sorts"] = sorts
-    response = await client.request(
-        path=f"databases/{db_id}/query",
-        method="POST",
-        body=body,
-    )
-    return response.get("results", [])  # type: ignore[no-any-return]
+        base_body["sorts"] = sorts
+
+    all_results: list[dict[str, Any]] = []
+    cursor: str | None = None
+    while True:
+        body = dict(base_body)
+        if cursor:
+            body["start_cursor"] = cursor
+        response = await client.request(
+            path=f"databases/{db_id}/query",
+            method="POST",
+            body=body,
+        )
+        all_results.extend(response.get("results", []))
+        if not response.get("has_more"):
+            break
+        cursor = response["next_cursor"]
+
+    return all_results
 
 
 async def _create_page(db_id: str, properties: dict[str, Any]) -> dict[str, Any]:
