@@ -129,8 +129,10 @@ async def prescore(body: PrescoreRequest, db: SessionDep) -> PrescoreResponse:
         log.info(
             "prescore: refresh done in %dms — D1 %d/%d ok, H1 %d/%d ok",
             refresh_stats["refresh_ms"],
-            d1_result["fetched"], len(resolved_tickers),
-            h1_result["fetched"], len(resolved_tickers),
+            d1_result["fetched"],
+            len(resolved_tickers),
+            h1_result["fetched"],
+            len(resolved_tickers),
         )
 
     missing = [t.upper() for t in body.tickers if t.upper() not in symbol_map]
