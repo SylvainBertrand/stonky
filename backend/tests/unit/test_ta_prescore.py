@@ -388,6 +388,60 @@ class TestNotesGeneration:
         notes = generate_notes(df, {}, result, dedup)
         assert any("mark-superseded" in n for n in notes)
 
+    def test_weekend_gaps_not_flagged_as_gappy(self) -> None:
+        """D1 bars with normal weekend gaps (Fri→Mon) should NOT trigger gappy warning."""
+        import numpy as np
+        import pandas as pd
+
+        # Build 100 calendar-day D1 bars (includes weekends as gaps)
+        dates = pd.bdate_range("2025-01-02", periods=100)
+        rng = np.random.default_rng(42)
+        closes = np.cumsum(rng.normal(0, 1, 100)) + 100
+        df = pd.DataFrame(
+            {
+                "time": dates,
+                "open": closes + 0.5,
+                "high": closes + 1,
+                "low": closes - 1,
+                "close": closes,
+                "volume": rng.integers(1000, 10000, 100),
+            }
+        )
+        result = self._make_result()
+        dedup = DedupStatus()
+        notes = generate_notes(df, {}, result, dedup)
+        assert not any("Gappy" in n for n in notes), f"Weekend gaps should not be flagged: {notes}"
+
+    def test_real_missing_days_flagged_as_gappy(self) -> None:
+        """D1 bars with genuine missing trading days should trigger gappy warning."""
+        import numpy as np
+        import pandas as pd
+
+        # Build 100 business days, then remove ~10 random ones to create real gaps
+        dates = pd.bdate_range("2025-01-02", periods=110)
+        rng = np.random.default_rng(99)
+        # Remove 10 trading days from the middle (indices 10-100)
+        remove_indices = rng.choice(range(10, 100), size=10, replace=False)
+        keep_mask = np.ones(110, dtype=bool)
+        keep_mask[remove_indices] = False
+        dates = dates[keep_mask][:100]
+
+        closes = np.cumsum(rng.normal(0, 1, len(dates))) + 100
+        df = pd.DataFrame(
+            {
+                "time": dates,
+                "open": closes + 0.5,
+                "high": closes + 1,
+                "low": closes - 1,
+                "close": closes,
+                "volume": rng.integers(1000, 10000, len(dates)),
+            }
+        )
+        result = self._make_result()
+        dedup = DedupStatus()
+        notes = generate_notes(df, {}, result, dedup)
+        assert any("Gappy" in n for n in notes), f"Missing trading days should be flagged: {notes}"
+
 
 # ---------------------------------------------------------------------------
 # build_scored_ticker integration (with real pipeline)

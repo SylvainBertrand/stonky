@@ -12,6 +12,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from app.analysis.indicators.momentum import compute_macd, compute_rsi
@@ -417,8 +418,17 @@ def generate_notes(
             diffs = times.diff().dropna()
             if len(diffs) > 0:
                 median_diff = diffs.median()
-                # A gap is >2x the median interval
-                gap_count = int((diffs > median_diff * 2.5).sum())
+                if median_diff >= pd.Timedelta(hours=12):
+                    # Daily data: count gaps as missing business days
+                    dates = times.dt.date.values
+                    gap_count = 0
+                    for i in range(1, len(dates)):
+                        missing_bdays = int(np.busday_count(dates[i - 1], dates[i])) - 1
+                        if missing_bdays > 0:
+                            gap_count += 1
+                else:
+                    # Intraday data: use median-relative heuristic
+                    gap_count = int((diffs > median_diff * 2.5).sum())
                 if gap_count > 2:
                     notes.append(f"Gappy bars: {gap_count} gaps in last {len(recent)} bars")
 
