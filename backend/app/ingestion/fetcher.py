@@ -158,10 +158,10 @@ async def store_ohlcv(
 
     # Chunk to stay under PostgreSQL's 32,767 parameter limit.
     # Each row has 8 params → max ~4000 rows/batch; use 3000 for safety.
-    BATCH_SIZE = 3000
+    batch_size = 3000
     total_inserted = 0
-    for i in range(0, len(rows), BATCH_SIZE):
-        batch = rows[i : i + BATCH_SIZE]
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i : i + batch_size]
         stmt = (
             pg_insert(OHLCV)
             .values(batch)
