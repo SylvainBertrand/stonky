@@ -308,7 +308,7 @@ async def batch_dedup_check(
             body={
                 "filter": {
                     "and": [
-                        {"property": "Agent", "rich_text": {"equals": "technical-analyst"}},
+                        {"property": "Agent", "select": {"equals": "technical-analyst"}},
                         {"property": "Date", "date": {"on_or_after": cutoff}},
                     ]
                 },

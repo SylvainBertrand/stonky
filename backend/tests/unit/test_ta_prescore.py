@@ -602,6 +602,24 @@ class TestBatchDedupCheck:
 
         assert result["NVDA"].filing_recommended is True
 
+    @pytest.mark.asyncio
+    async def test_filter_uses_select_for_agent_property(self) -> None:
+        """TC-SWE-183: Agent property is type 'select' in Signal Registry, not rich_text."""
+        import app.agents_common.notion_client  # noqa: F401 — ensure module loaded for patch
+        from app.api.ta_service import batch_dedup_check
+
+        mock_client = AsyncMock()
+        mock_client.request = AsyncMock(return_value={"results": []})
+
+        with patch("app.agents_common.notion_client._get_client", return_value=mock_client):
+            await batch_dedup_check(["NVDA"], 24)
+
+        call_body = mock_client.request.call_args[1]["body"]
+        agent_filter = call_body["filter"]["and"][0]
+        assert agent_filter == {"property": "Agent", "select": {"equals": "technical-analyst"}}, (
+            f"Expected select filter for Agent, got: {agent_filter}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Filter reason classification (TC-SWE-102)
