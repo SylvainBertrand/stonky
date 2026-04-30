@@ -518,7 +518,7 @@ class TestBatchDedupCheck:
         mock_page = {
             "id": "abc-123",
             "properties": {
-                "Ticker": {"title": [{"plain_text": "NVDA"}]},
+                "Ticker": {"rich_text": [{"plain_text": "NVDA"}]},
                 "Score": {"number": 7.5},
                 "Agent": {"rich_text": [{"plain_text": "technical-analyst"}]},
                 "Date": {"date": {"start": "2026-04-20T14:00:00Z"}},
