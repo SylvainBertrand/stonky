@@ -19,6 +19,10 @@ class PrescoreRequest(BaseModel):
     tickers: list[str] = Field(..., min_length=1, max_length=100)
     score_threshold: float = Field(default=4.5, ge=0.0, le=10.0)
     dedup_lookback_hours: int = Field(default=24, ge=1, le=168)
+    refresh: bool = Field(
+        default=False,
+        description="Fetch fresh OHLCV bars (D1 + H1) for submitted tickers before scoring.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +103,8 @@ class PrescoreMetadata(BaseModel):
     symbols_resolved: int = 0
     filter_reasons: dict[str, int] = Field(default_factory=dict)
     backfill_stats: dict[str, int] = Field(default_factory=dict)
+    # TC-SWE-180: Intraday OHLCV refresh stats (only present when refresh=true)
+    refresh_stats: dict[str, int] = Field(default_factory=dict)
 
 
 class HydrateRequest(BaseModel):

@@ -24,7 +24,7 @@ from app.api.ta_service import (
     build_scored_ticker,
 )
 from app.db.session import AsyncSessionLocal, get_session
-from app.ingestion.fetcher import batch_backfill_ohlcv, ensure_symbols
+from app.ingestion.fetcher import batch_backfill_ohlcv, ensure_symbols, fetch_and_store
 from app.models.enums import TimeframeEnum
 from app.schemas.ta import (
     DedupStatus,
@@ -105,6 +105,35 @@ async def prescore(body: PrescoreRequest, db: SessionDep) -> PrescoreResponse:
         backfill_stats["failed"],
         backfill_stats["skipped"],
     )
+
+    # Incremental OHLCV refresh for submitted tickers (D1 + H1).
+    # Only runs when caller sets refresh=true. For ~20 Tier 2 survivors
+    # this adds ~10-15s but ensures the scorer sees intraday-fresh bars.
+    refresh_stats: dict[str, int] = {}
+    if body.refresh:
+        resolved_tickers = sorted(symbol_map.keys())
+        log.info("prescore: refreshing D1+H1 for %d tickers", len(resolved_tickers))
+        t_refresh = time.monotonic()
+
+        d1_result = await fetch_and_store(db, resolved_tickers, TimeframeEnum.D1, incremental=True)
+        h1_result = await fetch_and_store(db, resolved_tickers, TimeframeEnum.H1, incremental=True)
+        await db.commit()
+
+        refresh_stats = {
+            "d1_fetched": d1_result["fetched"],
+            "d1_failed": d1_result["failed"],
+            "h1_fetched": h1_result["fetched"],
+            "h1_failed": h1_result["failed"],
+            "refresh_ms": int((time.monotonic() - t_refresh) * 1000),
+        }
+        log.info(
+            "prescore: refresh done in %dms — D1 %d/%d ok, H1 %d/%d ok",
+            refresh_stats["refresh_ms"],
+            d1_result["fetched"],
+            len(resolved_tickers),
+            h1_result["fetched"],
+            len(resolved_tickers),
+        )
 
     missing = [t.upper() for t in body.tickers if t.upper() not in symbol_map]
 
@@ -209,6 +238,7 @@ async def prescore(body: PrescoreRequest, db: SessionDep) -> PrescoreResponse:
             symbols_resolved=len(symbol_map),
             filter_reasons=reason_counts,
             backfill_stats=backfill_stats,
+            refresh_stats=refresh_stats,
         ),
     )
 

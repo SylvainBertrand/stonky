@@ -156,14 +156,20 @@ async def store_ohlcv(
             }
         )
 
-    stmt = (
-        pg_insert(OHLCV)
-        .values(rows)
-        .on_conflict_do_nothing(index_elements=["time", "symbol_id", "timeframe"])
-    )
-    result = await session.execute(stmt)
-    # rowcount = rows actually inserted (0 for conflicts)
-    return result.rowcount if result.rowcount >= 0 else len(rows)  # type: ignore[attr-defined]  # CursorResult for DML has rowcount; stubs expose Result[Any]
+    # Chunk to stay under PostgreSQL's 32,767 parameter limit.
+    # Each row has 8 params → max ~4000 rows/batch; use 3000 for safety.
+    batch_size = 3000
+    total_inserted = 0
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i : i + batch_size]
+        stmt = (
+            pg_insert(OHLCV)
+            .values(batch)
+            .on_conflict_do_nothing(index_elements=["time", "symbol_id", "timeframe"])
+        )
+        result = await session.execute(stmt)
+        total_inserted += result.rowcount if result.rowcount >= 0 else len(batch)  # type: ignore[attr-defined]
+    return total_inserted
 
 
 async def _latest_bar(
