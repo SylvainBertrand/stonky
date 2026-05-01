@@ -14,11 +14,21 @@ References:
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException
 
+from app.config import settings
+from app.paper_trader import discord as disc
+from app.paper_trader import notion_client as nc
+from app.paper_trader.engine import (
+    Direction,
+    compute_position_size,
+    validate_rr,
+)
 from app.paper_trader.scheduler import run_paper_trader
 from app.paper_trader.schemas import RunResult, ThesisEntryRequest
+from app.services.price_service import TickerNotFoundError, get_current_price
 
 logger = logging.getLogger(__name__)
 
@@ -57,18 +67,7 @@ async def thesis_entry(body: ThesisEntryRequest) -> RunResult:
     This endpoint executes the same code paths as the scheduler run but treats
     the request body as a synthetic approved signal.
     """
-    from datetime import UTC, datetime
-
-    from app.config import settings
     from app.market.calendar_service import get_market_status
-    from app.paper_trader import discord as disc
-    from app.paper_trader import notion_client as nc
-    from app.paper_trader.engine import (
-        Direction,
-        compute_position_size,
-        validate_rr,
-    )
-    from app.services.price_service import TickerNotFoundError, get_current_price
 
     run_id = f"paper-trader-{datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}"
     errors: list[str] = []
@@ -185,6 +184,30 @@ async def thesis_entry(body: ThesisEntryRequest) -> RunResult:
     except Exception as exc:
         errors.append(str(exc))
         skipped = 1
+
+    # TC-SWE-196: debit cash after position creation (symmetric with _sweep_exits credit)
+    if opened:
+        try:
+            portfolio_state = await nc.get_portfolio_state()
+        except Exception as exc:
+            errors.append(f"portfolio_state_read_error: {exc}")
+            portfolio_state = None
+
+        if portfolio_state:
+            notional = size * entry_price
+            cash_balance = portfolio_state["cash_balance"] - notional
+            reserved_collateral = portfolio_state.get("reserved_short_collateral", 0.0)
+            if direction == Direction.SHORT:
+                reserved_collateral += notional
+            try:
+                await nc.update_portfolio_state(
+                    page_id=portfolio_state["page_id"],
+                    cash_balance=round(cash_balance, 2),
+                    equity=round(portfolio_state["equity"], 2),
+                    reserved_short_collateral=round(reserved_collateral, 2),
+                )
+            except Exception as exc:
+                errors.append(f"portfolio_state_update_error: {exc}")
 
     status = "success" if opened else "failed"
     await nc.write_execution_log(
