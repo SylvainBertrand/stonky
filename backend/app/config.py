@@ -52,6 +52,10 @@ class Settings(BaseSettings):
     paper_trader_portfolio_value: float = 30_000.0
     paper_trader_risk_pct: float = 0.01
     paper_trader_min_rr: float = 1.5
+    # Macro signal fallback: synthetic stop distance as fraction of entry (TC-SWE-194)
+    paper_trader_macro_stop_pct: float = 0.05
+    # Max drift (live vs signal entry) before a macro fallback is rejected
+    paper_trader_macro_max_drift_pct: float = 0.10
 
 
 settings = Settings()

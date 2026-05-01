@@ -231,6 +231,7 @@ def _parse_signal(page: dict[str, Any]) -> dict[str, Any]:
         "direction": _read_select(page, "Direction") or "long",
         "timeframe": _read_select(page, "Timeframe"),
         "thesis_id": _read_text(page, "Thesis ID"),
+        "signal_type": (_read_select(page, "Type") or "").lower(),
     }
 
 
