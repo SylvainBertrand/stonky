@@ -57,5 +57,8 @@ class Settings(BaseSettings):
     # Max drift (live vs signal entry) before a macro fallback is rejected
     paper_trader_macro_max_drift_pct: float = 0.10
 
+    # Portfolio Monitor — Notion parent page for run reports
+    portfolio_monitor_parent_page_id: str | None = None
+
 
 settings = Settings()
