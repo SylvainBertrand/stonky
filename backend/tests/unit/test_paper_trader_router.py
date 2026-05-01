@@ -74,8 +74,16 @@ async def test_thesis_debits_cash_on_long_open(_mock_calendar_service) -> None:
         patch(f"{_R}.validate_rr", return_value=(True, 2.0)),
         patch(f"{_R}.compute_position_size", return_value=50),
         patch(f"{_R}.nc.get_portfolio_state", new_callable=AsyncMock, return_value=state),
-        patch(f"{_R}.nc.create_portfolio_position", new_callable=AsyncMock, return_value={"id": "pos-1", "url": "https://notion.so/pos-1"}),
-        patch(f"{_R}.nc.create_trade_journal_open", new_callable=AsyncMock, return_value={"id": "j1", "url": "https://notion.so/j1"}),
+        patch(
+            f"{_R}.nc.create_portfolio_position",
+            new_callable=AsyncMock,
+            return_value={"id": "pos-1", "url": "https://notion.so/pos-1"},
+        ),
+        patch(
+            f"{_R}.nc.create_trade_journal_open",
+            new_callable=AsyncMock,
+            return_value={"id": "j1", "url": "https://notion.so/j1"},
+        ),
         patch(f"{_R}.nc.update_portfolio_state", mock_update_state),
         patch(f"{_R}.nc.write_execution_log", new_callable=AsyncMock),
         patch(f"{_R}.disc.send_position_open", new_callable=AsyncMock),
@@ -84,9 +92,14 @@ async def test_thesis_debits_cash_on_long_open(_mock_calendar_service) -> None:
         from app.paper_trader.router import thesis_entry
         from app.paper_trader.schemas import ThesisEntryRequest
 
-        result = await thesis_entry(ThesisEntryRequest(
-            ticker="AAPL", entry_price=100.0, stop=90.0, target=120.0,
-        ))
+        result = await thesis_entry(
+            ThesisEntryRequest(
+                ticker="AAPL",
+                entry_price=100.0,
+                stop=90.0,
+                target=120.0,
+            )
+        )
 
     assert result.positions_opened == 1
     mock_update_state.assert_called_once()
@@ -106,8 +119,16 @@ async def test_thesis_debits_cash_and_collateral_on_short_open(_mock_calendar_se
         patch(f"{_R}.validate_rr", return_value=(True, 2.0)),
         patch(f"{_R}.compute_position_size", return_value=30),
         patch(f"{_R}.nc.get_portfolio_state", new_callable=AsyncMock, return_value=state),
-        patch(f"{_R}.nc.create_portfolio_position", new_callable=AsyncMock, return_value={"id": "pos-2", "url": "https://notion.so/pos-2"}),
-        patch(f"{_R}.nc.create_trade_journal_open", new_callable=AsyncMock, return_value={"id": "j2", "url": "https://notion.so/j2"}),
+        patch(
+            f"{_R}.nc.create_portfolio_position",
+            new_callable=AsyncMock,
+            return_value={"id": "pos-2", "url": "https://notion.so/pos-2"},
+        ),
+        patch(
+            f"{_R}.nc.create_trade_journal_open",
+            new_callable=AsyncMock,
+            return_value={"id": "j2", "url": "https://notion.so/j2"},
+        ),
         patch(f"{_R}.nc.update_portfolio_state", mock_update_state),
         patch(f"{_R}.nc.write_execution_log", new_callable=AsyncMock),
         patch(f"{_R}.disc.send_position_open", new_callable=AsyncMock),
@@ -116,9 +137,15 @@ async def test_thesis_debits_cash_and_collateral_on_short_open(_mock_calendar_se
         from app.paper_trader.router import thesis_entry
         from app.paper_trader.schemas import ThesisEntryRequest
 
-        result = await thesis_entry(ThesisEntryRequest(
-            ticker="SPY", entry_price=100.0, stop=110.0, target=85.0, direction="short",
-        ))
+        result = await thesis_entry(
+            ThesisEntryRequest(
+                ticker="SPY",
+                entry_price=100.0,
+                stop=110.0,
+                target=85.0,
+                direction="short",
+            )
+        )
 
     assert result.positions_opened == 1
     mock_update_state.assert_called_once()
