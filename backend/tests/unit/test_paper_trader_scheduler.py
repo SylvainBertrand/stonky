@@ -37,6 +37,8 @@ def _make_signal(
     target: float = 125.0,
     direction: str = "long",
     score: float = 0.8,
+    signal_type: str = "",
+    entry_price: float = 100.0,
 ) -> dict:
     return {
         "id": signal_id,
@@ -46,11 +48,12 @@ def _make_signal(
         "agent": "signal-analyst",
         "date": "2026-04-12T10:00:00Z",
         "score": score,
-        "entry_price": 100.0,
+        "entry_price": entry_price,
         "stop": stop,
         "target": target,
         "direction": direction,
         "thesis_id": "",
+        "signal_type": signal_type,
     }
 
 
@@ -1183,3 +1186,212 @@ async def test_short_close_zero_collateral_no_phantom_cash() -> None:
     # With the guard: cash = 30000 + 0 + (-300) = 29700 (correct)
     assert update_kwargs["cash_balance"] == pytest.approx(29_700.0, abs=1.0)
     assert update_kwargs["reserved_short_collateral"] == pytest.approx(0.0, abs=1.0)
+
+
+# ---------------------------------------------------------------------------
+# TC-SWE-194: Macro signal fallback for structurally invalid stop
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_macro_signal_breached_stop_opens_with_synthetic_stop() -> None:
+    """Macro short signal where live price is above stop gets synthetic stop and opens."""
+    # DH filed QQQ short: entry=478, stop=500, target=433, type=macro
+    # Live price is 502 → stop < entry for short (500 < 502) → risk = -2 → R:R = 0.0
+    # With macro fallback: synthetic_stop = 502 * 1.05 = 527.10
+    # rr = (502 - 433) / (527.10 - 502) = 69 / 25.10 = 2.75 → passes
+    signal = _make_signal(
+        ticker="QQQ",
+        stop=500.0,
+        target=433.0,
+        direction="short",
+        signal_type="macro",
+        entry_price=478.0,
+    )
+    price = _price_quote(price=502.0)
+    state = _make_portfolio_state(cash_balance=30_000.0, equity=30_000.0)
+
+    mock_create = AsyncMock(return_value={"id": "pos-m1", "url": "https://notion.so/pos-m1"})
+    mock_journal = AsyncMock(return_value={"id": "j-m1", "url": "https://notion.so/j-m1"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 1
+    assert skipped == 0
+    # Verify synthetic stop was used (entry * 1.05 = 527.10)
+    create_kwargs = mock_create.call_args.kwargs
+    assert create_kwargs["stop"] == pytest.approx(527.10, abs=0.01)
+    assert create_kwargs["direction"] == "short"
+
+
+@pytest.mark.asyncio
+async def test_non_macro_signal_breached_stop_still_skipped() -> None:
+    """Non-macro signal with structurally invalid stop is still skipped (no fallback)."""
+    signal = _make_signal(
+        ticker="QQQ",
+        stop=500.0,
+        target=433.0,
+        direction="short",
+        signal_type="",  # not macro
+        entry_price=478.0,
+    )
+    price = _price_quote(price=502.0)
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.create_portfolio_position",
+            new_callable=AsyncMock,
+        ) as mock_create,
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 0
+    assert skipped == 1
+    mock_create.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_macro_signal_valid_rr_not_adjusted() -> None:
+    """Macro signal with valid R:R doesn't trigger fallback — uses original stop/target."""
+    # Short with valid geometry: stop=510, target=433, live=502
+    # risk = 510 - 502 = 8, reward = 502 - 433 = 69, rr = 8.625 → passes
+    signal = _make_signal(
+        ticker="QQQ",
+        stop=510.0,
+        target=433.0,
+        direction="short",
+        signal_type="macro",
+        entry_price=478.0,
+    )
+    price = _price_quote(price=502.0)
+    state = _make_portfolio_state(cash_balance=30_000.0, equity=30_000.0)
+
+    mock_create = AsyncMock(return_value={"id": "pos-m2", "url": "https://notion.so/pos-m2"})
+    mock_journal = AsyncMock(return_value={"id": "j-m2", "url": "https://notion.so/j-m2"})
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.create_portfolio_position", mock_create),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_open", mock_journal),
+        patch("app.paper_trader.scheduler.nc.mark_signal_executed", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", new_callable=AsyncMock),
+        patch("app.paper_trader.scheduler.disc.send_position_open", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 1
+    # Original stop preserved, not synthetic
+    create_kwargs = mock_create.call_args.kwargs
+    assert create_kwargs["stop"] == 510.0
+
+
+@pytest.mark.asyncio
+async def test_macro_signal_excessive_drift_skipped() -> None:
+    """Macro signal where live price drifted >10% from signal entry is skipped."""
+    # Signal entry was $478, live price is $530 → drift = (530-478)/478 = 10.9% > 10%
+    signal = _make_signal(
+        ticker="QQQ",
+        stop=500.0,
+        target=433.0,
+        direction="short",
+        signal_type="macro",
+        entry_price=478.0,
+    )
+    price = _price_quote(price=530.0)
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_approved_signals",
+            new_callable=AsyncMock,
+            return_value=[signal],
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.create_portfolio_position",
+            new_callable=AsyncMock,
+        ) as mock_create,
+    ):
+        from app.paper_trader.scheduler import _process_signals
+
+        opened, _, errors, skipped = await _process_signals("run-test")
+
+    assert opened == 0
+    assert skipped == 1
+    mock_create.assert_not_called()

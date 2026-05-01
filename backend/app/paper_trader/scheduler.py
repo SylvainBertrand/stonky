@@ -364,6 +364,7 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
         stop = signal["stop"]
         target = signal["target"]
         thesis_id = signal.get("thesis_id", "")
+        signal_type = signal.get("signal_type", "")
 
         # TC-SWE-116: short signals require portfolio_state for collateral tracking
         if direction == Direction.SHORT and portfolio_state is None:
@@ -412,6 +413,46 @@ async def _process_signals(run_id: str) -> tuple[int, str, list[str], int]:
             direction=direction,
             min_rr=settings.paper_trader_min_rr,
         )
+
+        # TC-SWE-194: macro signal fallback for structurally invalid stop
+        if not passes_rr and signal_type == "macro":
+            signal_entry = signal.get("entry_price", 0.0) or 0.0
+            drift = abs(entry_price - signal_entry) / signal_entry if signal_entry else 1.0
+            if drift > settings.paper_trader_macro_max_drift_pct:
+                logger.info(
+                    "_process_signals: skipping macro %s — price drifted %.1f%% "
+                    "from signal entry (max %.0f%%)",
+                    ticker,
+                    drift * 100,
+                    settings.paper_trader_macro_max_drift_pct * 100,
+                )
+                skipped += 1
+                continue
+
+            # Apply synthetic stop at entry ± macro_stop_pct
+            pct = settings.paper_trader_macro_stop_pct
+            if direction == Direction.LONG:
+                stop = round(entry_price * (1 - pct), 2)
+            else:
+                stop = round(entry_price * (1 + pct), 2)
+
+            passes_rr, rr_ratio = validate_rr(
+                entry=entry_price,
+                stop=stop,
+                target=target,
+                direction=direction,
+                min_rr=settings.paper_trader_min_rr,
+            )
+            if passes_rr:
+                logger.warning(
+                    "_process_signals: macro fallback for %s — synthetic stop %.2f "
+                    "(original %.2f), R:R now %.2f",
+                    ticker,
+                    stop,
+                    signal["stop"],
+                    rr_ratio,
+                )
+
         if not passes_rr:
             logger.info(
                 "_process_signals: skipping %s — R:R %.2f below minimum %.2f",
