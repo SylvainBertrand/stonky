@@ -252,9 +252,21 @@ async def _sweep_exits(run_id: str) -> tuple[int, str, list[str]]:
                 cash_balance += size * exit_price
             else:
                 # Short close: release collateral, credit/debit by realized P&L
+                # TC-SWE-197: cap release at current reserved amount to prevent
+                # phantom cash when collateral was cleared (e.g. by portfolio reset)
                 collateral_amount = size * entry_price
-                reserved_short_collateral -= collateral_amount
-                cash_balance += collateral_amount + realized_pnl
+                actual_release = min(collateral_amount, max(0.0, reserved_short_collateral))
+                if actual_release < collateral_amount:
+                    logger.warning(
+                        "ACCOUNTING: %s collateral release capped: expected %.2f, "
+                        "available %.2f (reserved_short_collateral=%.2f)",
+                        ticker,
+                        collateral_amount,
+                        actual_release,
+                        reserved_short_collateral,
+                    )
+                reserved_short_collateral -= actual_release
+                cash_balance += actual_release + realized_pnl
             # Equity tracks cash + collateral (open long market value not tracked)
             equity += realized_pnl
             try:

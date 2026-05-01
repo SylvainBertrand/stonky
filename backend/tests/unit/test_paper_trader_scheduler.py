@@ -1121,3 +1121,65 @@ async def test_sequential_short_opens_draw_down() -> None:
     assert len(update_state_calls) == 2
     assert update_state_calls[1]["cash_balance"] == pytest.approx(4_000.0, abs=1.0)
     assert update_state_calls[1]["reserved_short_collateral"] == pytest.approx(6_000.0, abs=1.0)
+
+
+@pytest.mark.asyncio
+async def test_short_close_zero_collateral_no_phantom_cash() -> None:
+    """TC-SWE-197: Closing a short when reserved_short_collateral=0 must not create phantom cash.
+
+    When collateral was cleared (e.g. by a portfolio reset) but the position still
+    shows as open, _sweep_exits should cap the collateral release at 0 instead of
+    driving reserved_short_collateral negative and inflating cash.
+    """
+    position = _make_position(
+        ticker="SPY",
+        entry_price=100.0,
+        stop=110.0,
+        target=85.0,
+        direction="short",
+        size=30.0,
+    )
+    price = _price_quote(price=110.0)  # stop hit → loss
+    state = _make_portfolio_state(cash_balance=30_000.0, equity=30_000.0)
+    state["reserved_short_collateral"] = 0.0  # collateral already cleared by reset
+
+    mock_close = AsyncMock()
+    mock_journal = AsyncMock(return_value={"id": "j7", "url": "https://notion.so/j7"})
+    mock_update_state = AsyncMock()
+
+    with (
+        patch(
+            "app.paper_trader.scheduler.nc.get_open_positions",
+            new_callable=AsyncMock,
+            return_value=[position],
+        ),
+        patch(
+            "app.paper_trader.scheduler.get_current_price",
+            new_callable=AsyncMock,
+            return_value=price,
+        ),
+        patch(
+            "app.paper_trader.scheduler.nc.get_portfolio_state",
+            new_callable=AsyncMock,
+            return_value=state,
+        ),
+        patch("app.paper_trader.scheduler.nc.close_portfolio_position", mock_close),
+        patch("app.paper_trader.scheduler.nc.create_trade_journal_close", mock_journal),
+        patch("app.paper_trader.scheduler.nc.update_portfolio_state", mock_update_state),
+        patch("app.paper_trader.scheduler.disc.send_position_close", new_callable=AsyncMock),
+    ):
+        from app.paper_trader.scheduler import _sweep_exits
+
+        closed, _, errors = await _sweep_exits("run-collateral-guard")
+
+    assert closed == 1
+    mock_update_state.assert_called()
+    update_kwargs = mock_update_state.call_args.kwargs
+    # Collateral was 0 — must NOT go negative
+    assert update_kwargs["reserved_short_collateral"] >= 0.0
+    # Cash should reflect only realized PnL (loss), not phantom collateral release
+    # realized_pnl = 30 * (100 - 110) = -300
+    # Without the guard: cash = 30000 + 3000 + (-300) = 32700 (phantom!)
+    # With the guard: cash = 30000 + 0 + (-300) = 29700 (correct)
+    assert update_kwargs["cash_balance"] == pytest.approx(29_700.0, abs=1.0)
+    assert update_kwargs["reserved_short_collateral"] == pytest.approx(0.0, abs=1.0)
